@@ -1,0 +1,21 @@
+Start (s),End (s),Scientific name,Common name,Confidence,File
+0.0,3.0,Poecile atricapillus,Black-capped Chickadee,0.8141,data/samples/soundscape.wav
+3.0,6.0,Poecile atricapillus,Black-capped Chickadee,0.3083,data/samples/soundscape.wav
+9.0,12.0,Haemorhous mexicanus,House Finch,0.6394,data/samples/soundscape.wav
+27.0,30.0,Falco columbarius,Merlin,0.2657,data/samples/soundscape.wav
+33.0,36.0,Junco hyemalis,Dark-eyed Junco,0.4591,data/samples/soundscape.wav
+36.0,39.0,Junco hyemalis,Dark-eyed Junco,0.3537,data/samples/soundscape.wav
+39.0,42.0,Haemorhous mexicanus,House Finch,0.2533,data/samples/soundscape.wav
+42.0,45.0,Junco hyemalis,Dark-eyed Junco,0.7375,data/samples/soundscape.wav
+51.0,54.0,Haemorhous mexicanus,House Finch,0.2564,data/samples/soundscape.wav
+54.0,57.0,Haemorhous mexicanus,House Finch,0.6071,data/samples/soundscape.wav
+60.0,63.0,Junco hyemalis,Dark-eyed Junco,0.5550,data/samples/soundscape.wav
+69.0,72.0,Haemorhous mexicanus,House Finch,0.2915,data/samples/soundscape.wav
+72.0,75.0,Haemorhous mexicanus,House Finch,0.5638,data/samples/soundscape.wav
+78.0,81.0,Haemorhous mexicanus,House Finch,0.2561,data/samples/soundscape.wav
+84.0,87.0,Haemorhous mexicanus,House Finch,0.2801,data/samples/soundscape.wav
+90.0,93.0,Spinus tristis,American Goldfinch,0.4190,data/samples/soundscape.wav
+93.0,96.0,Haemorhous mexicanus,House Finch,0.3168,data/samples/soundscape.wav
+96.0,99.0,Spinus tristis,American Goldfinch,0.4765,data/samples/soundscape.wav
+102.0,105.0,Haemorhous mexicanus,House Finch,0.4459,data/samples/soundscape.wav
+117.0,120.0,Spinus tristis,American Goldfinch,0.3924,data/samples/soundscape.wav
