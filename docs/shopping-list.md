@@ -173,4 +173,3 @@ Hold off until the bench numbers are in; sizes may change.
 
 - Raspberry Pi Pico 2 W
 - nRF52840 USB dongle
-- Two 4.8 V / 50 mA solar cells (later, summer-only power tests)

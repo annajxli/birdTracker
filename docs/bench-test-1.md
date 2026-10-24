@@ -56,14 +56,14 @@ ends up on the Pico, its real firmware will be written with the Pico SDK
 | VDD | 3V3 | 3V3(OUT), pin 36 |
 | GND | GND | GND |
 | L/R | GND (left channel) | GND |
-| SCK | GPIO 26 | GP16 |
-| WS | GPIO 25 | GP17 (must be SCK + 1) |
-| SD | GPIO 34 | GP18 |
-| marker: recording | GPIO 14 | GP14 |
-| marker: uploading | GPIO 13 | GP15 |
+| SCK | D3 (GPIO 26) | GP16 |
+| WS | D2 (GPIO 25) | GP17 (must be SCK + 1) |
+| SD | A2 (GPIO 34) | GP18 |
+| marker: recording | D6 (GPIO 14) | GP14 |
+| marker: uploading | D7 (GPIO 13) | GP15 |
 
-The pin numbers are GPIO numbers, not the board's D/A labels; check the
-board's pinout card. Any free GPIO works on the FireBeetle (change the
+FireBeetle pins show the board's silkscreen label (D3) with the GPIO number the
+sketch's `PIN_` constants use. Any free GPIO works on the FireBeetle (change the
 `PIN_` constants); on the Pico, WS must be the pin after SCK. Marker pins are
 optional today; they're for the scope and, later, the PPK2. Keep mic wires
 short (under ~15 cm).
@@ -96,7 +96,7 @@ Do T1–T4 on each board.
 | T2 | Mic alive, sensible level | `l`, then clap, whistle, stay quiet | RMS jumps 20+ dB with sound; quiet room roughly −70 to −50 dBFS; no "CLIPPED" on a clap at arm's length. Silence or a constant value: check wiring (L/R to GND, WS on the right pin) |
 | T3 | Record + upload | `r` | "recorded … in ~10 s", "HTTP 201"; the file appears in `data/incoming/`; it plays back cleanly in Audacity (no clicks, right speed) |
 | T4 | Throughput | Note the upload kbit/s from T3, at the bench and (if you can) carried near the planned mount spot | Bench: well over 1,000 kbit/s. Note the RSSI too |
-| T5 | BirdNET on the files | Play the same bird recording from the phone at ~1 m for each board, `r`, then run `analyzer.py --once` | Same species found on each board as on a phone recording of the same playback; compare confidences |
+| T5 | BirdNET on the files | Play the same bird recording from the phone at ~1 m for each board, `r`, then run `analyzer.py --once` | Same species found on each board as on a phone recording of the same playback. Don't compare confidences across boards: hand-held playback can't match volume and position; that needs both boards recording one sound side by side |
 
 Things to watch for:
 - **Recording takes much longer than 10 s:** the flash can't keep up with
@@ -112,12 +112,12 @@ Fill in as you go.
 
 | | FireBeetle 2 ESP32-E | Pico 2 W |
 | --- | --- | --- |
-| T1 wifi join time, RSSI | | |
-| T2 quiet / clap RMS (dBFS) | | |
-| T3 record time for 10 s, upload HTTP code | | |
-| T4 upload kbit/s (bench / near mount) | | |
-| T5 BirdNET species + confidence vs phone | | |
-| Problems / notes | | |
+| T1 wifi join time, RSSI | 1.8 s, −55 dBm; NTP missed its 15 s window at boot but set later | 5.8–14 s, −50 to −60 dBm; NTP also sometimes misses the boot window |
+| T2 quiet / clap RMS (dBFS) | −55 to −64 / −15.6 (peak 20,689 of 32,767, no clip) | −55 to −65 / −14.6 (peak 12,421, no clip) |
+| T3 record time for 10 s, upload HTTP code | 9.99 s, HTTP 201; 32 kHz mono, no sample jumps found | 10 s to flash **hangs the board** (any flash write while I²S streams); recording 5 s to RAM, then saving with the mic stopped: 5.00 s, HTTP 201. 3 isolated full-scale samples in one file |
+| T4 upload kbit/s (bench / near mount) | 2,187 / not yet | 831 / not yet (arduino-pico's HTTPClient failed mid-file, HTTP −3; replaced by a hand-written POST) |
+| T5 BirdNET species + confidence vs phone | Merlin clip 2024-04-12 1632 played from a phone: Black-capped Chickadee 0.82 / 0.63 / 0.86 in 3 segments (original phone recording: 0.75 / 0.68 / 0.55 / …) | Same clip: Black-capped Chickadee 0.49 (one full 3 s window in 5 s) |
+| Problems / notes | Mac needed WCH's CH34x driver (USB ID 1a86:7522) | Flash writes freeze I²S (watchdog added); HTTPClient stream upload fails; slower wifi join and upload. For continuous recording the Pico needs SD (SPI) or RAM buffering, not internal flash |
 
 ## Next (bench test 2)
 
