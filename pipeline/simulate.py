@@ -8,8 +8,10 @@ Seattle each week. On top of that we model:
   - time of day: a dawn chorus for songbirds, daytime calls for crows/jays/raptors,
     night calls for owls, all following real sunrise/sunset times
   - seasonality: songbirds sing much more in spring (breeding season)
-  - rainy days (Seattle-ish monthly odds) that suppress activity, and winter
-    outages when a solar-powered recorder's battery runs flat after a gray spell
+  - real Seattle rain (data/weather.csv from weather.py): wet days suppress
+    activity, more so the heavier the rain, and runs of wet winter days flatten
+    a solar-powered recorder's battery. Dates without weather data fall back to
+    random rain with Seattle-ish monthly odds.
   - bouts: a singing bird yields several consecutive 3 s detections
   - false positives: occasional low-confidence detections of unlikely species
 
@@ -38,6 +40,7 @@ SOURCE = "simulated"
 
 # Share of days with measurable rain, Jan..Dec (roughly Seattle climatology).
 RAIN_ODDS = [0.60, 0.55, 0.60, 0.50, 0.40, 0.30, 0.12, 0.15, 0.30, 0.50, 0.65, 0.65]
+WET_INCHES = 0.04  # less than this counts as a dry day
 
 NIGHT_WORDS = ("Owl",)
 DAY_WORDS = (
@@ -49,6 +52,15 @@ WATER_WORDS = (
     "Duck", "Mallard", "Goose", "Gull", "Heron", "Grebe", "Loon", "Cormorant", "Merganser",
     "Wigeon", "Teal", "Scaup", "Bufflehead", "Goldeneye", "Coot", "Scoter", "Murre", "Tern",
 )
+# Birds that are common in Seattle yards; they get an abundance boost.
+YARD_REGULARS = {
+    "American Robin", "Song Sparrow", "Dark-eyed Junco", "Black-capped Chickadee",
+    "Chestnut-backed Chickadee", "Spotted Towhee", "Bewick's Wren", "Anna's Hummingbird",
+    "House Finch", "American Crow", "Steller's Jay", "Northern Flicker", "Bushtit",
+    "Pacific Wren", "Golden-crowned Kinglet", "Red-breasted Nuthatch", "Downy Woodpecker",
+    "Swainson's Thrush", "Varied Thrush", "Black-headed Grosbeak", "Pine Siskin",
+    "American Goldfinch", "White-crowned Sparrow", "Cedar Waxwing", "Ruby-crowned Kinglet",
+}
 
 
 def behavior(common_name: str) -> str:
@@ -97,40 +109,54 @@ def to_utc(d: date, hour: float) -> datetime:
     return local.replace(tzinfo=TZ).astimezone(UTC)
 
 
-def simulate(occ: pd.DataFrame, days: list[date], station: str, rng: np.random.Generator):
+def rain_activity(precip_in: float) -> float:
+    """Share of normal bird activity on a day with this much rain."""
+    if precip_in < WET_INCHES:
+        return 1.0
+    return 1.0 - min(0.6, 0.15 + 0.8 * precip_in)
+
+
+def simulate(occ: pd.DataFrame, days: list[date], station: str, rng: np.random.Generator, rain: dict[str, float] | None = None):
     n = len(occ)
     names = list(zip(occ.scientific_name, occ.common_name))
     kinds = [behavior(c) for _, c in names]
     water = np.array([any(w in c for w in WATER_WORDS) for _, c in names])
+    regular = np.array([c in YARD_REGULARS for _, c in names])
 
     # Fixed per-species traits for this backyard.
-    abundance = rng.lognormal(0, 0.6, n) * np.where(water, 0.3, 1.0)
-    bout_rate = rng.lognormal(math.log(5), 0.7, n)  # singing bouts per day when present
+    abundance = rng.lognormal(0, 0.4, n) * np.where(water, 0.3, 1.0) * np.where(regular, 2.0, 0.8)
+    bout_rate = rng.lognormal(math.log(8), 0.6, n)  # singing bouts per day when present
     detectability = rng.uniform(1.2, 3.0, n)  # higher = BirdNET is more confident on this one
     week_max = occ.filter(like="w").max(axis=1).to_numpy()
     rare_pool = np.flatnonzero(week_max < 0.05)  # candidates for false positives
 
+    rain = rain or {}
     raining = False
     rain_streak = 0
     for d in days:
-        base = RAIN_ODDS[d.month - 1]
-        raining = rng.random() < base + 0.35 * ((1.0 if raining else 0.0) - base)
+        if d.isoformat() in rain:
+            precip = rain[d.isoformat()]
+            raining = precip >= WET_INCHES
+        else:
+            base = RAIN_ODDS[d.month - 1]
+            raining = rng.random() < base + 0.35 * ((1.0 if raining else 0.0) - base)
+            precip = 0.15 if raining else 0.0
         rain_streak = rain_streak + 1 if raining else 0
         winter = d.month in (11, 12, 1) or (d.month == 2 and d.day <= 15)
         if winter and rain_streak >= 4:
             continue  # battery flat: no recordings today
 
-        weather = 0.55 if raining else 1.0
+        weather = rain_activity(precip)
         sunrise, sunset = local_hours(d)
         occ_today = occ[week_column(d)].to_numpy()
-        present = rng.random(n) < np.minimum(0.97, 1.5 * (occ_today * abundance) ** 1.3)
+        present = rng.random(n) < np.minimum(0.97, 2.0 * occ_today**2 * abundance)
         peak = spring_peak(d)
 
         for i in np.flatnonzero(present):
             season = 1 + (1.5 if kinds[i] == "song" else 0.4) * peak
             for _ in range(rng.poisson(bout_rate[i] * (0.5 + occ_today[i]) * season * weather)):
                 start = bout_start_hour(kinds[i], sunrise, sunset, rng)
-                t = to_utc(d, start).replace(second=0, microsecond=0) + timedelta(seconds=3 * rng.integers(0, 20))
+                t = to_utc(d, start).replace(second=0, microsecond=0) + timedelta(seconds=3 * int(rng.integers(0, 20)))
                 for _ in range(min(20, rng.geometric(0.3))):
                     if rng.random() > 0.25:  # the bird sometimes pauses for a segment
                         conf = 0.25 + 0.74 * rng.beta(detectability[i], 1.6)
@@ -151,13 +177,16 @@ if __name__ == "__main__":
     p.add_argument("--station", default="backyard")
     p.add_argument("--seed", type=int, default=7)
     p.add_argument("--occurrence", type=Path, default=ROOT / "data" / "occurrence.csv")
+    p.add_argument("--weather", type=Path, default=ROOT / "data" / "weather.csv", help="daily rain from weather.py, if present")
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
     args = p.parse_args()
 
     occ = pd.read_csv(args.occurrence)
+    rain = dict(pd.read_csv(args.weather, usecols=["date", "precip_in"]).itertuples(index=False)) if args.weather.exists() else {}
     days = [args.end - timedelta(days=k) for k in range(args.days - 1, -1, -1)]
 
     conn = db.connect(args.db)
     conn.execute("DELETE FROM detections WHERE station_id = ? AND source_file = ?", (args.station, SOURCE))
-    n = db.insert_detections(conn, simulate(occ, days, args.station, np.random.default_rng(args.seed)))
-    print(f"{n} simulated detections, {days[0]} to {days[-1]} -> {args.db}")
+    n = db.insert_detections(conn, simulate(occ, days, args.station, np.random.default_rng(args.seed), rain))
+    covered = sum(d.isoformat() in rain for d in days)
+    print(f"{n} simulated detections, {days[0]} to {days[-1]} ({covered} days with real rain data) -> {args.db}")

@@ -1,0 +1,4 @@
+birdnet-analyzer==2.4.0
+pandas
+pyarrow
+astral
