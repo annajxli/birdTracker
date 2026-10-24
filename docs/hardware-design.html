@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recorder Hardware Options</title>
+<style>
+  :root {
+    --page: #f3ede2; --card: #faf6ee; --ink: #2a221b; --muted: #6f6556; --rule: #d4c8b2;
+    --data: #5a6b1f; --power: #a3402c; --clock: #3a6ea8; --choice: #8a5a00; --choice-bg: #fbefd6;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --page: #17130f; --card: #201b16; --ink: #ece3d3; --muted: #a39a8a; --rule: #3d352b;
+      --data: #b5c56a; --power: #e08a6c; --clock: #7fa8dc; --choice: #e2b25a; --choice-bg: #33281a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page: #17130f; --card: #201b16; --ink: #ece3d3; --muted: #a39a8a; --rule: #3d352b;
+    --data: #b5c56a; --power: #e08a6c; --clock: #7fa8dc; --choice: #e2b25a; --choice-bg: #33281a;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font: 500 2rem/1.15 Georgia, serif; margin: 0 0 6px; }
+  h2 { font: 500 1.4rem/1.2 Georgia, serif; margin: 44px 0 6px; padding-top: 12px; border-top: 2px solid var(--ink); }
+  h3 { font-size: 1rem; margin: 26px 0 6px; }
+  p, li { max-width: 50rem; }
+  .lede, .muted { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--rule); padding: 14px 16px; margin: 14px 0; }
+  figure { margin: 16px 0; background: var(--card); border: 1px solid var(--rule); padding: 10px; overflow-x: auto; }
+  figure svg { display: block; min-width: 760px; width: 100%; height: auto; }
+  figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 6px; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 4px; font-size: 0.9rem; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 8px; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; white-space: nowrap; }
+  td.pick { font-weight: 600; color: var(--data); }
+  table.choices { table-layout: fixed; min-width: 640px; }
+  .wrap { overflow-x: auto; }
+  .tag { display: inline-block; font: 600 0.72rem/1 system-ui, sans-serif; letter-spacing: 0.04em; padding: 3px 6px; border: 1.5px dashed var(--choice); color: var(--choice); background: var(--choice-bg); border-radius: 4px; vertical-align: 1px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
+  .legend .d::before, .legend .p::before, .legend .c::before { content: ""; display: inline-block; width: 22px; height: 0; border-top: 2.5px solid; margin-right: 6px; vertical-align: 4px; }
+  .legend .d::before { border-color: var(--data); } .legend .p::before { border-color: var(--power); } .legend .c::before { border-color: var(--clock); border-top-style: dotted; }
+  .note { border-left: 3px solid var(--choice); padding-left: 12px; }
+  .bar { display: inline-block; height: 10px; background: var(--data); border-radius: 0 2px 2px 0; vertical-align: -1px; }
+  td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.share { width: 32%; min-width: 120px; }
+  code { font-size: 0.88em; }
+  /* SVG */
+  svg text { fill: var(--ink); font: 13px system-ui, sans-serif; }
+  svg .small { font-size: 11px; fill: var(--muted); }
+  svg .tagtext { font: 600 11px system-ui, sans-serif; fill: var(--choice); }
+  svg .group { font: 600 11px system-ui, sans-serif; letter-spacing: 0.08em; fill: var(--muted); }
+  svg .box { fill: var(--page); stroke: var(--ink); stroke-width: 1.3; }
+  svg .box.choice { stroke: var(--choice); stroke-dasharray: 5 3; stroke-width: 1.6; fill: var(--choice-bg); }
+  svg .zone { fill: none; stroke: var(--rule); stroke-width: 1.2; }
+  svg .d { stroke: var(--data); stroke-width: 2.2; fill: none; marker-end: url(#ad); }
+  svg .p { stroke: var(--power); stroke-width: 2.2; fill: none; marker-end: url(#ap); }
+  svg .c { stroke: var(--clock); stroke-width: 1.8; fill: none; stroke-dasharray: 3 3; marker-end: url(#ac); }
+  svg .ad { fill: var(--data); } svg .ap { fill: var(--power); } svg .ac { fill: var(--clock); }
+</style>
+</head>
+<body>
+<main>
+<h1>Recorder hardware options</h1>
+<p class="lede">Block diagrams and parts for the outdoor recorder. Every block with a dashed amber border and a <span class="tag">C#</span> tag is a decision with more than one reasonable answer; the tables under each diagram compare them. Power figures are rough estimates for sizing, not measurements. Measure the prototype with a USB power meter before buying solar.</p>
+
+<div class="card">
+<strong>What's fixed already</strong> (from <code>docs/hardware.md</code>): the recorder only records and uploads; BirdNET runs indoors on <code>pipeline/analyzer.py</code>, which picks up finished audio files named by UTC start time (e.g. <code>20260512T131500Z.flac</code>). Seattle winters set the power budget. Recording daylight only (plus optionally an hour after dusk for owls) is roughly half the energy of 24 hours. A cable run to the house is probably possible but not preferred, so the plan is solar, with the cable as the fallback. <strong>Default schedule: continuous through daylight</strong>, with the schedule configurable (below), so size the solar for continuous recording.
+</div>
+
+<h2>The three builds</h2>
+<div class="wrap"><table>
+<tr><th></th><th>A. Low-power MCU, mono</th><th>B. Low-power MCU, stereo</th><th>C. Raspberry Pi Zero 2 W</th></tr>
+<tr><th>What it is</th><td>One digital MEMS mic straight into an ESP32-S3 (or nRF5340); records to microSD, uploads batches over wifi</td><td>Same as A with two mics 20–30 cm apart on one bus, for "at least 2 birds" counting</td><td>Linux board with a high-quality analog mic and a USB/HAT sound card; records and rsyncs files</td></tr>
+<tr><th>Audio quality</th><td>Good (MEMS self-noise ~29–33 dBA); hears less far than C</td><td>Same as A</td><td>Best (EM272 ~14 dBA); hears faint and distant birds</td></tr>
+<tr><th>Est. energy, winter day</th><td>~1.4 Wh/day (ESP32-S3) · ~0.35–0.5 Wh/day (nRF5340)</td><td>~1.8 Wh/day</td><td>~10.5 Wh/day with a night shutdown timer; ~23 Wh/day always on</td></tr>
+<tr><th>Solar for a Seattle winter</th><td>3–6 W panel + one 18650 cell</td><td>5–6 W panel + one or two 18650 cells</td><td>20–50 W panel + 12 V LiFePO4 or large pack</td></tr>
+<tr><th>Software effort</th><td>Custom firmware (ESP-IDF / Arduino), plus a small upload receiver indoors</td><td>Same as A, plus direction-finding later</td><td>Least: <code>arecord</code>, <code>flac</code>, <code>rsync</code>, cron</td></tr>
+<tr><th>Rough parts cost</th><td>~$60–110</td><td>~$70–125</td><td>~$170–330 (panel and battery dominate)</td></tr>
+</table></div>
+<p class="note"><strong>The two 4.8 V / 50 mA cells</strong> (~0.5 W peak together) give roughly 0.3 Wh on an average December day here, and ~2–3 Wh in summer. That runs build A on the nRF5340 with compressed audio in summer, but no build through a Seattle winter. Plan on a 3–6 W panel for A/B, or add more cells.</p>
+
+<!-- ============================ ENERGY ============================ -->
+<h2>Where the energy goes</h2>
+<p>Per-function estimates for a <strong>winter day</strong>, the sizing case: recording from an hour before sunrise to half an hour after sunset (~10 hours in December), asleep the other ~14. Audio is 32 kHz, 16-bit, mono, about 2.3 GB/day before compression. Currents are datasheet-typical or typical for dev boards; treat every number as ±50% until the bench prototype is measured with a USB power meter. In summer the recording window is ~17 hours, so everything tied to recording scales by ~1.7×, but there's far more sun.</p>
+<h3>A · ESP32-S3, mono, FLAC <span class="muted">· ~1.4 Wh/day</span></h3>
+<div class="wrap"><table>
+<tr><th>Function</th><th>Assumed draw</th><th class="num">Wh/day</th><th>Share</th></tr>
+<tr><td>MCU awake: I²S capture + FLAC encode</td><td class="muted">~25 mA @ 80 MHz, 10 h</td><td class="num">0.83</td><td class="share"><span class="bar" style="width:60%"></span> 60%</td></tr>
+<tr><td>Wifi upload, 40 batches</td><td class="muted">1.3 GB FLAC at ~8 Mbps, ~0.66 W</td><td class="num">0.24</td><td class="share"><span class="bar" style="width:18%"></span> 18%</td></tr>
+<tr><td>Regulator losses</td><td class="muted">~88% efficient</td><td class="num">0.15</td><td class="share"><span class="bar" style="width:11%"></span> 11%</td></tr>
+<tr><td>PSRAM buffer</td><td class="muted">~2 mA</td><td class="num">0.07</td><td class="share"><span class="bar" style="width:5%"></span> 5%</td></tr>
+<tr><td>microSD writes + idle</td><td class="muted">~2 mA average</td><td class="num">0.07</td><td class="share"><span class="bar" style="width:5%"></span> 5%</td></tr>
+<tr><td>Microphone (ICS-43434)</td><td class="muted">0.5 mA</td><td class="num">0.02</td><td class="share"><span class="bar" style="width:1%"></span> 1%</td></tr>
+<tr><td>Night deep sleep + always-on parts (regulator, fuel gauge, RTC)</td><td class="muted">~0.1 mA</td><td class="num">0.01</td><td class="share"><span class="bar" style="width:1%"></span> 1%</td></tr>
+</table></div>
+<h3>B · ESP32-S3, stereo, FLAC <span class="muted">· ~1.8 Wh/day</span></h3>
+<div class="wrap"><table>
+<tr><th>Function</th><th>Assumed draw</th><th class="num">Wh/day</th><th>Share</th></tr>
+<tr><td>MCU awake: capture 2 channels + FLAC</td><td class="muted">~28 mA, 10 h</td><td class="num">0.92</td><td class="share"><span class="bar" style="width:51%"></span> 51%</td></tr>
+<tr><td>Wifi upload, 40 batches</td><td class="muted">2.5 GB FLAC</td><td class="num">0.47</td><td class="share"><span class="bar" style="width:26%"></span> 26%</td></tr>
+<tr><td>Regulator losses</td><td class="muted">~88% efficient</td><td class="num">0.19</td><td class="share"><span class="bar" style="width:11%"></span> 11%</td></tr>
+<tr><td>microSD writes + idle</td><td class="muted">~3 mA average</td><td class="num">0.10</td><td class="share"><span class="bar" style="width:6%"></span> 6%</td></tr>
+<tr><td>PSRAM buffer</td><td class="muted">~2 mA</td><td class="num">0.07</td><td class="share"><span class="bar" style="width:4%"></span> 4%</td></tr>
+<tr><td>Microphones (2× ICS-43434)</td><td class="muted">1 mA</td><td class="num">0.03</td><td class="share"><span class="bar" style="width:2%"></span> 2%</td></tr>
+<tr><td>Night + always-on parts</td><td class="muted">~0.1 mA</td><td class="num">0.01</td><td class="share"><span class="bar" style="width:1%"></span> 1%</td></tr>
+</table></div>
+<h3>A · nRF5340 + nRF7002, mono, FLAC <span class="muted">· ~0.48 Wh/day</span></h3>
+<div class="wrap"><table>
+<tr><th>Function</th><th>Assumed draw</th><th class="num">Wh/day</th><th>Share</th></tr>
+<tr><td>Wifi upload via nRF7002</td><td class="muted">1.3 GB FLAC</td><td class="num">0.24</td><td class="share"><span class="bar" style="width:50%"></span> 50%</td></tr>
+<tr><td>MCU: asleep between DMA buffers, FLAC encode</td><td class="muted">~2.5 mA</td><td class="num">0.08</td><td class="share"><span class="bar" style="width:17%"></span> 17%</td></tr>
+<tr><td>microSD writes + idle</td><td class="muted">~2 mA average</td><td class="num">0.07</td><td class="share"><span class="bar" style="width:14%"></span> 14%</td></tr>
+<tr><td>Regulator losses</td><td class="muted">~88% efficient</td><td class="num">0.05</td><td class="share"><span class="bar" style="width:11%"></span> 11%</td></tr>
+<tr><td>Microphone (IM69D130 PDM)</td><td class="muted">~1 mA</td><td class="num">0.03</td><td class="share"><span class="bar" style="width:7%"></span> 7%</td></tr>
+<tr><td>Night + always-on parts</td><td class="muted">~0.05 mA</td><td class="num">0.004</td><td class="share"><span class="bar" style="width:1%"></span> 1%</td></tr>
+</table></div>
+<h3>A · nRF5340 + nRF7002, mono, Opus <span class="muted">· ~0.36 Wh/day</span></h3>
+<div class="wrap"><table>
+<tr><th>Function</th><th>Assumed draw</th><th class="num">Wh/day</th><th>Share</th></tr>
+<tr><td>MCU: Opus encode</td><td class="muted">~6 mA</td><td class="num">0.20</td><td class="share"><span class="bar" style="width:55%"></span> 55%</td></tr>
+<tr><td>Wifi upload via nRF7002</td><td class="muted">0.23 GB Opus</td><td class="num">0.05</td><td class="share"><span class="bar" style="width:14%"></span> 14%</td></tr>
+<tr><td>Regulator losses</td><td class="muted">~88% efficient</td><td class="num">0.04</td><td class="share"><span class="bar" style="width:11%"></span> 11%</td></tr>
+<tr><td>Microphone (IM69D130 PDM)</td><td class="muted">~1 mA</td><td class="num">0.03</td><td class="share"><span class="bar" style="width:9%"></span> 9%</td></tr>
+<tr><td>microSD writes + idle</td><td class="muted">~1 mA average</td><td class="num">0.03</td><td class="share"><span class="bar" style="width:9%"></span> 9%</td></tr>
+<tr><td>Night + always-on parts</td><td class="muted">~0.05 mA</td><td class="num">0.004</td><td class="share"><span class="bar" style="width:1%"></span> 1%</td></tr>
+</table></div>
+<h3>C · Pi Zero 2 W, mono, night timer <span class="muted">· ~10.5 Wh/day</span></h3>
+<div class="wrap"><table>
+<tr><th>Function</th><th>Assumed draw</th><th class="num">Wh/day</th><th>Share</th></tr>
+<tr><td>Pi SoC + RAM, idle baseline</td><td class="muted">~0.45 W, 10 h</td><td class="num">4.5</td><td class="share"><span class="bar" style="width:43%"></span> 43%</td></tr>
+<tr><td>USB sound card</td><td class="muted">~0.2 W</td><td class="num">2.0</td><td class="share"><span class="bar" style="width:19%"></span> 19%</td></tr>
+<tr><td>Wifi kept associated</td><td class="muted">~0.15 W</td><td class="num">1.5</td><td class="share"><span class="bar" style="width:14%"></span> 14%</td></tr>
+<tr><td>Regulator losses (12 V → 5 V)</td><td class="muted">~90% efficient</td><td class="num">0.96</td><td class="share"><span class="bar" style="width:9%"></span> 9%</td></tr>
+<tr><td>Recording + FLAC CPU</td><td class="muted">~0.1 W</td><td class="num">1.0</td><td class="share"><span class="bar" style="width:10%"></span> 10%</td></tr>
+<tr><td>SD card</td><td class="muted">~0.05 W</td><td class="num">0.5</td><td class="share"><span class="bar" style="width:5%"></span> 5%</td></tr>
+<tr><td>Night: Pi off, timer board only</td><td class="muted">~5 mW, 14 h</td><td class="num">0.07</td><td class="share"><span class="bar" style="width:1%"></span> 1%</td></tr>
+</table></div>
+<h3>Power states assumed</h3>
+<div class="wrap"><table>
+<tr><th>State</th><th>ESP32-S3</th><th>nRF5340 / nRF52840</th><th>Pi Zero 2 W</th></tr>
+<tr><th>Night (~14 h)</th><td>Deep sleep, RTC wakes it at dawn; SD card power switched off (~0.1 mA for the whole board)</td><td>System OFF or RTC-only idle (~0.05 mA)</td><td>Fully off; timer board only (~5 mW)</td></tr>
+<tr><th>Recording</th><td><strong>Modeled fully awake (~25 mA).</strong> I²S needs its clocks, so no light sleep; the CPU can still idle and down-clock between buffers, perhaps ~12–18 mA. Unmeasured, so the table above is pessimistic</td><td>CPU sleeps while the PDM peripheral fills RAM by DMA; wakes to encode each buffer (~2.5 mA average with FLAC)</td><td>Linux idle plus recording processes; no useful sleep</td></tr>
+<tr><th>Between uploads</th><td>Wifi fully off; reconnect cost counted for each of 40 batches a day</td><td>Same, with the nRF7002</td><td>Wifi stays associated (rsync, ssh)</td></tr>
+<tr><th>Uploading</th><td>Wifi transmitting at ~0.66 W for ~20 min/day</td><td>Same order</td><td>Short bursts on top of the baseline</td></tr>
+</table></div>
+<p class="muted">Not modeled yet, and the biggest remaining savings: recording on a schedule (next section). On the ESP32-S3, CPU idling plus recording 1 minute in 3 outside the dawn chorus would take a winter day from ~1.4 to roughly 0.5 Wh.</p>
+
+<h3>What that means</h3>
+<ul>
+<li><strong>On the ESP32-S3, keeping the processor awake is ~60% of the budget.</strong> The radio is only ~20%. The I²S peripheral needs clocks running, so the chip can't light-sleep while recording. The levers are lowering the CPU clock (40 MHz may be enough for one channel of FLAC), using one core, and letting DMA fill large buffers so the CPU idles between them. That could plausibly cut a third, but it has to be measured.</li>
+<li><strong>On the nRF5340 the processor sleeps between buffers</strong>, so upload becomes the biggest item with FLAC, and encoding becomes the biggest with Opus. Switching to Opus moves energy from the radio to the CPU: a modest net win (~25%), not the 5× the file size suggests.</li>
+<li><strong>Small always-on drains matter at this scale.</strong> A dev board's power LED (1–2 mA all day) would be ~0.1–0.16 Wh, about 10% of build A: desolder it or cut its trace. microSD cards can idle at ~0.5 mA, so switch the card's power off at night.</li>
+<li><strong>The microphone is never the problem</strong> (1–9%). Choose it for sound quality, not power.</li>
+<li><strong>Stereo costs ~30% more on the ESP32-S3</strong>, almost all of it from uploading twice the data.</li>
+<li><strong>The Pi's baseline is the issue:</strong> 0.45 W just to be on, before recording anything. The night timer saves more than everything else combined.</li>
+<li><strong>Not included above: charging losses.</strong> A linear charger like the BQ24074 is ~70–80% efficient from panel to battery, and the panel rarely sits at its best voltage. That affects how big a panel to buy, not the daily consumption: add ~30–40% when sizing panels.</li>
+</ul>
+
+<!-- ============================ SCHEDULE ============================ -->
+<h2>Recording schedule</h2>
+<p>Recording all day, continuously, is the most expensive part of every build. Long-term acoustic monitors usually record on a schedule instead. The trade-off is energy against short or rare calls.</p>
+<div class="wrap"><table>
+<tr><th>Schedule</th><th>Energy (ESP32-S3, winter)</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">Continuous, dawn to dusk (the default)</td><td>~1.0–1.4 Wh</td><td>Hears everything, including one-off calls and fly-overs; counts need no correction</td><td>Biggest panel and battery</td></tr>
+<tr><td>Sliced: 1 min on, 2 min off, all day</td><td>~0.4–0.5 Wh</td><td>About a third of the recording energy and data; birds that sing repeatedly are still caught most days</td><td>Misses some short, single calls (fly-overs, an alarm call); minutes heard are a sample and need scaling (×3) or labelling; the timeline shows gaps</td></tr>
+<tr><td>Continuous for ~3 h around dawn, sliced the rest of the day</td><td>~0.6–0.7 Wh</td><td>Keeps the dawn chorus whole, when most species sing; most of the savings of slicing</td><td>Slightly more complex firmware and dashboard ("sampled" vs "continuous" hours)</td></tr>
+<tr><td>Wake on sound (mic with a loudness trigger, e.g. Vesper VM3011)</td><td>Lowest when quiet</td><td>Sleeps through silence</td><td>Distant or quiet birds may never trip the threshold; wind and rain trip it constantly; least predictable</td></tr>
+</table></div>
+<p><strong>Configurable:</strong> the schedule lives in the same SD-card config file as the mic profile, so it can change without re-flashing. Suggested settings: start and end relative to sunrise and sunset (e.g. −60 min / +30 min, or +90 min for owls), an optional on/off slice length (e.g. 1 / 2 min, off by default), an optional continuous window around dawn when slicing, and a low-battery rule (e.g. switch to slices below 40% charge, stop below 15%) so a gray week degrades the data instead of killing the recorder.</p>
+<p class="muted"> The analyzer and dashboard need to know which minutes were recorded: each file's length is already in its name and duration, and "minutes heard" would be shown out of "minutes recorded".</p>
+
+<!-- ============================ MICS ============================ -->
+<h2>Swapping microphones</h2>
+<div class="wrap"><table>
+<tr><th>Swap</th><th>Wiring</th><th>Firmware</th></tr>
+<tr><td>Same type, e.g. I²S MEMS ↔ I²S MEMS (ICS-43434, SPH0645, INMP441)</td><td>Same 5 wires: 3.3 V, ground, bit clock, word clock, data (+ L/R select)</td><td>Small config change: bit depth and timing quirks (the SPH0645 has one)</td></tr>
+<tr><td>I²S ↔ PDM</td><td>Different pins: PDM uses clock + data only</td><td>Different peripheral; trivial if the firmware supports both from the start (ESP32-S3, nRF5340 and nRF52840 all have both)</td></tr>
+<tr><td>Digital ↔ analog EM272</td><td>Add a codec board (e.g. WM8960) between mic and MCU</td><td>Codec setup once; after that the MCU sees I²S, so everything downstream is unchanged</td></tr>
+</table></div>
+<ul>
+<li><strong>Mic pods on a connector.</strong> Each mic lives in a small housing on a short cable with an M8 or M12 connector (5–8 pins) through the enclosure wall, with one pinout for every pod: 3.3 V, ground, both clocks, data, L/R select. Swapping is unplugging a pod, not opening the sealed box. Keep digital mic cables under ~30–50 cm, twisted or shielded; analog EM272 cables can be much longer.</li>
+<li><strong>Mic profiles in firmware,</strong> chosen in the SD-card config file (interface, bit depth, gain), so no re-flashing.</li>
+<li><strong>Record which mic made each recording.</strong> Mics differ in sensitivity and noise, so BirdNET's confidence shifts after a swap. A mic label in each file's metadata, and later a marker on the dashboard, keeps a mic change from looking like a change in the birds.</li>
+</ul>
+
+<!-- ============================ DIAGRAM A ============================ -->
+<h2>A. Low-power MCU, one mic</h2>
+<figure>
+<svg viewBox="0 0 980 520" role="img" aria-labelledby="ta">
+<title id="ta">Block diagram, mono MCU recorder</title>
+<defs>
+  <marker id="ad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ad" d="M0,0L10,5L0,10z"/></marker>
+  <marker id="ap" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ap" d="M0,0L10,5L0,10z"/></marker>
+  <marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ac" d="M0,0L10,5L0,10z"/></marker>
+</defs>
+<rect class="zone" x="10" y="20" width="700" height="480" rx="6"/>
+<text class="group" x="22" y="40">OUTDOOR ENCLOSURE</text>
+<rect class="zone" x="730" y="20" width="240" height="480" rx="6"/>
+<text class="group" x="742" y="40">INDOORS / CLOUD</text>
+
+<!-- signal row -->
+<rect class="box choice" x="30" y="70" width="120" height="70" rx="5"/><text x="90" y="98" text-anchor="middle">Microphone</text><text class="small" x="90" y="116" text-anchor="middle">digital MEMS</text><text class="tagtext" x="140" y="84" text-anchor="end">C1</text>
+<rect class="box choice" x="185" y="70" width="125" height="70" rx="5"/><text x="247" y="98" text-anchor="middle">Front end</text><text class="small" x="247" y="116" text-anchor="middle">none if digital mic</text><text class="tagtext" x="300" y="84" text-anchor="end">C2</text>
+<rect class="box choice" x="345" y="62" width="150" height="86" rx="5"/><text x="420" y="94" text-anchor="middle">Recorder MCU</text><text class="small" x="420" y="112" text-anchor="middle">ESP32-S3 or nRF5340</text><text class="small" x="420" y="128" text-anchor="middle">+ compression C5</text><text class="tagtext" x="485" y="76" text-anchor="end">C3</text>
+<rect class="box choice" x="545" y="70" width="140" height="70" rx="5"/><text x="615" y="98" text-anchor="middle">Radio link</text><text class="small" x="615" y="116" text-anchor="middle">wifi (or BLE)</text><text class="tagtext" x="675" y="84" text-anchor="end">C6</text>
+<rect class="box choice" x="345" y="190" width="150" height="56" rx="5"/><text x="420" y="214" text-anchor="middle">Local storage</text><text class="small" x="420" y="232" text-anchor="middle">microSD</text><text class="tagtext" x="485" y="204" text-anchor="end">C4</text>
+<rect class="box choice" x="185" y="190" width="125" height="56" rx="5"/><text x="247" y="214" text-anchor="middle">Clock</text><text class="small" x="247" y="232" text-anchor="middle">NTP / RTC</text><text class="tagtext" x="300" y="204" text-anchor="end">C7</text>
+
+<path class="d" d="M150,105 H182"/><path class="d" d="M310,105 H342"/><path class="d" d="M495,105 H542"/>
+<path class="d" d="M420,148 V187"/>
+<path class="c" d="M310,218 H328 V132 H342"/>
+<path class="d" d="M685,105 H752"/>
+
+<!-- indoor -->
+<rect class="box choice" x="755" y="62" width="200" height="86" rx="5"/><text x="855" y="90" text-anchor="middle">Indoor computer</text><text class="small" x="855" y="108" text-anchor="middle">upload receiver → incoming/</text><text class="small" x="855" y="124" text-anchor="middle">analyzer.py (BirdNET)</text><text class="tagtext" x="945" y="76" text-anchor="end">C13</text>
+<rect class="box" x="755" y="190" width="200" height="56" rx="5"/><text x="855" y="214" text-anchor="middle">Cloudflare dashboard</text><text class="small" x="855" y="232" text-anchor="middle">detections, clips (R2)</text>
+<path class="d" d="M855,148 V187"/>
+
+<!-- power row -->
+<rect class="box choice" x="30" y="330" width="120" height="70" rx="5"/><text x="90" y="358" text-anchor="middle">Solar panel</text><text class="small" x="90" y="376" text-anchor="middle">3–6 W, 5–6 V</text><text class="tagtext" x="140" y="344" text-anchor="end">C8</text>
+<rect class="box choice" x="185" y="330" width="125" height="70" rx="5"/><text x="247" y="358" text-anchor="middle">Charger</text><text class="small" x="247" y="376" text-anchor="middle">MPPT / harvester</text><text class="tagtext" x="300" y="344" text-anchor="end">C9</text>
+<rect class="box choice" x="345" y="330" width="150" height="70" rx="5"/><text x="420" y="358" text-anchor="middle">Battery</text><text class="small" x="420" y="376" text-anchor="middle">1-cell Li-ion / LiFePO4</text><text class="tagtext" x="485" y="344" text-anchor="end">C10</text>
+<rect class="box choice" x="545" y="330" width="140" height="70" rx="5"/><text x="615" y="358" text-anchor="middle">3.3 V regulator</text><text class="small" x="615" y="376" text-anchor="middle">low quiescent current</text><text class="tagtext" x="675" y="344" text-anchor="end">C11</text>
+<rect class="box choice" x="345" y="430" width="150" height="50" rx="5"/><text x="420" y="452" text-anchor="middle">Battery monitor</text><text class="small" x="420" y="468" text-anchor="middle">fuel gauge (I²C)</text><text class="tagtext" x="485" y="444" text-anchor="end">C12</text>
+
+<path class="p" d="M150,365 H182"/><path class="p" d="M310,365 H342"/><path class="p" d="M495,365 H542"/>
+<path class="p" d="M615,330 V142 H498" />
+<path class="p" d="M600,330 V160 H90 V143"/>
+<path class="p" d="M580,330 V264 H420 V249"/>
+<path class="d" d="M495,455 H520 V124 H498" stroke-dasharray="2 3"/>
+<path class="p" d="M420,400 V427"/>
+<text class="small" x="527" y="300">battery %</text>
+</svg>
+<div class="legend"><span class="d">audio / data</span><span class="p">power</span><span class="c">time</span><span><span class="tag">C#</span> choice, see tables</span></div>
+<figcaption>Mono build. Audio goes mic → MCU → microSD in short files; every few minutes the MCU wakes wifi, uploads finished files, and turns wifi off again. The indoor computer hands them to <code>analyzer.py</code>.</figcaption>
+</figure>
+
+<!-- ============================ DIAGRAM B ============================ -->
+<h2>B. Low-power MCU, two mics (stereo)</h2>
+<p>Everything from A stays the same except the microphone stage and the data rate. Two identical digital mics share one bus: I²S and PDM both carry a left and a right channel on the same clock, so the two channels are sampled in lockstep, which is exactly what direction-finding needs. See "Counting individual birds" in <code>docs/hardware.md</code>.</p>
+<figure>
+<svg viewBox="0 0 980 300" role="img" aria-labelledby="tb">
+<title id="tb">Block diagram, stereo microphone stage</title>
+<rect class="zone" x="10" y="20" width="960" height="265" rx="6"/>
+<text class="group" x="22" y="40">MIC BAR (20–30 cm) AND RECORDER — power, clock and indoor side as in A</text>
+<rect class="box choice" x="30" y="70" width="150" height="66" rx="5"/><text x="105" y="97" text-anchor="middle">Mic left</text><text class="small" x="105" y="115" text-anchor="middle">select pin → L</text><text class="tagtext" x="170" y="84" text-anchor="end">C1</text>
+<rect class="box choice" x="30" y="190" width="150" height="66" rx="5"/><text x="105" y="217" text-anchor="middle">Mic right</text><text class="small" x="105" y="235" text-anchor="middle">select pin → R</text><text class="tagtext" x="170" y="204" text-anchor="end">C1</text>
+<text class="small" x="105" y="168" text-anchor="middle">↕ 20–30 cm apart</text>
+<rect class="box" x="250" y="120" width="170" height="70" rx="5"/><text x="335" y="148" text-anchor="middle">Shared bus</text><text class="small" x="335" y="166" text-anchor="middle">I²S (ESP32) / PDM (nRF)</text>
+<rect class="box choice" x="490" y="112" width="160" height="86" rx="5"/><text x="570" y="142" text-anchor="middle">Recorder MCU</text><text class="small" x="570" y="160" text-anchor="middle">stereo files (2× data)</text><text class="small" x="570" y="176" text-anchor="middle">same as A</text><text class="tagtext" x="640" y="126" text-anchor="end">C3</text>
+<rect class="box choice" x="720" y="120" width="230" height="70" rx="5"/><text x="835" y="148" text-anchor="middle">microSD → wifi → indoors</text><text class="small" x="835" y="166" text-anchor="middle">2× storage and upload time</text><text class="tagtext" x="940" y="134" text-anchor="end">C4–C6</text>
+<path class="d" d="M180,103 H215 V140 H247"/><path class="d" d="M180,223 H215 V170 H247"/>
+<path class="d" d="M420,155 H487"/><path class="d" d="M650,155 H717"/>
+</svg>
+<figcaption>Stereo changes: two mics instead of one (~$5–15 more), a mic bar and two windscreens, twice the storage and upload, and about 30% more energy (the mics are cheap; the upload doubles). Analyzer side: BirdNET runs on a mono mix; a later step compares the two channels around each detection.</figcaption>
+</figure>
+<div class="card"><strong>If the mic is analog (EM272) instead:</strong> stereo needs a stereo codec (C2, e.g. WM8960) between the mics and the MCU, and the two capsules should be a matched pair. On the Pi (build C) it needs a stereo-input sound card; most cheap USB dongles are mono.</div>
+
+<!-- ============================ DIAGRAM C ============================ -->
+<h2>C. Raspberry Pi Zero 2 W</h2>
+<figure>
+<svg viewBox="0 0 980 400" role="img" aria-labelledby="tc">
+<title id="tc">Block diagram, Raspberry Pi recorder</title>
+<rect class="zone" x="10" y="20" width="700" height="365" rx="6"/>
+<text class="group" x="22" y="40">OUTDOOR ENCLOSURE (larger)</text>
+<rect class="zone" x="730" y="20" width="240" height="365" rx="6"/>
+<text class="group" x="742" y="40">INDOORS / CLOUD</text>
+<rect class="box choice" x="30" y="70" width="130" height="70" rx="5"/><text x="95" y="98" text-anchor="middle">Microphone</text><text class="small" x="95" y="116" text-anchor="middle">EM272 (1 or 2)</text><text class="tagtext" x="150" y="84" text-anchor="end">C1</text>
+<rect class="box choice" x="195" y="70" width="140" height="70" rx="5"/><text x="265" y="98" text-anchor="middle">Sound card</text><text class="small" x="265" y="116" text-anchor="middle">USB or I²S HAT</text><text class="tagtext" x="325" y="84" text-anchor="end">C2</text>
+<rect class="box" x="370" y="62" width="160" height="86" rx="5"/><text x="450" y="90" text-anchor="middle">Pi Zero 2 W</text><text class="small" x="450" y="108" text-anchor="middle">arecord → flac → SD</text><text class="small" x="450" y="124" text-anchor="middle">rsync over wifi, NTP</text>
+<rect class="box choice" x="565" y="62" width="130" height="86" rx="5"/><text x="630" y="98" text-anchor="middle">Night timer</text><text class="small" x="630" y="116" text-anchor="middle">power off after dusk</text><text class="tagtext" x="685" y="76" text-anchor="end">C14</text>
+<path class="d" d="M160,105 H192"/><path class="d" d="M335,105 H367"/>
+<path class="d" d="M450,148 V205 H720 V105 H752" />
+<rect class="box choice" x="755" y="62" width="200" height="86" rx="5"/><text x="855" y="90" text-anchor="middle">Indoor computer</text><text class="small" x="855" y="108" text-anchor="middle">rsync target = incoming/</text><text class="small" x="855" y="124" text-anchor="middle">analyzer.py (BirdNET)</text><text class="tagtext" x="945" y="76" text-anchor="end">C13</text>
+<text class="small" x="600" y="199">wifi</text>
+<rect class="box choice" x="30" y="250" width="130" height="70" rx="5"/><text x="95" y="278" text-anchor="middle">Solar panel</text><text class="small" x="95" y="296" text-anchor="middle">20–50 W</text><text class="tagtext" x="150" y="264" text-anchor="end">C8</text>
+<rect class="box choice" x="195" y="250" width="140" height="70" rx="5"/><text x="265" y="278" text-anchor="middle">Charge controller</text><text class="small" x="265" y="296" text-anchor="middle">MPPT, 12 V or 1-cell</text><text class="tagtext" x="325" y="264" text-anchor="end">C9</text>
+<rect class="box choice" x="370" y="250" width="160" height="70" rx="5"/><text x="450" y="278" text-anchor="middle">Battery</text><text class="small" x="450" y="296" text-anchor="middle">12 V LiFePO4 ~20 Ah</text><text class="tagtext" x="520" y="264" text-anchor="end">C10</text>
+<rect class="box" x="565" y="250" width="130" height="70" rx="5"/><text x="630" y="278" text-anchor="middle">5 V regulator</text><text class="small" x="630" y="296" text-anchor="middle">buck, 2 A</text>
+<path class="p" d="M160,285 H192"/><path class="p" d="M335,285 H367"/><path class="p" d="M530,285 H562"/>
+<path class="p" d="M630,250 V151"/><path class="p" d="M565,105 H533"/>
+</svg>
+<div class="legend"><span class="d">audio / data</span><span class="p">power</span><span><span class="tag">C#</span> choice</span></div>
+<figcaption>Least firmware work and the best audio, at roughly 10× the energy of A. If a cable from the house can reach the mic (5–10 m), drop the solar entirely and put the Pi indoors.</figcaption>
+</figure>
+
+<!-- ============================ CHOICES ============================ -->
+<h2>The choices</h2>
+<p class="muted">The suggested option for a first prototype is marked in green. "A/B" means builds A and B, "C" means the Pi.</p>
+
+<h3><span class="tag">C1</span> Microphone</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">I²S MEMS, e.g. ICS-43434 (A/B)</td><td>Plugs straight into ESP32-S3 I²S, no analog parts; ~0.5 mA; L/R select pin makes stereo trivial; breakouts ~$5–15</td><td>Self-noise ~29–33 dBA (SNR ~65 dB): hears roughly half as far as an EM272 for quiet songs</td></tr>
+<tr><td>PDM MEMS, e.g. Infineon IM69D130 (A/B)</td><td>Best SNR among MEMS (~69 dB); native PDM on nRF5340 (stereo); ~1 mA</td><td>Fewer breakouts; ESP32-S3 PDM support is fine but less used for stereo</td></tr>
+<tr><td>INMP441 modules (A/B)</td><td>~$3, everywhere</td><td>End-of-life part, noisier (SNR 61 dB), quality varies between clones</td></tr>
+<tr><td>Analog electret EM272, e.g. Primo EM272Z1 / Micbooster Clippy (C, or A/B with a codec)</td><td>Very low self-noise (~14 dBA, SNR ~80 dB): the bird-recording standard; widest detection range</td><td>Needs a preamp/codec and bias power; bigger; matched pair needed for stereo; ~$30–60 each</td></tr>
+</table></div>
+
+<h3><span class="tag">C2</span> Audio front end</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">None: digital mic (A/B)</td><td>Fewest parts, no analog noise pickup</td><td>Locks you to MEMS mics</td></tr>
+<tr><td>Stereo codec, e.g. WM8960 breakout (A/B with EM272, or C as a HAT)</td><td>Mic bias + programmable gain + stereo ADC in one chip, I²S out</td><td>Register setup in firmware; ~3–8 mA; analog layout matters</td></tr>
+<tr><td>USB sound card (C)</td><td>Zero setup on Linux</td><td>Most cheap ones are mono and noisy; stereo mic-level inputs cost more</td></tr>
+<tr><td>Fixed-gain preamp + MCU ADC</td><td>Cheap</td><td>MCU ADCs are noisy (~10–11 effective bits); avoid auto-gain modules like MAX9814, which pump levels and confuse BirdNET</td></tr>
+</table></div>
+
+<h3><span class="tag">C3</span> Recorder processor</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">ESP32-S3 with PSRAM (e.g. Seeed XIAO ESP32S3, Adafruit ESP32-S3 Feather)</td><td>Wifi built in; I²S/PDM stereo; enough CPU for FLAC or Opus; huge community; ~$8–20</td><td>~25–45 mA while recording (~0.1–0.15 W); upload bursts ~250 mA; board choice matters for sleep current (regulator, LEDs)</td></tr>
+<tr><td>Raspberry Pi Pico 2 W (RP2350 + CYW43439)</td><td>~$7; excellent docs and C/MicroPython SDKs; PIO handles I²S or PDM mics (stereo too); very low dormant current; wifi built in</td><td>520 KB RAM and no PSRAM: only ~8 s of 32 kHz audio in memory, so it writes to microSD almost constantly and buffering during uploads is tight; wifi chip sits on a slower SPI link and is less proven for ~1 GB/day uploads; fewer ready-made audio/FLAC libraries. Recording power similar to the ESP32-S3</td></tr>
+<tr><td>nRF5340 (+ nRF7002 for wifi; the nRF7002 DK has both)</td><td>Lowest power: ~5–10 mA recording; native stereo PDM; Wi-Fi 6 power saving with nRF7002</td><td>Zephyr firmware is a steeper climb; nRF7002 adds cost (~$60 DK); without it, only BLE (needs an indoor gateway, slow for audio)</td></tr>
+<tr><td>nRF52840 (e.g. Seeed XIAO nRF52840 Sense, Adafruit Feather nRF52840 Sense)</td><td>Same low-power class as the nRF5340; many cheap boards (~$10–25), two with a PDM mic built in; Arduino and CircuitPython support: the easiest way to start on Nordic</td><td>256 KB RAM (~4 s of audio) makes buffering during uploads tight; single 64 MHz core leaves little room for Opus; wifi only via the nRF7002 over SPI. The built-in mics are low quality; add a proper PDM mic for real tests</td></tr>
+<tr><td>Raspberry Pi Zero 2 W (C)</td><td>Linux: arecord, flac, rsync, ssh; least custom code</td><td>~0.7–1.2 W; boots slowly; SD corruption on power loss unless read-only root</td></tr>
+</table></div>
+
+<h3><span class="tag">C4</span> Local storage</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">microSD, high-endurance or industrial (A/B)</td><td>Holds days of audio, so wifi outages lose nothing; batch uploads save energy</td><td>Write bursts ~20–60 mA; cheap cards wear out or corrupt on brown-out; needs a slot (XIAO Sense board, Feather + breakout)</td></tr>
+<tr><td>PSRAM only (A/B)</td><td>No card</td><td>8 MB ≈ 80 s of 48 kHz mono: wifi must be up nearly constantly, which costs more power</td></tr>
+<tr><td>SD card, read-only OS + data partition (C)</td><td>Standard</td><td>Needs a clean-shutdown plan for low battery</td></tr>
+</table></div>
+
+<h3><span class="tag">C5</span> Compression and sample rate</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">FLAC, 32 kHz, 16-bit</td><td>Lossless; ~40–60% of WAV; 32 kHz still covers BirdNET's 0–15 kHz range and cuts data by a third vs 48 kHz</td><td>~1–1.5 GB per daylight day mono at 32 kHz; encoder CPU on the MCU (FLAC level 0 is light)</td></tr>
+<tr><td>WAV</td><td>No CPU, simplest</td><td>2× the upload energy and storage of FLAC</td></tr>
+<tr><td>Opus ~48 kbps</td><td>~10× smaller than WAV: upload energy becomes negligible; best fit for nRF + two small cells</td><td>Lossy: may cost BirdNET a little confidence on faint calls (worth testing with sample files); more CPU</td></tr>
+</table></div>
+
+<h3><span class="tag">C6</span> Link to the house</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">2.4 GHz wifi, batch HTTP upload every few minutes</td><td>Built into ESP32-S3 and Pi; fast; radio is off most of the time</td><td>Needs decent signal at the mount (check with a phone); needs a small upload receiver indoors (not built yet) that writes <code>.part</code> then renames</td></tr>
+<tr><td>BLE to a USB dongle indoors (nRF5340 + nRF52840 Dongle, ~$10)</td><td>Lowest energy per byte: ~5–7 mA while sending vs ~200 mA for wifi (~0.07 Wh/day even at 3 h of transfer); no router signal needed outside; dongle hands files to the indoor computer over USB</td><td>Throughput: ~1 Mbps at best, ~0.4 Mbps through a wall at 10–20 m. Opus fits (~0.5–2 h/day); mono FLAC only in winter on a good link; stereo doesn't fit. Long-range BLE (125–500 kbps) is too slow for audio. Custom firmware on both ends; place the dongle at a window facing the recorder</td></tr>
+<tr><td>Cable (USB/Ethernet/long mic cable)</td><td>No radio, no solar, most reliable</td><td>Only if the spot is within ~5–10 m of power</td></tr>
+<tr><td>LoRa</td><td>Long range, tiny power</td><td>Far too slow for audio; fine later for battery/health pings only</td></tr>
+</table></div>
+
+<div class="wrap"><table>
+<tr><th>Daylight audio, 32 kHz mono</th><th>Per day (winter / summer)</th><th>BLE time at ~1 Mbps</th><th>BLE time at ~0.4 Mbps</th></tr>
+<tr><td>FLAC</td><td>~1.3 GB / ~2.2 GB</td><td>~3 h / ~5 h</td><td>~7 h / ~12 h</td></tr>
+<tr><td>Opus ~48 kbps</td><td>~0.23 GB / ~0.4 GB</td><td>~30 min / ~55 min</td><td>~1.3 h / ~2.2 h</td></tr>
+<tr><td>FLAC stereo</td><td>~2.5 GB / ~4.4 GB</td><td>~6 h / ~10 h</td><td>doesn't fit</td></tr>
+</table></div>
+<p class="muted">Wifi has 5–10× the headroom and needs no dongle; BLE wins if the mount spot has weak wifi, as long as the audio is Opus (test BirdNET on Opus vs FLAC first).</p>
+
+<h3><span class="tag">C7</span> Clock</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">NTP over wifi at each upload</td><td>Free; accurate to well under a second</td><td>Drifts between syncs if wifi is down for days (MCU clocks drift seconds per day)</td></tr>
+<tr><td>+ RTC, e.g. RV-3028 (45 nA) or DS3231</td><td>Keeps time through outages and brown-outs; can wake the MCU at dawn</td><td>One more part (~$5–15)</td></tr>
+</table></div>
+
+<h3><span class="tag">C8</span> Solar input</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td>Two 4.8 V / 50 mA cells (have them)</td><td>Tiny, already owned</td><td>~0.3 Wh on an average December day: summer only for A/B, unless on nRF + Opus</td></tr>
+<tr><td class="pick">3–6 W, 6 V panel (A/B)</td><td>~2–4 Wh on a December day; small (~20×25 cm for 5 W); ~$15–30</td><td>Needs a south-facing, unshaded spot; mount at a steep angle (~60°) for winter sun</td></tr>
+<tr><td>20–50 W, 12 V panel (C)</td><td>Covers a Pi through winter</td><td>Big; needs a pole/roof mount and a 12 V system</td></tr>
+</table></div>
+
+<h3><span class="tag">C9</span> Charger / harvester</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">BQ24074 (e.g. Adafruit solar charger, ~$15)</td><td>Takes 5–6 V panels; input-voltage regulation keeps weak panels near their best point; load sharing; battery temperature input (no charging below 0 °C)</td><td>Not true MPPT; tops out around 1–1.5 A (plenty here)</td></tr>
+<tr><td>CN3791 MPPT (e.g. DFRobot Solar Power Manager)</td><td>Real MPPT for 6 V panels; versions with a 5 V output suit build C or a 1-cell Pi</td><td>Usually no temperature cutoff on cheap boards; higher idle draw</td></tr>
+<tr><td>BQ25570 harvester</td><td>Built for tiny cells (µW–mW), cold-starts from near-empty; pairs with the two small cells</td><td>Input ≤ ~5 V (the 4.8 V cells sit near that); 100 mA-class output: too small for ESP32 wifi bursts without the battery buffering</td></tr>
+<tr><td>12 V MPPT controller, e.g. Victron 75/10 (C)</td><td>Robust, Bluetooth monitoring, LiFePO4 profiles</td><td>~$50+; 12 V system means a 5 V buck for the Pi</td></tr>
+</table></div>
+
+<h3><span class="tag">C10</span> Battery</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">One 18650 Li-ion, protected, ~3.5 Ah / 12 Wh (A/B)</td><td>Several days of reserve for A; cheap; standard holders</td><td>Must not charge below 0 °C (Seattle freezes a few nights a year): use a charger with a temperature sensor; avoid heat inside a sunny box</td></tr>
+<tr><td>LiFePO4 cell(s)</td><td>Safer, thousands of cycles, more heat-tolerant</td><td>3.2 V nominal: charger must support it; still no charging below 0 °C</td></tr>
+<tr><td>Supercapacitor</td><td>Huge cycle life, wide temperature range</td><td>Holds minutes to hours, not nights or gray days</td></tr>
+<tr><td>12 V LiFePO4, ~20 Ah (C)</td><td>~250 Wh: a week+ of Pi reserve</td><td>Heavy, ~$80–120</td></tr>
+</table></div>
+
+<h3><span class="tag">C11</span> Regulator</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">Buck-boost 3.3 V, e.g. TPS63802 / Pololu S7V8F3</td><td>Uses the whole battery range (down to ~2.5 V); handles wifi bursts</td><td>Quiescent current varies by module; check it's tens of µA, not mA</td></tr>
+<tr><td>Low-Iq LDO, e.g. MCP1700 / the board's own</td><td>Simple, µA idle</td><td>Drops out below ~3.5 V battery: wastes the bottom of the charge; some can't supply wifi bursts</td></tr>
+</table></div>
+
+<h3><span class="tag">C12</span> Battery monitor</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">MAX17048 fuel gauge (~$6, some ESP32-S3 Feathers have one)</td><td>Accurate %, ~3 µA, I²C; lets the dashboard show battery and the MCU stop recording before a brown-out</td><td>One more part if the board lacks it</td></tr>
+<tr><td>Voltage divider into an ADC pin</td><td>Pennies</td><td>Rough, and the divider leaks current unless switched</td></tr>
+</table></div>
+
+<h3><span class="tag">C13</span> Indoor computer</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">Raspberry Pi 5 (4–8 GB) or an old laptop / mini PC</td><td>Runs BirdNET faster than real time; always on; ~3–10 W from the wall</td><td>One more box to keep alive</td></tr>
+<tr><td>Your main computer</td><td>Nothing to buy</td><td>Uploads pile up while it sleeps</td></tr>
+</table></div>
+
+<h3><span class="tag">C14</span> Night timer (C only)</h3>
+<div class="wrap"><table class="choices">
+<colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
+<tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
+<tr><td class="pick">Witty Pi or similar RTC power board</td><td>Cuts the Pi off after dusk and boots it before dawn: roughly halves energy</td><td>~$30; the Pi must shut down cleanly first</td></tr>
+<tr><td>Always on</td><td>Hears owls and night migrants</td><td>~2× the panel and battery</td></tr>
+</table></div>
+
+<!-- ============================ PARTS ============================ -->
+<h2>Parts lists</h2>
+<p class="muted">Suggested picks, with rough prices for planning. Common to every build: an IP65 enclosure (~150×110×70 mm for A/B), cable glands, a hydrophobic acoustic vent or membrane over the mic port, foam + fur windscreen per mic, a small rain hood with the mic facing down, a desiccant pack, and a pole or fence mount 1.5–3 m up, away from walls (reflections confuse stereo).</p>
+
+<h3>A. ESP32-S3, mono (~$60–110)</h3>
+<div class="wrap"><table>
+<tr><th>Block</th><th>Part</th><th>Est.</th></tr>
+<tr><td>C1 Mic</td><td>ICS-43434 I²S MEMS breakout</td><td>$5–15</td></tr>
+<tr><td>C3 MCU</td><td>ESP32-S3 board with 8 MB PSRAM and a low-Iq regulator (XIAO ESP32S3 Sense includes a microSD slot)</td><td>$10–20</td></tr>
+<tr><td>C4 Storage</td><td>32–64 GB high-endurance microSD (+ breakout if no slot)</td><td>$10–15</td></tr>
+<tr><td>C7 Clock</td><td>RV-3028 RTC breakout (optional)</td><td>$10</td></tr>
+<tr><td>C8 Panel</td><td>5 W 6 V panel (or start with the two 4.8 V cells for summer tests)</td><td>$15–30</td></tr>
+<tr><td>C9 Charger</td><td>BQ24074 solar charger board + 10 k NTC on the cell</td><td>$15</td></tr>
+<tr><td>C10 Battery</td><td>Protected 18650, ~3.5 Ah, + holder</td><td>$10</td></tr>
+<tr><td>C11 Regulator</td><td>3.3 V buck-boost module</td><td>$5–10</td></tr>
+<tr><td>C12 Monitor</td><td>MAX17048 breakout (skip if on the board)</td><td>$6</td></tr>
+<tr><td>Housing</td><td>Enclosure, glands, vent, windscreen, hood, mount</td><td>$20–35</td></tr>
+</table></div>
+
+<h3>B. ESP32-S3, stereo (A plus ~$10–20)</h3>
+<div class="wrap"><table>
+<tr><th>Block</th><th>Part</th><th>Est.</th></tr>
+<tr><td>C1 Mics</td><td>Two ICS-43434 breakouts, one strapped Left and one Right</td><td>$10–30</td></tr>
+<tr><td>Mic bar</td><td>30 cm aluminium bar or PVC tube, two small mic housings with membranes, shielded 4-wire cable to the box</td><td>$10–15</td></tr>
+<tr><td>C8 Panel</td><td>5–6 W (stereo doubles the upload)</td><td>$20–30</td></tr>
+<tr><td colspan="3" class="muted">Everything else as in A.</td></tr>
+</table></div>
+
+<h3>C. Pi Zero 2 W (~$170–330)</h3>
+<div class="wrap"><table>
+<tr><th>Block</th><th>Part</th><th>Est.</th></tr>
+<tr><td>C1 Mic</td><td>Micbooster Clippy EM272 (one, or a matched pair for stereo)</td><td>$30–60 each</td></tr>
+<tr><td>C2 Sound card</td><td>USB mic-input dongle (mono), or a WM8960 HAT for stereo</td><td>$10–25</td></tr>
+<tr><td>Computer</td><td>Pi Zero 2 W + 32 GB high-endurance microSD</td><td>$25</td></tr>
+<tr><td>C14 Timer</td><td>Witty Pi (optional, halves energy)</td><td>$30</td></tr>
+<tr><td>C8 Panel</td><td>20–50 W 12 V panel + mount</td><td>$40–80</td></tr>
+<tr><td>C9 Controller</td><td>Small MPPT controller with LiFePO4 profile</td><td>$25–60</td></tr>
+<tr><td>C10 Battery</td><td>12 V 20 Ah LiFePO4</td><td>$80–120</td></tr>
+<tr><td>Regulator</td><td>12 V → 5 V 3 A buck</td><td>$8</td></tr>
+<tr><td>Housing</td><td>Larger IP65 box, glands, windscreen, hood</td><td>$25–40</td></tr>
+</table></div>
+
+<h2>Suggested path</h2>
+<ol>
+<li><strong>Bench prototype of A on USB power:</strong> ESP32-S3 + one ICS-43434 + microSD, writing 5-minute 32 kHz FLAC files named by UTC start time, uploading to a small receiver on the indoor computer. Measure real power with a USB meter, and compare BirdNET results against a phone recording side by side.</li>
+<li><strong>Add a second mic</strong> (build B) on the bench; check both channels line up. Cheap, and it tells you whether direction-finding is worth the bar outdoors.</li>
+<li><strong>Size solar from the measured numbers</strong>, then add charger, 18650 and panel. Test the two 4.8 V cells as a summer-only supply at the same time.</li>
+<li><strong>Keep C as the fallback</strong> if MEMS mics miss too many quiet birds, or if a cable run to the house turns out to be possible.</li>
+</ol>
+</main>
+</body>
+</html>

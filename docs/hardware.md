@@ -4,6 +4,10 @@ Recommendations for the outdoor recorder and for getting data from it to the
 dashboard. Prices and power figures are rough estimates to size things, not
 quotes. Measure your own setup once it's built.
 
+**Block diagrams, choice-by-choice pros and cons, and parts lists** for the
+low-power (ESP32-S3 / nRF5340, mono or stereo) and Pi builds are in
+[hardware-design.html](hardware-design.html); open it in a browser.
+
 ## TL;DR
 
 **Keep the outdoor box small and dumb. Do the bird ID indoors.**
