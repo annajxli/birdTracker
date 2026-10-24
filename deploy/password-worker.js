@@ -24,6 +24,11 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === SIGN_IN && request.method === "POST") {
+      // Too many attempts from one address: refuse before even looking at the password.
+      const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+      if (env.SIGN_IN_LIMIT && !(await env.SIGN_IN_LIMIT.limit({key: ip})).success) {
+        return signInPage("/", false, "Too many attempts. Wait a minute and try again.", 429);
+      }
       let form;
       try {
         form = await request.formData();
@@ -125,9 +130,9 @@ function redirect(location, cookie) {
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 
-function signInPage(next, failed) {
-  return new Response(SIGN_IN_HTML.replace("{{next}}", escapeHtml(safeNext(next))).replace("{{error}}", failed ? "That password didn't work." : ""), {
-    status: 401,
+function signInPage(next, failed, message = "That password didn't work.", status = 401) {
+  return new Response(SIGN_IN_HTML.replace("{{next}}", escapeHtml(safeNext(next))).replace("{{error}}", failed || status !== 401 ? message : ""), {
+    status,
     headers: {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...SECURITY_HEADERS}
   });
 }

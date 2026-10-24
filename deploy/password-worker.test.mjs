@@ -65,6 +65,18 @@ check(!body.includes("<script>alert(1)"), "next is escaped in the page");
 r = await worker.fetch(new Request(base + "/__signout", {headers: {Cookie: value}}), env);
 check(r.status === 303 && /Max-Age=0/.test(r.headers.get("Set-Cookie")), "sign out clears cookie");
 
+// Rate limit: a stand-in for Workers' limiter allowing 2 tries per address.
+const tries = new Map();
+const limited = {...env, SIGN_IN_LIMIT: {limit: async ({key}) => { tries.set(key, (tries.get(key) ?? 0) + 1); return {success: tries.get(key) <= 2}; }}};
+const from = (ip, pw) => new Request(base + "/__signin", {method: "POST", body: new URLSearchParams({password: pw, next: "/"}), headers: {"CF-Connecting-IP": ip}});
+await worker.fetch(from("1.2.3.4", "a"), limited);
+await worker.fetch(from("1.2.3.4", "b"), limited);
+r = await worker.fetch(from("1.2.3.4", "robin-song"), limited);
+body = await r.text();
+check(r.status === 429 && body.includes("Too many attempts") && !r.headers.get("Set-Cookie"), "third try in a minute refused, even with the right password");
+r = await worker.fetch(from("5.6.7.8", "robin-song"), limited);
+check(r.status === 303, "other addresses unaffected");
+
 r = await worker.fetch(new Request(base + "/"), {ASSETS});
 check(r.status === 500, "missing secret fails closed");
 console.log(fails ? `${fails} FAILED` : "all passed");
