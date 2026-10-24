@@ -72,7 +72,7 @@ const phoneScript = `<script>
 
 const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400&family=Public+Sans:wght@400..900&display=swap">`;
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400&family=Public+Sans:ital,wght@0,400..900;1,400..700&display=swap">`;
 
 const icon = `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐦</text></svg>">`;
 
@@ -80,7 +80,6 @@ const icon = `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www
 const menuPages = [
   ["Overview", "./"],
   ["Species", "./species"],
-  ["Year", "./year"],
   ["Detections", "./detections"]
 ];
 
@@ -135,7 +134,6 @@ export default {
   pages: [
     {name: "Overview", path: "/"},
     {name: "Species", path: "/species"},
-    {name: "Year", path: "/year"},
     {name: "Detections", path: "/detections"}
   ],
   sidebar: false,

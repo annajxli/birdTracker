@@ -97,6 +97,16 @@ export function formatDate(date, options = {month: "short", day: "numeric"}) {
   return new Date(`${date}T12:00:00`).toLocaleDateString("en-US", options);
 }
 
+/** "Sep 1 – 30", "Sep 23 – Oct 22", or "Oct 23, 2025 – Oct 22, 2026" across years. */
+export function dateRange(a, b) {
+  if (a === b) return formatDate(a);
+  if (a.slice(0, 4) !== b.slice(0, 4)) {
+    const withYear = {month: "short", day: "numeric", year: "numeric"};
+    return `${formatDate(a, withYear)} – ${formatDate(b, withYear)}`;
+  }
+  return a.slice(0, 7) === b.slice(0, 7) ? `${formatDate(a)} – ${Number(b.slice(8, 10))}` : `${formatDate(a)} – ${formatDate(b)}`;
+}
+
 export function speciesHref(name) {
   return `./species?name=${encodeURIComponent(name)}`;
 }
@@ -123,6 +133,27 @@ function dayLabel(t) {
  * Most recently heard species, newest first. For each, up to `times` recent
  * sightings, counting detections less than `gapMinutes` apart as one bout.
  */
+/**
+ * One row per species per clock minute it was heard in: its most confident detection
+ * that minute. BirdNET scores every 3-second segment, so a bird calling for 20 minutes
+ * leaves hundreds of detections; counting minutes heard instead keeps one persistent
+ * caller from outweighing everything else.
+ */
+export function minutesHeard(rows) {
+  const best = new Map();
+  for (const d of rows) {
+    const key = `${d.species}|${Math.floor(+d.time / 6e4)}`;
+    const prev = best.get(key);
+    if (!prev || d.confidence > prev.confidence) best.set(key, d);
+  }
+  return [...best.values()];
+}
+
+/** Clock minutes with at least one bird heard (any species), as minute numbers. */
+export function birdsongMinutes(rows) {
+  return new Set(rows.map((d) => Math.floor(+d.time / 6e4)));
+}
+
 export function recentSpecies(rows, {limit = 12, times = 3, gapMinutes = 10} = {}) {
   const bySpecies = new Map();
   for (let i = rows.length - 1; i >= 0; --i) {
@@ -142,10 +173,15 @@ export function birdCard({species, times}, photo) {
   const [latest, ...earlier] = times;
   return htl.html`<div class="bird-card">
     ${birdPhoto(species, photo, speciesHref(species))}
-    <a class="bird-name" href=${speciesHref(species)}>${species}</a>
+    <a class="bird-name" href=${speciesHref(species)}>${wrapName(species)}</a>
     <div class="bird-when">${dayLabel(latest)}, ${clock(latest)}</div>
     ${earlier.length ? htl.html`<div class="bird-times">also ${earlier.map(clock).join(" · ")}</div>` : ""}
   </div>`;
+}
+
+/** A species name that wraps only between words, never at a hyphen ("Golden-crowned" stays whole). */
+function wrapName(species) {
+  return species.split(" ").flatMap((word, i) => [i ? " " : "", word.includes("-") ? htl.html`<span class="nowrap">${word}</span>` : word]);
 }
 
 /** A species photo with its credit tucked into an ⓘ badge (hover, or tap/focus on touch screens). */
@@ -238,6 +274,10 @@ const GROUP_GAP = 0.2; // ...plus this much extra space above every group but th
 const ROW_PX = 17;
 const DENSITY_FROM = 30; // spans this long are drawn as density strips, not ticks
 const BIN_MINUTES = 15;
+// Detections of a species less than this far apart are drawn as one bout (a bar from first
+// to last call). A guess from simulated data; see README "Tuning with real data".
+const BOUT_GAP_MINUTES = 2;
+const SEGMENT_MS = 3000; // BirdNET scores 3-second segments
 
 /**
  * Detections by time of day: one row per species, grouped under rough
@@ -254,7 +294,12 @@ const BIN_MINUTES = 15;
  * sun: per-date {start, end, sunrise, sunset} from sun.json.
  * categories: {order: [category...], species: {commonName: category}}.
  */
-export function dayTimeline(rows, sun, dates, {spanDays = dates.length, categories, sort = "category", width, dark, daylightOnly = true}) {
+export function dayTimeline(rows, sun, dates, {
+  spanDays = dates.length, categories, sort = "category", width, dark, daylightOnly = true,
+  maxRows = Infinity, // more species rows than this and the chart starts collapsed
+  overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
+  onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
+} = {}) {
   const n = dates.length;
   const density = spanDays >= DENSITY_FROM;
   const ref = sun[dates.at(-1)];
@@ -286,16 +331,31 @@ export function dayTimeline(rows, sun, dates, {spanDays = dates.length, categori
   const byFirst = (a, b) => d3.ascending(firstHeard.get(a), firstHeard.get(b));
   const byCount = (a, b) => d3.descending(timesHeard.get(a), timesHeard.get(b)) || byFirst(a, b);
   const categoryOf = (s) => categories?.species[s] ?? "Other";
+  // Too many species for one screen? Then start collapsed, unless the viewer chose otherwise.
+  const auto = firstHeard.size > maxRows;
+  const collapsedOf = (key) => (overrides.has(key) ? overrides.get(key) : auto);
   let order;
+  let rowKeyOf = (species) => species; // which row a species' detections are drawn on
+  let groups = [];
+  let hiddenCount = 0;
   if (sort === "category") {
     // Grouped under category headers; within a group, by when the species usually starts singing.
-    const groups = d3.groups([...firstHeard.keys()], categoryOf)
+    // A collapsed category is a single row (its header) holding all of its species' detections.
+    groups = d3.groups([...firstHeard.keys()], categoryOf)
       .sort(([a], [b]) => (categories?.order.indexOf(a) ?? 0) - (categories?.order.indexOf(b) ?? 0));
-    order = groups.flatMap(([group, species]) => [HEADER + group, ...species.sort(byFirst)]);
+    order = groups.flatMap(([group, species]) => (collapsedOf(group) ? [HEADER + group] : [HEADER + group, ...species.sort(byFirst)]));
+    rowKeyOf = (species) => (collapsedOf(categoryOf(species)) ? HEADER + categoryOf(species) : species);
   } else {
     order = [...firstHeard.keys()].sort(sort === "count" ? byCount : byFirst);
+    if (collapsedOf("*") && order.length > maxRows) {
+      hiddenCount = order.length - maxRows;
+      order = order.slice(0, maxRows);
+      const kept = new Set(order);
+      shown = shown.filter((d) => kept.has(d.species));
+    }
   }
   const headers = order.filter((k) => k.startsWith(HEADER));
+  const groupSize = new Map(groups.map(([g, sp]) => [g, sp.length]));
 
   // Lay rows out by hand (in units of one species row) so headers get room above and below.
   const rowsAt = new Map(); // key -> {y1, y2, y}
@@ -308,7 +368,7 @@ export function dayTimeline(rows, sun, dates, {spanDays = dates.length, categori
     pos += h;
   }
   const total = pos;
-  const rowOf = (species) => rowsAt.get(species);
+  const rowOf = (species) => rowsAt.get(rowKeyOf(species));
   const speciesTicks = order.filter((k) => !k.startsWith(HEADER)).map((k) => rowsAt.get(k).y);
   const nameAt = new Map(order.map((k) => [rowsAt.get(k).y, k]));
 
@@ -316,39 +376,68 @@ export function dayTimeline(rows, sun, dates, {spanDays = dates.length, categori
 
   const fade = n === 1 ? 1 : n <= 3 ? 0.6 : 0.4; // overlapping days stack up
   const hourStep = width < 480 ? 4 : width < 800 ? 2 : 1;
-  const tipChannels = {Species: "species", Time: (d) => clock(d.time), Confidence: (d) => d3.format(".0%")(d.confidence)};
-  if (n > 1) tipChannels.Day = (d) => formatDate(d.date, {weekday: "short", month: "short", day: "numeric"});
 
   let dataMarks;
   let color;
   if (density) {
     // Detections per day in each 15-minute slot of the reference day's clock.
     const bin = d3.timeMinute.every(BIN_MINUTES);
-    const bins = d3.flatRollup(shown, (v) => v.length / n, (d) => d.species, (d) => +bin.floor(d.clock))
-      .map(([species, t, rate]) => ({species, t1: new Date(t), t2: new Date(t + BIN_MINUTES * 6e4), rate}));
+    const bins = d3.flatRollup(shown, (v) => v.length / n, (d) => rowKeyOf(d.species), (d) => +bin.floor(d.clock))
+      .map(([key, t, rate]) => ({key, name: key.startsWith(HEADER) ? key.slice(1) : key, t1: new Date(t), t2: new Date(t + BIN_MINUTES * 6e4), rate}));
     color = sequential(dark, {legend: true, label: "Detections per day", zero: true});
     dataMarks = [
-      Plot.rect(bins, {x1: "t1", x2: "t2", y1: (d) => rowOf(d.species).y1 + 0.12, y2: (d) => rowOf(d.species).y2 - 0.12, fill: "rate"}),
+      Plot.rect(bins, {x1: "t1", x2: "t2", y1: (d) => rowsAt.get(d.key).y1 + 0.12, y2: (d) => rowsAt.get(d.key).y2 - 0.12, fill: "rate"}),
       Plot.tip(bins, Plot.pointer({
-        x: (d) => new Date((+d.t1 + +d.t2) / 2), y: (d) => rowOf(d.species).y,
-        channels: {Species: "species", Time: (d) => `${clock(d.t1)}–${clock(d.t2)}`, "Per day": (d) => d3.format(".2~f")(d.rate)},
+        x: (d) => new Date((+d.t1 + +d.t2) / 2), y: (d) => rowsAt.get(d.key).y,
+        channels: {Species: "name", Time: (d) => `${clock(d.t1)}–${clock(d.t2)}`, "Per day": (d) => d3.format(".2~f")(d.rate)},
         format: {x: false, y: false, fill: false, Species: true, Time: true, "Per day": true}
       }))
     ];
   } else {
+    // Bouts: a species' detections on one day, merged while the gaps stay under BOUT_GAP_MINUTES.
     const confColor = confidenceColor(dark);
+    const bouts = [];
+    for (const v of d3.groups(shown, (d) => d.species, (d) => d.date).flatMap(([, byDate]) => byDate.map(([, w]) => w))) {
+      v.sort((a, b) => a.clock - b.clock);
+      let bout = null;
+      for (const d of v) {
+        if (bout && d.clock - bout.last <= BOUT_GAP_MINUTES * 6e4) {
+          bout.last = d.clock; bout.lastTime = d.time; bout.n++;
+          if (d.confidence > bout.confidence) bout.confidence = d.confidence;
+        } else {
+          bouts.push((bout = {species: d.species, date: d.date, first: d.clock, last: d.clock, firstTime: d.time, lastTime: d.time, n: 1, confidence: d.confidence}));
+        }
+      }
+    }
+    // Keep single calls visible: at least ~2px wide.
+    const minMs = ((+domain[1] - +domain[0]) / Math.max(1, width - nameMargin(width) - 16)) * 2;
+    for (const b of bouts) b.end = new Date(Math.max(+b.last + SEGMENT_MS, +b.first + minMs));
+    const minutesLong = (b) => Math.round((+b.last + SEGMENT_MS - +b.first) / 6e4);
+    const boutTip = {
+      Species: (b) => (rowKeyOf(b.species).startsWith(HEADER) ? `${categoryOf(b.species)}: ${b.species}` : b.species),
+      Time: (b) => (b.n === 1 ? clock(b.firstTime) : `${clock(b.firstTime)}–${clock(b.lastTime)}`),
+      Length: (b) => (b.n === 1 ? "single call" : `${minutesLong(b) || "<1"} min, ${b.n} detections`),
+      "Top confidence": (b) => d3.format(".0%")(b.confidence)
+    };
+    if (n > 1) boutTip.Day = (b) => formatDate(b.date, {weekday: "short", month: "short", day: "numeric"});
     dataMarks = [
-      Plot.ruleX(shown, {x: "clock", y1: (d) => rowOf(d.species).y1 + 0.18, y2: (d) => rowOf(d.species).y2 - 0.18, stroke: (d) => confColor(d.confidence), strokeWidth: 1.5, strokeOpacity: fade}),
-      Plot.tip(shown, Plot.pointer({
-        x: "clock",
-        y: (d) => rowOf(d.species).y,
-        channels: tipChannels,
-        format: {x: false, y: false, ...Object.fromEntries(Object.keys(tipChannels).map((k) => [k, true]))}
+      Plot.rect(bouts, {x1: "first", x2: "end", y1: (b) => rowOf(b.species).y1 + 0.2, y2: (b) => rowOf(b.species).y2 - 0.2, fill: (b) => confColor(b.confidence), fillOpacity: fade, rx: 1.5}),
+      Plot.tip(bouts, Plot.pointer({
+        x: (b) => new Date((+b.first + +b.end) / 2),
+        y: (b) => rowOf(b.species).y,
+        channels: boutTip,
+        format: {x: false, y: false, ...Object.fromEntries(Object.keys(boutTip).map((k) => [k, true]))}
       }))
     ];
   }
 
-  return Plot.plot({
+  // "▾ SONGBIRDS" when open, "▸ SONGBIRDS · 24" when collapsed (24 species inside).
+  function headerLabel(key) {
+    const group = key.slice(1);
+    return collapsedOf(group) ? `▸ ${group.toUpperCase()} · ${groupSize.get(group)}` : `▾ ${group.toUpperCase()}`;
+  }
+
+  const plot = Plot.plot({
     width,
     height: Math.round(total * ROW_PX) + 50,
     marginLeft: nameMargin(width),
@@ -363,12 +452,34 @@ export function dayTimeline(rows, sun, dates, {spanDays = dates.length, categori
       Plot.ruleX([sunrise, sunset], {stroke: "currentColor", strokeOpacity: 0.35}),
       sunMarkers(sunrise, sunset),
       // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
-      Plot.ruleY(headers, {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
-      Plot.text(headers, {y: (d) => rowsAt.get(d).y, text: (d) => d.slice(1).toUpperCase(), frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
+      Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
+      Plot.text(headers, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
       nameAxis(width, {tickFormat: (y) => nameAt.get(y)}, speciesTicks),
       ...dataMarks
     ]
   });
+
+  // Category headers toggle their category.
+  for (const text of plot.querySelectorAll('[aria-label="text"] text')) {
+    // Long labels wrap onto two lines (tspans), so compare without spaces.
+    const match = /^[▸▾](.+?)(?:·\d+)?$/.exec(text.textContent.replace(/\s/g, ""));
+    const group = match && groups.find(([g]) => g.toUpperCase().replace(/\s/g, "") === match[1])?.[0];
+    if (!group) continue;
+    text.style.cursor = "pointer";
+    text.addEventListener("click", () => onToggle([[group, !collapsedOf(group)]]));
+  }
+
+  // One button for everything: expand/collapse all categories, or show the whole list.
+  let button = null;
+  if (sort === "category" && (auto || overrides.size)) {
+    const anyCollapsed = groups.some(([g]) => collapsedOf(g));
+    button = htl.html`<button class="timeline-expand" type="button">${anyCollapsed ? "Expand all" : "Collapse all"}</button>`;
+    button.onclick = () => onToggle(groups.map(([g]) => [g, !anyCollapsed]));
+  } else if (sort !== "category" && (hiddenCount || overrides.get("*") === false)) {
+    button = htl.html`<button class="timeline-expand" type="button">${hiddenCount ? `Show all ${hiddenCount + order.length} species` : "Show fewer"}</button>`;
+    button.onclick = () => onToggle([["*", !hiddenCount]]);
+  }
+  return htl.html`<div class="timeline">${button}${plot}</div>`;
 }
 
 /** Label for a dayTicks tick: "Oct 23", "Nov 1"; adds the year to the first tick and Jan 1 when the range spans years. */
@@ -407,9 +518,16 @@ export function loadWeather() {
   return FileAttachment("../data/weather.json").json();
 }
 
-// Decreases in the changes chart: a dusty violet, validated against olive in both modes.
+// Increases in the changes chart: a teal, so "heard more" doesn't read as the plain olive data color.
+// With the rust it makes a warm/cool pair that stays distinct for colorblind readers.
+export function increaseColor(dark) {
+  return dark ? "#19a9b0" : "#00939a";
+}
+
+// Decreases in the changes chart: a dark rust, validated against olive in both modes.
+// It is darker than the olive so red-green colorblind readers can still tell them apart.
 export function declineColor(dark) {
-  return dark ? "#9a7bd0" : "#8257ad";
+  return dark ? "#8a3915" : "#6a2300";
 }
 
 // Rain gets its own blue, validated against the olive series in both modes.
@@ -593,4 +711,73 @@ export function dayAxis(dates, {width, ticks, tickFormat}) {
 function barSpan(date) {
   const day = new Date(date);
   return {x1: new Date(+day - 12 * 36e5), x2: new Date(+day + 12 * 36e5)};
+}
+
+/**
+ * Before -> after ("dumbbell") chart of each species' average minutes heard per day in two
+ * periods: a hollow dot for the earlier period, a filled dot for the later one,
+ * a line between them (teal = heard more, rust = heard less), and both values
+ * written beside their dots, on the outside of each pair. A legend above ties each dot style to its period ("September", "October so far", or
+ * dates), so the time spans read from the marks.
+ *
+ * changes: [{species, before, now}], average minutes heard per day.
+ */
+export function changeChart(changes, {width, dark, beforeLabel, nowLabel}) {
+  const up = increaseColor(dark);
+  const down = declineColor(dark);
+  const colorOf = (d) => (d.now >= d.before ? up : down);
+  const max = d3.max(changes, (d) => Math.max(d.before, d.now)) ?? 1;
+  const ring = "var(--theme-background-alt)";
+  const num = d3.format(".1~f");
+  const ups = changes.filter((d) => d.now >= d.before);
+  const downs = changes.filter((d) => d.now < d.before);
+  const label = (data, x, side, text, strong) => Plot.text(data, {
+    x, y: "species", text, textAnchor: side === "left" ? "end" : "start", dx: side === "left" ? -9 : 9,
+    fill: "currentColor", fillOpacity: strong ? 1 : 0.65, fontWeight: strong ? 600 : 400, fontSize: 10.5
+  });
+
+  const plot = Plot.plot({
+    width,
+    height: changes.length * 26 + 46,
+    marginLeft: nameMargin(width),
+    marginRight: 48,
+    marginTop: 8,
+    // Room either side of the dots for their values; ticks only from zero up.
+    x: {domain: [-max * (width < 520 ? 0.26 : 0.12), max * (width < 520 ? 1.3 : 1.16)], ticks: d3.ticks(0, max * 1.1, width < 520 ? 4 : 8), label: "Average minutes heard per day", labelAnchor: "center", labelArrow: "none", grid: true},
+    y: {domain: changes.map((d) => d.species), label: null},
+    marks: [
+      nameAxis(width),
+      Plot.link(changes, {x1: "before", x2: "now", y1: "species", y2: "species", stroke: colorOf, strokeWidth: 2}),
+      Plot.dot(changes, {x: "before", y: "species", r: 4.5, fill: ring, stroke: "currentColor", strokeOpacity: 0.65, strokeWidth: 1.5}),
+      Plot.dot(changes, {x: "now", y: "species", r: 4.5, fill: colorOf, stroke: ring, strokeWidth: 1.5}),
+      // Values on the outside of each pair: earlier value muted, current value bold.
+      label(ups, "before", "left", (d) => num(d.before), false),
+      label(ups, "now", "right", (d) => num(d.now), true),
+      label(downs, "now", "left", (d) => num(d.now), true),
+      label(downs, "before", "right", (d) => num(d.before), false),
+      Plot.tip(changes, Plot.pointerY({
+        x: "now", y: "species",
+        channels: {
+          Species: "species",
+          [beforeLabel]: (d) => `${d3.format(".1f")(d.before)} per day`,
+          [nowLabel]: (d) => `${d3.format(".1f")(d.now)} per day`
+        },
+        format: {x: false, y: false}
+      }))
+    ]
+  });
+
+  const key = (shape, label) => htl.html`<span class="key">${shape}${label}</span>`;
+  const dot = (fill, stroke) => htl.svg`<svg width="12" height="12" viewBox="0 0 12 12"><circle cx="6" cy="6" r="4.5" fill=${fill} stroke=${stroke} stroke-width="1.5"></circle></svg>`;
+  const line = (color) => htl.svg`<svg width="18" height="12" viewBox="0 0 18 12"><path d="M1 6h16" stroke=${color} stroke-width="2"></path></svg>`;
+  return htl.html`<div class="change-chart">
+    <div class="change-legend">
+      ${key(dot(ring, "currentColor"), beforeLabel)}
+      ${key(dot(up, ring), nowLabel)}
+      <span class="key-gap"></span>
+      ${key(line(up), "heard more")}
+      ${key(line(down), "heard less")}
+    </div>
+    ${plot}
+  </div>`;
 }

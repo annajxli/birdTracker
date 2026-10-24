@@ -125,7 +125,7 @@ def simulate(occ: pd.DataFrame, days: list[date], station: str, rng: np.random.G
 
     # Fixed per-species traits for this backyard.
     abundance = rng.lognormal(0, 0.4, n) * np.where(water, 0.3, 1.0) * np.where(regular, 2.0, 0.8)
-    bout_rate = rng.lognormal(math.log(8), 0.6, n)  # singing bouts per day when present
+    bout_rate = rng.lognormal(math.log(3), 0.6, n)  # singing bouts per day when present
     detectability = rng.uniform(1.2, 3.0, n)  # higher = BirdNET is more confident on this one
     week_max = occ.filter(like="w").max(axis=1).to_numpy()
     rare_pool = np.flatnonzero(week_max < 0.05)  # candidates for false positives
@@ -157,11 +157,15 @@ def simulate(occ: pd.DataFrame, days: list[date], station: str, rng: np.random.G
             for _ in range(rng.poisson(bout_rate[i] * (0.5 + occ_today[i]) * season * weather)):
                 start = bout_start_hour(kinds[i], sunrise, sunset, rng)
                 t = to_utc(d, start).replace(second=0, microsecond=0) + timedelta(seconds=3 * int(rng.integers(0, 20)))
-                for _ in range(min(20, rng.geometric(0.3))):
-                    if rng.random() > 0.25:  # the bird sometimes pauses for a segment
+                # A bout lasts from seconds to many minutes (long-tailed, longer for songbirds),
+                # with a song or call every 3-15 s; BirdNET misses some of them.
+                length = min(25 * 60, rng.lognormal(math.log(75 if kinds[i] == "song" else 20), 0.9))
+                end = t + timedelta(seconds=length)
+                while t <= end:
+                    if rng.random() > 0.25:
                         conf = 0.25 + 0.74 * rng.beta(detectability[i], 1.6)
                         yield (station, t.strftime("%Y-%m-%dT%H:%M:%SZ"), *names[i], round(conf, 4), None, SOURCE)
-                    t += timedelta(seconds=3)
+                    t += timedelta(seconds=3 * int(rng.integers(1, 6)))
 
         for _ in range(rng.poisson(4 * weather)):
             i = rng.choice(rare_pool)

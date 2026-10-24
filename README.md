@@ -93,6 +93,25 @@ To load results from running BirdNET-Analyzer by hand instead:
 `ingest.py` takes each recording's start time from its filename, e.g.
 `20260512T131500Z.flac` (UTC), or from `--start`.
 
+### Tuning with real data
+
+BirdNET scores every 3-second segment, so the database holds one row per
+segment a species was heard in. The dashboard turns those into friendlier
+numbers using choices that were tuned on simulated data and should be checked
+once real recordings come in:
+
+- **Minutes heard / minutes of birdsong.** Counts are per clock minute, not
+  per detection, so a bird calling for 20 minutes counts as ~20, not ~400.
+- **Bouts on the daily timeline.** A species' detections less than
+  `BOUT_GAP_MINUTES` (2) apart are drawn as one bar
+  (`dashboard/src/components/birds.js`). If real birds that call every few
+  minutes show up as strings of slivers, raise it; if separate visits merge
+  into one long bar, lower it.
+- **Default confidence threshold** (0.6 on the overview). Check a sample of
+  clips around the threshold for false positives.
+- **The simulator's bout lengths** (`pipeline/simulate.py`) are a rough guess at
+  real singing; compare them with a few real mornings.
+
 ## Deploying
 
 GitHub Actions builds the site and publishes it to GitHub Pages, on a

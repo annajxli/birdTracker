@@ -154,3 +154,29 @@ Some, but it's not needed to start. A second mic covering different habitat
 (front yard vs. back, trees vs. feeder) picks up birds the first one misses.
 Two mics hearing the same bird also back up each other's detections. Everything
 already has a `station_id`, so adding one later is just more data.
+
+## Counting individual birds (stereo, later)
+
+BirdNET says whether a species is in each 3-second segment, not how many are
+singing, so two wrens singing at once look the same as one. A stereo
+recorder can put a floor under that count:
+
+- **How:** two mics about 20–30 cm apart, recorded as one stereo file. A sound
+  reaches one mic up to ~1 ms before the other, and that delay gives its
+  direction (cross-correlate the two channels around each detection, a
+  standard technique called TDOA). If the same species is heard from two
+  clearly different directions in the same few seconds, there are at least
+  two birds.
+- **What it would add:** a "min. birds" number per bout, and a "2+ singing"
+  marker on the daily timeline.
+- **Hardware impact:** cheap (~$10 for a second mic), but decide before
+  building. The board needs two mic inputs: a stereo USB interface on a Pi,
+  or two I2S/PDM MEMS mics on an ESP32 or nRF5340 (both support a stereo
+  pair). Both mics need the same rain hood and wind fur.
+- **Limits:** direction only, not distance, and only in the plane of the two
+  mics; two birds in the same direction still look like one. Reflections off
+  the house and fences add false directions. Treat it as a minimum, not a
+  count.
+- **Without stereo:** if a species' typical song length is known, a second
+  song starting before the first ends also means 2+. That works with one mic
+  but is fragile; worth trying in the analysis first.

@@ -6,7 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
-import {loadDetections, loadPhotos, birdPhoto, hourTicks, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref} from "./components/birds.js";
+import {loadDetections, loadPhotos, birdPhoto, minutesHeard, hourTicks, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref} from "./components/birds.js";
 ```
 
 ```js
@@ -37,8 +37,10 @@ history.replaceState(null, "", `?name=${encodeURIComponent(species)}`);
 ```js
 const sp = all.filter((d) => d.species === species);
 const heard = sp.filter((d) => d.confidence >= minConf);
+// Counted in minutes heard: minutes with at least one detection, not raw 3-second detections.
+const heardMinutes = minutesHeard(heard);
 const daysHeard = new Set(heard.map((d) => d.date)).size;
-const hours = d3.rollup(heard, (v) => v.length, (d) => d.hour);
+const hours = d3.rollup(heardMinutes, (v) => v.length, (d) => d.hour);
 const byHour = d3.range(24).map((hour) => ({hour, count: hours.get(hour) ?? 0}));
 const peakHour = heard.length ? d3.greatest(byHour, (d) => d.count).hour : null;
 ```
@@ -58,9 +60,9 @@ const photo = photos[species];
 
 <div class="grid grid-cols-4 stats">
   <div class="card">
-    <h2>Detections</h2>
-    <div class="big">${d3.format(",")(heard.length)}</div>
-    <div class="sub">${formatDate(dataStart)} – ${formatDate(latest)}</div>
+    <h2>Minutes heard</h2>
+    <div class="big">${d3.format(",")(heardMinutes.length)}</div>
+    <div class="sub date">${dateRange(dataStart, latest)}</div>
   </div>
   <div class="card">
     <h2>Days heard</h2>
@@ -83,9 +85,9 @@ ${heard.length ? "" : html`<p class="sub">No detections at or above ${d3.format(
     width,
     height: 220,
     x: {domain: [new Date(dataStart), d3.utcDay.offset(new Date(latest), 1)], label: null},
-    y: {label: "Detections per week", grid: true, tickFormat: "s"},
+    y: {label: "Minutes heard per week", grid: true, tickFormat: "s"},
     marks: [
-      Plot.rectY(heard, Plot.binX({y: "count"}, {x: (d) => new Date(d.date), interval: d3.utcWeek, fill: seriesColor(dark), insetLeft: 1, insetRight: 1, ry2: 2, tip: true})),
+      Plot.rectY(heardMinutes, Plot.binX({y: "count"}, {x: (d) => new Date(d.date), interval: d3.utcWeek, fill: seriesColor(dark), insetLeft: 1, insetRight: 1, ry2: 2, tip: true})),
       Plot.ruleY([0], {strokeOpacity: 0.3})
     ]
   }))}
@@ -97,7 +99,7 @@ ${heard.length ? "" : html`<p class="sub">No detections at or above ${d3.format(
       width,
       height: 220,
       x: {domain: d3.range(24), ticks: hourTicks(width), tickFormat: formatHour, label: "Hour (Pacific)", labelAnchor: "center", labelArrow: "none"},
-      y: {label: "Detections", grid: true, tickFormat: "s"},
+      y: {label: "Minutes heard", grid: true, tickFormat: "s"},
       marks: [
         Plot.barY(byHour, {x: "hour", y: "count", fill: seriesColor(dark), insetLeft: 1, insetRight: 1, ry2: 2, tip: {format: {x: formatHour}}}),
         Plot.ruleY([0], {strokeOpacity: 0.3})
