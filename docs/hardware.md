@@ -93,7 +93,11 @@ keeps up with 24/7 recording easily.
   `20260512T131500Z.flac`. `pipeline/ingest.py` already reads timestamps from
   that pattern.
 - A cron job or systemd timer **pushes finished files with `rsync` over SSH**
-  every minute, then deletes the local copies that were sent.
+  every minute, then deletes the local copies that were sent. rsync writes
+  each file under a temporary name and renames it when complete, which is what
+  the analyzer expects: it ignores names that don't end in an audio extension
+  (e.g. `.flac.part`) and waits for a file's size to hold still. Anything
+  else that copies files in should do the same.
 - Why files instead of a live stream: wifi blips just delay uploads instead of
   losing audio, and a backlog catches up on its own.
 - Bandwidth: 48 kHz 16-bit mono is ~8 GB/day raw, or ~3–4 GB/day as FLAC.

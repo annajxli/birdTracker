@@ -114,6 +114,6 @@ once real recordings come in:
 
 ## Deploying
 
-GitHub Actions builds the site and publishes it to GitHub Pages, on a
-subdomain behind a shared password (a small Cloudflare Worker). Setup steps
-are in [docs/deploy.md](docs/deploy.md).
+GitHub Actions builds the site and deploys it to a small Cloudflare Worker
+that asks for a shared password and serves the files itself, on a subdomain.
+Setup steps are in [docs/deploy.md](docs/deploy.md).

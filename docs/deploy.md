@@ -1,74 +1,93 @@
 # Deploying the dashboard
 
-The dashboard is a static site built by GitHub Actions and served by GitHub
-Pages on a subdomain of a Cloudflare-managed domain. A small Cloudflare Worker
-in front of it shows a sign-in page asking for one shared password, and
-remembers each device for 30 days. Below, `birds.example.com` stands
-for the real subdomain and `example.com` for the domain.
+The dashboard is a static site. GitHub Actions builds it and deploys it to a
+Cloudflare Worker as that Worker's **static assets**: the Worker checks the
+shared password and then serves the files itself. Nothing else hosts a copy,
+so there is no way around the password. Below, `birds.example.com` stands for
+the real subdomain and `example.com` for the domain.
 
 ```
-browser ──> birds.example.com (Cloudflare) ──> password Worker ──> GitHub Pages
+browser ──> birds.example.com (Cloudflare) ──> password Worker ──> its own copy of the site
 ```
 
 The workflow (`.github/workflows/pages.yml`) builds on every push to `main`,
 every morning, and on demand. Until the recorder runs, it simulates the
-detections on each build and fetches current weather.
+detections on each build and fetches current weather. The Worker's settings
+(name, route, assets) are in `deploy/wrangler.toml`.
 
-## 1. Turn on GitHub Pages
+> **Why not GitHub Pages?** An earlier version served the site from GitHub
+> Pages with the Worker in front. Pages sites are public whatever the repo's
+> visibility, and anyone who knows the subdomain can ask GitHub's servers for
+> it directly, skipping Cloudflare and the password. If you set it up that way,
+> follow "Moving off GitHub Pages" below.
 
-1. In the repo on GitHub: **Settings → Pages**.
-2. Under **Build and deployment → Source**, choose **GitHub Actions**.
+## 1. Cloudflare: an API token for deploys
 
-## 2. Run the first deploy
+1. Cloudflare dashboard → **My Profile → API Tokens → Create Token**, template
+   **Edit Cloudflare Workers**. Under *Account Resources* pick your account and
+   under *Zone Resources* pick `example.com`. Create it and copy the token.
+2. Copy your **Account ID** (Workers & Pages overview, right-hand side).
 
-1. Push to `main`, or go to **Actions → Deploy dashboard → Run workflow**.
-2. Wait for both jobs (`build`, `deploy`) to go green, about 3 minutes.
-3. The site is now at `https://<owner>.github.io/birdTracker/`, with no
-   password yet. Steps 3–5 put it on the subdomain behind the password.
+## 2. GitHub: give the workflow the token
 
-## 3. Point the subdomain at GitHub
+Repo → **Settings → Secrets and variables → Actions → New repository secret**:
 
-1. In Cloudflare, open the domain → **DNS → Records → Add record**:
-   - Type **CNAME**, name **birds**, target **`<owner>.github.io`**
-   - Proxy status **DNS only** (grey cloud) for now, so GitHub can issue
-     its HTTPS certificate.
-2. Back in GitHub, **Settings → Pages → Custom domain**: enter
-   `birds.example.com` and **Save**.
-3. Wait until the DNS check passes and **Enforce HTTPS** can be ticked
-   (anywhere from a few minutes to an hour), then tick it.
+- `CLOUDFLARE_API_TOKEN`: the token from step 1
+- `CLOUDFLARE_ACCOUNT_ID`: the account ID
 
-From now on GitHub redirects the `github.io` address to the subdomain, so
-everything goes through the password in step 5.
+(Only the repo owner can add these.)
 
-## 4. Turn on Cloudflare's proxy
+## 3. DNS for the subdomain
 
-1. In Cloudflare **DNS**, edit the `birds` record and switch it to
-   **Proxied** (orange cloud).
-2. In **SSL/TLS → Overview**, make sure the mode is **Full (strict)**.
+Cloudflare → `example.com` → **DNS → Records**: one record for the subdomain,
+pointing nowhere in particular, because the Worker answers every request:
 
-## 5. Add the password
+- Type **AAAA**, name **birds**, IPv6 address **`100::`**, **Proxied** (orange cloud)
 
-1. **Workers & Pages → Create → Create Worker**. Name it
-   `birdtracker-password`, deploy the starter, then **Edit code**: replace
-   everything with `deploy/password-worker.js` from this repo, then **Deploy**.
-2. The Worker's **Settings → Variables and Secrets → Add**: type **Secret**,
-   name **`PASSWORD`**, value the shared password. Save.
-3. The Worker's **Settings → Domains & Routes → Add → Route**:
-   route **`birds.example.com/*`**, zone **example.com**. Save.
-4. Open `https://birds.example.com` in a private window. You should see the
-   Bird Tracker sign-in page; the password from step 2 lets you in.
+`100::` is a reserved "discard" address; Cloudflare's proxy plus the Worker
+route mean requests never go there. Check **SSL/TLS → Edge Certificates →
+Always Use HTTPS** is on, so the password is never sent over plain HTTP.
 
-To change the password later, edit the `PASSWORD` secret; that signs everyone
-out. To sign out a single device, visit `/__signout`.
+## 4. Deploy, then set the password
 
-To update the Worker's code later (e.g. after changes to
-`deploy/password-worker.js`), open the Worker → **Edit code**, replace
-everything, and **Deploy**. The secret and route stay as they are.
+1. Push to `main`, or **Actions → Deploy dashboard → Run workflow**. Wait for
+   `build` and `deploy` to go green. The first deploy creates the Worker
+   `birdtracker-password` with the route `birds.example.com/*` (both from
+   `deploy/wrangler.toml`; change them there if your names differ).
+2. Cloudflare → **Workers & Pages → birdtracker-password → Settings →
+   Variables and Secrets → Add**: type **Secret**, name **`PASSWORD`**, value
+   the shared password. Save. Until this exists the site answers with an error
+   rather than opening up.
+3. Open `https://birds.example.com` in a private window: you should get the
+   sign-in page, and the password lets you in.
+
+Deploys replace the Worker's code and files but keep the `PASSWORD` secret.
+To change the password, edit the secret; that signs everyone out. To sign out
+a single device, visit `/__signout`. The Worker's code is
+`deploy/password-worker.js`; run its checks with
+`node deploy/password-worker.test.mjs`.
+
+## Moving off GitHub Pages
+
+For a setup that followed the older version of these docs (Pages + a Worker
+route in front):
+
+1. Do steps 1–2 above, then push. The deploy reuses the existing Worker
+   (same name) and its `PASSWORD` secret, and now serves the site itself.
+   Check the site still works.
+2. GitHub repo → **Settings → Pages**: remove the custom domain, then under
+   **Build and deployment → Source** pick **GitHub Actions** and unpublish the
+   site (**Unpublish site** at the top of the page, if shown).
+3. Cloudflare DNS: change the `birds` record from the `CNAME` to
+   `<owner>.github.io` to the `AAAA 100::` record in step 3. A CNAME left
+   pointing at GitHub after Pages is off lets someone else claim the subdomain
+   on GitHub.
+4. Optional: under GitHub account **Settings → Pages → Verified domains**,
+   verify `example.com` so no one else can ever use it with Pages.
 
 ## Notes
 
-- **The repo stays private.** Only the built site is published, and it's
-  behind the password once step 5 is done.
+- **The repo stays private,** and the built site exists only inside Cloudflare.
 - **If a build fails**, the Actions tab shows which step. A failed weather
   fetch doesn't stop the build; it falls back to `data/weather.csv`.
 - **Real data:** when the recorder is running, the "Simulate detections" step

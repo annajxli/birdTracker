@@ -300,6 +300,12 @@ export function dayTimeline(rows, sun, dates, {
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
+  // Days missing from the sun table (e.g. a stale cached sun.json) can't be placed on the clock; skip them.
+  if (dates.some((date) => !sun[date])) {
+    const known = new Set((dates = dates.filter((date) => sun[date])));
+    rows = rows.filter((d) => known.has(d.date));
+    if (!dates.length) return htl.html`<p class="sub">No sunrise and sunset times for these days yet.</p>`;
+  }
   const n = dates.length;
   const density = spanDays >= DENSITY_FROM;
   const ref = sun[dates.at(-1)];

@@ -8,8 +8,19 @@ into the incoming folder, and for each one this:
   2. adds the detections to the database (same rows as ingest.py)
   3. cuts a short Opus clip of the most confident detection per species per
      hour, and records its path on that detection
-  4. moves the recording to processed/ (or failed/ if analysis errored), and
-     deletes recordings processed more than --keep-days ago
+  4. moves the recording to processed/, and deletes recordings processed more
+     than --keep-days ago
+
+A recording only counts as finished once its size and modification time have
+held still across two checks at least SETTLE_SECONDS apart. Recorders should
+still write to a temporary name (e.g. "20260512T131500Z.flac.part") and rename
+when done; those names are ignored until then.
+
+When analysis fails, the recording stays in incoming/ and is retried; after
+MAX_ATTEMPTS failures it moves to failed/. Failures that aren't about the file
+(BirdNET missing, the database locked, a full disk) don't count against it:
+the pass stops and --watch backs off until the problem clears. Only one
+analyzer runs per data folder at a time.
 
 The BirdNET model loads once and stays in memory while watching.
 
@@ -19,13 +30,18 @@ Usage:
 """
 
 import argparse
+import errno
+import fcntl
 import logging
 import os
 import shutil
+import sqlite3
+import sys
 import tempfile
 import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import soundfile as sf
 
@@ -37,6 +53,9 @@ AUDIO_SUFFIXES = {".flac", ".wav", ".mp3", ".ogg"}
 SEGMENT_SECONDS = 3.0
 CLIP_PAD_SECONDS = 1.0  # extra audio either side of the 3 s detection
 SETTLE_SECONDS = 5  # a file must be unchanged this long before we treat it as complete
+MAX_ATTEMPTS = 3  # analysis failures before a recording is moved to failed/
+MAX_BACKOFF_SECONDS = 15 * 60
+LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # the station's time zone, for BirdNET's week
 
 log = logging.getLogger("analyzer")
 
@@ -46,20 +65,50 @@ def birdnet_week(t: datetime) -> int:
     return (t.month - 1) * 4 + min(3, (t.day - 1) // 7) + 1
 
 
-def ready_files(incoming: Path) -> list[Path]:
-    """Audio files in incoming/ that have stopped changing (the recorder is done writing)."""
+class EnvironmentProblem(Exception):
+    """A failure that isn't the recording's fault; retry later instead of quarantining files."""
+
+
+def is_environment_error(e: BaseException) -> bool:
+    if isinstance(e, (ImportError, MemoryError, sqlite3.OperationalError, sqlite3.DatabaseError)):
+        return True
+    return isinstance(e, OSError) and e.errno in {errno.ENOSPC, errno.EROFS, errno.EACCES, errno.EDQUOT}
+
+
+def snapshot(incoming: Path) -> dict[Path, tuple[int, float]]:
+    """Size and mtime of each audio file in incoming/ (temporary names like *.flac.part are skipped)."""
+    out = {}
+    for p in incoming.iterdir():
+        if p.suffix.lower() not in AUDIO_SUFFIXES:
+            continue
+        try:
+            st = p.stat()
+        except FileNotFoundError:  # renamed or removed between listing and stat
+            continue
+        if p.is_file():
+            out[p] = (st.st_size, st.st_mtime)
+    return out
+
+
+def ready_files(previous: dict, current: dict) -> list[Path]:
+    """Files unchanged since the previous check and quiet for SETTLE_SECONDS: the recorder is done."""
     now = time.time()
-    return sorted(
-        p for p in incoming.iterdir()
-        if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES and now - p.stat().st_mtime >= SETTLE_SECONDS
-    )
+    return sorted(p for p, sig in current.items() if previous.get(p) == sig and now - sig[1] >= SETTLE_SECONDS)
+
+
+def move(src: Path, dest_dir: Path) -> None:
+    """Move a recording, tolerating one that another process already moved."""
+    try:
+        shutil.move(src, dest_dir / src.name)
+    except FileNotFoundError:
+        log.warning("%s disappeared before it could be moved to %s/", src.name, dest_dir.name)
 
 
 def run_birdnet(audio: Path, out_dir: Path, lat: float, lon: float, min_conf: float) -> Path:
     """Analyze one file; returns the path of BirdNET's CSV results."""
     from birdnet_analyzer.analyze.core import analyze  # slow import; only needed when there's work
 
-    week = birdnet_week(recording_start(audio.name, None))
+    week = birdnet_week(recording_start(audio.name, None).astimezone(LOCAL_TZ))
     analyze(str(audio), output=str(out_dir), lat=lat, lon=lon, week=week, min_conf=min_conf, rtype="csv", threads=4)
     results = list(out_dir.glob(f"{audio.stem}*.BirdNET.results.csv"))
     if not results:
@@ -144,34 +193,64 @@ def process(audio: Path, args, conn) -> int:
 def prune(processed: Path, keep_days: float) -> None:
     cutoff = time.time() - keep_days * 86400
     for p in processed.iterdir():
-        if p.is_file() and p.stat().st_mtime < cutoff:
-            p.unlink()
-            log.info("deleted old recording %s", p.name)
+        try:
+            if p.is_file() and p.stat().st_mtime < cutoff:
+                p.unlink()
+                log.info("deleted old recording %s", p.name)
+        except FileNotFoundError:
+            pass
 
 
-def run_once(args, conn) -> int:
+def run_once(args, conn, state: dict) -> int:
+    """One pass over incoming/. state carries the last snapshot and per-file failure counts
+    between passes. Raises EnvironmentProblem if something other than a recording is broken."""
     incoming, processed, failed = (args.data / d for d in ("incoming", "processed", "failed"))
     for d in (incoming, processed, failed):
         d.mkdir(parents=True, exist_ok=True)
 
-    files = ready_files(incoming)
+    current = snapshot(incoming)
+    files = ready_files(state.get("snapshot", {}), current)
+    state["snapshot"] = current
+    attempts = state.setdefault("attempts", {})
     for audio in files:
         try:
             recording_start(audio.name, None)
         except ValueError:
             log.warning("skipping %s: name has no YYYYMMDDTHHMMSSZ start time", audio.name)
-            shutil.move(audio, failed / audio.name)
+            move(audio, failed)
             continue
         try:
             n = process(audio, args, conn)
-            shutil.move(audio, processed / audio.name)
+        except Exception as e:
+            conn.rollback()
+            if is_environment_error(e):
+                raise EnvironmentProblem(f"{type(e).__name__}: {e}") from e
+            attempts[audio.name] = attempts.get(audio.name, 0) + 1
+            log.exception("analysis failed for %s (attempt %d of %d)", audio.name, attempts[audio.name], MAX_ATTEMPTS)
+            if attempts[audio.name] >= MAX_ATTEMPTS:
+                move(audio, failed)
+                del attempts[audio.name]
+            continue
+        attempts.pop(audio.name, None)
+        move(audio, processed)
+        try:
             os.utime(processed / audio.name)  # keep-days counts from processing, not from recording
-            log.info("%s: %d new detections", audio.name, n)
-        except Exception:
-            log.exception("analysis failed for %s", audio.name)
-            shutil.move(audio, failed / audio.name)
+        except FileNotFoundError:
+            pass
+        log.info("%s: %d new detections", audio.name, n)
     prune(processed, args.keep_days)
     return len(files)
+
+
+def single_instance(data: Path):
+    """Hold an exclusive lock on data/.analyzer.lock for the life of the process, or exit."""
+    data.mkdir(parents=True, exist_ok=True)
+    lock = open(data / ".analyzer.lock", "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        sys.exit(f"another analyzer is already running on {data}")
+    return lock
 
 
 if __name__ == "__main__":
@@ -190,11 +269,27 @@ if __name__ == "__main__":
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    lock = single_instance(args.data)
     conn = db.connect(args.db)
+    state = {}
     if args.once:
-        run_once(args, conn)
+        # Two looks SETTLE_SECONDS apart, so files still being written are left for next time.
+        state["snapshot"] = snapshot(args.data / "incoming") if (args.data / "incoming").exists() else {}
+        time.sleep(SETTLE_SECONDS)
+        try:
+            run_once(args, conn, state)
+        except EnvironmentProblem as e:
+            sys.exit(f"stopped, nothing moved: {e}")
     else:
         log.info("watching %s every %ss", args.data / "incoming", args.interval)
+        backoff = 0
         while True:
-            run_once(args, conn)
-            time.sleep(args.interval)
+            try:
+                run_once(args, conn, state)
+                backoff = 0
+            except EnvironmentProblem as e:
+                backoff = min(MAX_BACKOFF_SECONDS, max(args.interval, backoff * 2))
+                log.error("can't analyze right now (%s); recordings stay in incoming/, retrying in %ds", e, backoff)
+            except Exception:
+                log.exception("unexpected error; carrying on")
+            time.sleep(max(args.interval, backoff))

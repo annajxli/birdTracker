@@ -1,0 +1,22 @@
+# The password Worker, serving the built dashboard as its static assets.
+# Deployed by .github/workflows/pages.yml after each build; setup in docs/deploy.md.
+#
+# The files live only in Cloudflare and every request goes through the Worker
+# first (run_worker_first), so there is no public copy of the site to go around
+# the password. The PASSWORD secret is set once in the Cloudflare dashboard and
+# survives deploys.
+
+name = "birdtracker-password"
+main = "password-worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+routes = [
+  { pattern = "birds.annajxli.com/*", zone_name = "annajxli.com" }
+]
+
+[assets]
+directory = "../dashboard/dist"
+binding = "ASSETS"
+run_worker_first = true
+not_found_handling = "none"

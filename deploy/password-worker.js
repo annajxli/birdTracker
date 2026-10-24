@@ -1,10 +1,11 @@
 // Cloudflare Worker: a shared password in front of the dashboard.
 //
-// Runs on the dashboard's subdomain (a Worker route like birds.example.com/*).
-// Visitors without a valid session cookie get a small sign-in page styled like
-// the dashboard; the right password sets a cookie good for 30 days. The cookie
-// is derived from the PASSWORD secret, so changing the password signs everyone
-// out. Requests that pass go on to GitHub Pages. Setup is in docs/deploy.md.
+// Runs on the dashboard's subdomain and serves the built site itself, from the
+// Worker's static assets (env.ASSETS; see wrangler.toml), so there is no public
+// origin to go around it. Visitors without a valid session cookie get a small
+// sign-in page styled like the dashboard; the right password sets a cookie good
+// for 30 days. The cookie is derived from the PASSWORD secret, so changing the
+// password signs everyone out. Setup is in docs/deploy.md.
 
 const COOKIE = "bt_session";
 const SESSION_DAYS = 30;
@@ -18,7 +19,12 @@ export default {
     const session = await sessionToken(env.PASSWORD);
 
     if (url.pathname === SIGN_IN && request.method === "POST") {
-      const form = await request.formData();
+      let form;
+      try {
+        form = await request.formData();
+      } catch {
+        return signInPage("/", false);
+      }
       const next = safeNext(form.get("next"));
       if (await sameSecret(String(form.get("password") ?? ""), env.PASSWORD)) {
         return redirect(next, `${COOKIE}=${session}; Max-Age=${SESSION_DAYS * 86400}; Path=/; HttpOnly; Secure; SameSite=Lax`);
@@ -33,7 +39,10 @@ export default {
       return signInPage(url.pathname + url.search, false);
     }
 
-    const response = await fetch(request);
+    // The session cookie stays here; the static files don't need it.
+    const inner = new Request(request);
+    inner.headers.delete("Cookie");
+    const response = await env.ASSETS.fetch(inner);
     // Keep shared caches and search engines from holding on to private pages.
     const headers = new Headers(response.headers);
     headers.set("Cache-Control", "private, max-age=300");
@@ -65,10 +74,18 @@ function readCookie(request, name) {
   return null;
 }
 
-/** Only same-site paths, so the sign-in form can't be used to bounce people elsewhere. */
+/**
+ * Only same-site paths, so the sign-in form can't be used to bounce people elsewhere.
+ * Browsers drop tabs and newlines from URLs and treat "\\" like "/", so "/\t/evil.example"
+ * would become "//evil.example": reject control characters and backslashes outright, then
+ * check that the path really resolves on this site.
+ */
 export function safeNext(next) {
   const path = String(next ?? "/");
-  return path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\") ? path : "/";
+  if (!path.startsWith("/") || /[\x00-\x1f\x7f\\]/.test(path)) return "/";
+  const here = "https://same-site.invalid";
+  const url = new URL(path, here);
+  return url.origin === here ? url.pathname + url.search + url.hash : "/";
 }
 
 function redirect(location, cookie) {
