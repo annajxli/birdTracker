@@ -95,6 +95,6 @@ To load results from running BirdNET-Analyzer by hand instead:
 
 ## Deploying
 
-`npm --prefix dashboard run build` writes a static site to `dashboard/dist`. It
-can go to Cloudflare Pages (`npx wrangler pages deploy dashboard/dist`) behind
-Cloudflare Access. Not set up yet.
+GitHub Actions builds the site and publishes it to GitHub Pages, on a
+subdomain behind a shared password (a small Cloudflare Worker). Setup steps
+are in [docs/deploy.md](docs/deploy.md).

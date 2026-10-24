@@ -17,11 +17,8 @@ from pathlib import Path
 
 import pandas as pd
 
-import birdnet_analyzer
-
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "species_categories.csv"
-CODES = Path(birdnet_analyzer.__file__).parent / "eBird_taxonomy_codes_2024E.json"
 TAXONOMY = "https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=csv&species={}"
 
 # Display order of categories; charts list groups in this order.
@@ -73,8 +70,10 @@ def fetch_taxonomy(codes: list[str]) -> list[dict]:
 
 
 if __name__ == "__main__":
+    import birdnet_analyzer  # only needed here; the dashboard imports CATEGORIES without BirdNET installed
+
     occ = pd.read_csv(ROOT / "data" / "occurrence.csv", usecols=["scientific_name", "common_name"])
-    codes = json.loads(CODES.read_text())
+    codes = json.loads((Path(birdnet_analyzer.__file__).parent / "eBird_taxonomy_codes_2024E.json").read_text())
     occ["code"] = (occ.scientific_name + "_" + occ.common_name).map(codes)
 
     taxa = {r["SPECIES_CODE"]: r for r in fetch_taxonomy(occ.code.dropna().tolist())}

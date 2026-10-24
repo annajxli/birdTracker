@@ -1,0 +1,78 @@
+# Build the dashboard and publish it to GitHub Pages.
+# Runs on every push to main, daily (so "today" and the weather stay current),
+# and on demand from the Actions tab.
+#
+# Until the recorder is running, the detections are simulated here on each
+# build; the database isn't in the repo.
+
+name: Deploy dashboard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 13 * * *" # 6am Pacific (daylight time)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      # The dashboard's data loaders run with ../.venv/bin/python (see observablehq.config.js).
+      - name: Python environment
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install --quiet -r requirements-dashboard.txt
+
+      - name: Simulate detections
+        run: .venv/bin/python pipeline/simulate.py
+
+      - name: Update weather
+        # Keeps the checked-in weather if Open-Meteo is unreachable.
+        continue-on-error: true
+        run: .venv/bin/python pipeline/weather.py
+
+      - name: Build site
+        working-directory: dashboard
+        env:
+          OBSERVABLE_TELEMETRY_DISABLE: "true"
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

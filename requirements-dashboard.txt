@@ -1,0 +1,6 @@
+# Just what building the dashboard needs (simulator, weather, data loaders) -
+# no BirdNET. Used by the GitHub Pages workflow.
+numpy
+pandas
+pyarrow
+astral
