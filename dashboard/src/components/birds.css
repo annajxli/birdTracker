@@ -9,22 +9,24 @@
 .overview-navigation {
   position: sticky;
   top: calc(var(--observablehq-header-height) + 1.5rem);
-  z-index: 1;
+  z-index: 5;
   margin: 1.25rem 0 1.5rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
   align-items: center;
-  gap: 0.75rem 1.25rem;
-  padding: 0.75rem 1rem;
+  gap: 0.5rem 1.25rem;
+  padding: 0.35rem 0.75rem;
   border: 1px solid var(--rule);
   background: var(--theme-background-alt);
   box-shadow: 0 4px 12px #0002;
 }
 
+/* Masks content scrolling past above the sticky ribbon. It sits just outside the ribbon's
+   border box: at bottom: 100% it covered the 1px top border. */
 .overview-navigation::before {
   content: "";
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 1px);
   left: -1px;
   right: -1px;
   height: 8px;
@@ -35,16 +37,16 @@
 .period-picker {
   grid-column: 2;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: nowrap; /* switch, arrows and date stay on one row; narrow screens shrink them instead */
   align-items: center;
   justify-content: center;
-  gap: 0.75rem 1.25rem;
+  gap: 0.75rem 2.25rem;
 }
 
 .period-segments {
   display: flex;
-  flex: 0 0 180px;
-  padding: 4px;
+  flex: none; /* sized by its buttons, so it can never spill into the gap before the arrows */
+  padding: 2px;
   border: 1px solid var(--rule);
   border-radius: 8px;
   background: var(--theme-background);
@@ -52,13 +54,13 @@
 
 .period-segments button {
   flex: 1;
-  min-height: 34px;
-  padding: 0.4rem 0.6rem;
+  min-height: 26px;
+  padding: 0.2rem 0.5rem;
   border: 0;
   border-radius: 5px;
   background: transparent;
   color: var(--theme-foreground-muted);
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
   transition: color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
@@ -87,14 +89,14 @@
 
 .period-navigation > button[data-step] {
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 1px solid var(--rule);
   border-radius: 50%;
   background: transparent;
   color: var(--theme-foreground);
-  font-size: 1.4rem;
+  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -117,9 +119,9 @@
   gap: 0.5rem;
   text-align: center;
   font-family: var(--display);
-  font-size: 1.2rem;
+  font-size: 0.92rem;
   min-width: 8rem;
-  min-height: 34px;
+  min-height: 28px;
   padding: 0.25rem 0.5rem;
   border: 0;
   border-radius: 5px;
@@ -128,10 +130,13 @@
   cursor: pointer;
 }
 
-.period-label:hover,
+.period-label:disabled { cursor: default; background: transparent; }
+.period-label:disabled svg { opacity: 0.35; }
+
+.period-label:hover:not(:disabled),
 .period-label[aria-expanded="true"] { background: var(--theme-background); }
 .period-label svg { width: 15px; height: 15px; flex: none; color: var(--theme-foreground-muted); }
-.period-label-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.period-label-text { white-space: nowrap; }
 
 .period-calendar {
   position: absolute;
@@ -198,6 +203,10 @@
   cursor: pointer;
 }
 
+/* Month and year pickers (M and Y): 3 per row, taller cells. */
+.calendar-grid.coarse .calendar-week { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+.calendar-grid.coarse .calendar-week button { height: 40px; border-radius: 5px; }
+
 .calendar-week button.outside-month { color: var(--theme-foreground-muted); }
 .calendar-week button.in-range { background: color-mix(in srgb, var(--theme-foreground-focus) 20%, transparent); }
 .calendar-week button.range-start { border-radius: 5px 0 0 5px; }
@@ -247,69 +256,76 @@
 
 #home-activity .chart-slot:not(:has(observablehq-loading)) { min-height: 0; }
 
+/* Activity over time: the three numbers as a light strip above the chart (no boxes), so the
+   chart gets the full width. */
 .activity-layout {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
-.activity-layout > .activity-stats {
-  order: 2;
+.activity-layout > .grid.stats.activity-stats {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
   margin: 0;
 }
 
-.activity-layout > .day-stack {
-  order: 1;
+.activity-layout > .grid.stats.activity-stats > .card {
+  flex: 0 1 auto;
   min-width: 0;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
 }
 
-@media (min-width: 961px) {
-  .activity-layout {
-    display: grid;
-    grid-template-columns: 126px minmax(0, 1fr);
-    gap: 0;
-  }
-
-  .activity-layout > .grid.stats.activity-stats {
-    order: 0;
-    grid-template-columns: minmax(0, 1fr) !important;
-    gap: 0.5rem;
-  }
-
-  .activity-layout > .day-stack { order: 0; align-self: center; }
-  .activity-layout .grid.stats.activity-stats .big { font-size: 1.25rem; }
-  .activity-layout .grid.stats.activity-stats .big a.stat-link { white-space: normal; overflow: visible; }
-  .activity-layout .activity-stats .card { min-width: 0; }
-  .activity-layout .activity-stats .card h2 { font-size: 0.65rem; letter-spacing: 0.08em; }
-}
+.activity-layout .activity-stats .card h2 { font-size: 0.62rem; letter-spacing: 0.08em; margin: 0 0 2px; }
+.activity-layout .activity-stats .big { font-size: 1.15rem; line-height: 1.2; }
+.activity-layout .activity-stats .big a.stat-link { white-space: normal; overflow: visible; }
+.activity-layout .activity-stats .sub { font-size: 0.72rem; }
+.activity-layout > .day-stack { min-width: 0; }
 
 @media (max-width: 640px) {
   .overview-navigation {
-    gap: 0.75rem;
+    gap: 0.35rem;
   }
 
-  .period-picker { gap: 0.5rem; min-width: 0; }
-  .period-segments { flex-basis: 96px; padding: 3px; }
-  .period-segments button { padding: 0.35rem 0.25rem; font-size: 0.75rem; min-height: 30px; }
+  .period-picker { gap: 1.5rem; min-width: 0; }
+  .period-segments { padding: 2px; }
+  .period-segments button { padding: 0.2rem 0.25rem; font-size: 0.72rem; min-height: 24px; }
   .period-navigation { gap: 0.25rem; }
-  .overview-navigation { padding: 0.75rem; }
-  .period-label { font-size: 0.85rem; min-width: 0; padding: 0.25rem; gap: 0.25rem; }
+  .overview-navigation { padding: 0.35rem 0.5rem; }
+  .period-label { font-size: 0.74rem; min-width: auto; padding: 0.25rem; gap: 0.25rem; }
   .period-label svg { width: 12px; height: 12px; }
   .period-navigation > button[data-step] { width: 24px; height: 24px; }
 }
 
 @media (max-width: 380px) {
-  .period-picker { gap: 0.3rem; }
-  .period-segments { flex-basis: 76px; }
+  .period-picker { gap: 1rem; }
+
   .period-segments button { padding-inline: 0.15rem; font-size: 0.65rem; }
-  .period-label { font-size: 0.75rem; }
+  .period-label { font-size: 0.68rem; }
   .period-navigation > button[data-step] { width: 22px; height: 22px; }
 }
 
+/* Narrower: one row still, picker then a compact options button. */
 @media (max-width: 960px) {
-  .overview-navigation { grid-template-columns: minmax(0, 1fr); }
-  .period-picker { grid-column: 1; }
-  .overview-navigation > details.overview-options { grid-column: 1; }
+  .overview-navigation { grid-template-columns: minmax(0, 1fr) auto; }
+  .period-picker { grid-column: 1; justify-content: flex-start; }
+  .overview-navigation > details.overview-options { grid-column: 2; }
+}
+
+.overview-options .options-icon { display: none; width: 18px; height: 18px; vertical-align: middle; }
+
+@media (max-width: 960px) {
+  .overview-options .options-text { display: none; }
+  .overview-options .options-icon { display: inline-block; }
+  .overview-options > summary { list-style: none; padding: 4px; }
+  .overview-options > summary::-webkit-details-marker { display: none; }
 }
 
 .filters form {
@@ -339,16 +355,6 @@
 .sub {
   color: var(--theme-foreground-muted);
   font-size: 0.875rem;
-}
-
-details.table-view {
-  margin-top: 0.5rem;
-  font-size: 0.875rem;
-}
-
-details.table-view summary {
-  cursor: pointer;
-  color: var(--theme-foreground-muted);
 }
 
 /* Recently heard: a strip of field-guide cards. */
@@ -1304,3 +1310,62 @@ a.stat-link[href]:hover {
     animation: none !important;
   }
 }
+
+/* Sort sits in the timeline card's top-right corner, outside the redrawn chart, so it keeps
+   keyboard focus when it changes the chart. */
+.timeline-card { position: relative; }
+/* z-index 2: above the chart's resize wrapper (position: relative, later in the page, so it
+   otherwise covers the pills and swallows clicks), below the sticky ribbon (5). */
+.timeline-card > .timeline-sort { position: absolute; top: 14px; right: 20px; margin: 0; z-index: 2; }
+.timeline-card .timeline-toolbar { min-height: 1.75rem; margin-bottom: 0; }
+
+.timeline-expand .short { display: none; }
+
+/* Phones: Sort pills (no "Sort" label) and an icon-sized expand/collapse share one row. */
+@media (max-width: 640px) {
+  .timeline-card > .timeline-sort { top: 10px; left: 12px; right: auto; }
+  .timeline-card > .timeline-sort form > label { display: none; }
+  .timeline-card > .timeline-sort form > div { flex-wrap: nowrap; gap: 4px; }
+  .timeline-card > .timeline-sort form > div > label { padding: 2px 7px; font-size: 0.6rem; }
+  .timeline-toolbar { justify-content: flex-end; }
+  .timeline-card .timeline-toolbar { min-height: 26px; }
+  .timeline-expand { padding: 0 0.45rem; font-size: 1rem; line-height: 1.5; }
+  .timeline-expand .long { display: none; }
+  .timeline-expand .short { display: inline; }
+}
+
+
+/* Gentle snapping on the overview: when scrolling stops near a chart, it settles with the
+   chart's label just below the sticky period ribbon. "proximity" never traps you inside a
+   chart taller than the screen. One snap point per row of charts: the second of a
+   side-by-side pair would be a duplicate stop, which made flicks skip a chart. */
+html:has(.overview-navigation) { scroll-snap-type: y proximity; }
+html:has(.overview-navigation) main .section-top { scroll-snap-align: start; scroll-margin-top: 56px; }
+/* Charts under the sticky ribbon settle just below it; later ones only below the page header. */
+html:has(.overview-navigation) main .period-scope .section-top { scroll-margin-top: 112px; }
+html:has(.overview-navigation) main .pair-grid > section + section .section-top { scroll-snap-align: none; }
+
+
+/* Mini species card (speciesCards in birds.js). */
+g[aria-label="y-axis tick label"] text { cursor: pointer; }
+.species-pop {
+  position: absolute;
+  z-index: 30;
+  width: 260px;
+  padding: 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--theme-background-alt);
+  box-shadow: 0 8px 24px #0004;
+  font-size: 0.8rem;
+}
+.species-pop-head { display: flex; gap: 0.65rem; align-items: center; margin-bottom: 0.5rem; }
+.species-pop-head img { width: 64px; height: 64px; flex: none; object-fit: cover; border-radius: 5px; }
+.species-pop-name { font-family: var(--display); font-size: 1.05rem; line-height: 1.15; }
+.species-pop-sci { font-style: italic; color: var(--theme-foreground-muted); }
+.species-pop-cat { font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--theme-foreground-muted); margin-top: 2px; }
+.species-pop-rows { margin: 0 0 0.5rem; }
+.species-pop-rows > div { display: flex; justify-content: space-between; gap: 0.75rem; padding: 0.15rem 0; border-top: 1px solid var(--rule); }
+.species-pop-rows > div > span:first-child { color: var(--theme-foreground-muted); white-space: nowrap; }
+.species-pop-rows > div > span:last-child { text-align: right; }
+.species-pop-more { font-weight: 600; }

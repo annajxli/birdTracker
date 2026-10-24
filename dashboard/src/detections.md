@@ -6,7 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
-import {loadDetections, rangeInput, confidenceInput, RANGES, windowStart, speciesHref} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadCategories, rangeInput, confidenceInput, RANGES, windowStart, speciesHref, speciesCards, speciesInfoFrom, minutesHeard} from "./components/birds.js";
 ```
 
 ```js
@@ -37,6 +37,15 @@ const start = windowStart(latest, RANGES.get(range), dataStart);
 const inRange = all.filter((d) => d.confidence >= minConf && d.date >= start).reverse(); // newest first
 const searchIn = Inputs.search(inRange, {placeholder: "Search species…", columns: ["species", "scientific"]});
 const found = Generators.input(searchIn);
+```
+
+```js
+// Tapping a species name opens its mini card (More details goes to its page).
+const [photos, categories] = await Promise.all([loadPhotos(), loadCategories()]);
+const rangeMinutes = d3.rollup(minutesHeard(inRange), (v) => v.length, (d) => d.species);
+const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident: all.filter((d) => d.confidence >= minConf), photos, categories,
+  extraRows: (species) => [[range === "All time" ? "All time" : `Last ${range}`, `${d3.format(",")(rangeMinutes.get(species) ?? 0)} minutes heard`]]}));
+invalidation.then(stopSpeciesCards);
 ```
 
 <div class="section-top">

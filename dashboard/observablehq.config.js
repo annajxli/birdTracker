@@ -183,6 +183,7 @@ export default {
     {name: "Detections", path: "/detections"}
   ],
   sidebar: false,
+  pager: false, // no "Next page" link at the bottom of each page
   head: `${fonts}\n${icon}\n${themeScript}\n${layoutScript}\n${dev ? phoneScript : ""}\n${menuScript}`,
   header,
   interpreters: {".py": [python]},
