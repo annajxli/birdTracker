@@ -77,6 +77,16 @@ are deleted after `--keep-days` (default 3); unreadable or misnamed ones go to
 .venv/bin/python pipeline/analyzer.py --watch
 ```
 
+Recorders that upload over wifi send files to `pipeline/receiver.py`, which
+writes them into `data/incoming/` (a `.part` file, renamed when complete):
+
+```bash
+.venv/bin/python pipeline/receiver.py --token <shared token>
+```
+
+The bench-test firmware is in `firmware/recorder_test/`; see
+[docs/bench-test-1.md](docs/bench-test-1.md).
+
 Use `--once` to process what's waiting and exit. Clips aren't shown on the
 dashboard yet; they'll be served from Cloudflare R2 once that's set up.
 

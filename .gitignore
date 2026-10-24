@@ -13,3 +13,8 @@ data/processed/
 data/failed/
 data/clips/
 deploy/.wrangler/
+
+# Firmware wifi credentials and tokens
+firmware/**/secrets.h
+firmware/**/build/
+firmware/**/.pio/
