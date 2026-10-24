@@ -1,9 +1,9 @@
 // Checks for the sign-in Worker, run with: node deploy/password-worker.test.mjs
-import worker, {sessionToken, safeNext} from "./password-worker.js";
+import worker, {sessionToken, validSession, safeNext} from "./password-worker.js";
 // Stands in for the Worker's static assets; remembers the last request it served.
 let served = null;
 const ASSETS = {fetch: async (req) => { served = req; return new Response("<h1>dashboard " + new URL(req.url).pathname + "</h1>", {status: 200, headers: {"Content-Type": "text/html", "Cache-Control": "max-age=600"}}); }};
-const env = {PASSWORD: "robin-song", ASSETS};
+const env = {PASSWORD: "robin-song", SESSION_KEY: "k".repeat(40), ASSETS};
 const base = "https://birds.example.com";
 let fails = 0;
 const check = (ok, name, extra = "") => { console.log(ok ? "ok  " : "FAIL", name, extra); if (!ok) fails++; };
@@ -26,14 +26,25 @@ check(/HttpOnly/.test(cookie) && /Secure/.test(cookie) && /Max-Age=2592000/.test
 const value = cookie.split(";")[0];
 r = await worker.fetch(new Request(base + "/year", {headers: {Cookie: "theme=x; " + value}}), env);
 body = await r.text();
-check(r.status === 200 && body.includes("dashboard /year") && r.headers.get("Cache-Control") === "private, max-age=300", "with cookie -> site, private caching");
+check(r.status === 200 && body.includes("dashboard /year") && r.headers.get("Cache-Control") === "no-store", "with cookie -> site, pages not cached");
+check(r.headers.get("Content-Security-Policy") === "frame-ancestors 'none'" && r.headers.get("X-Content-Type-Options") === "nosniff" && r.headers.get("Referrer-Policy") === "no-referrer", "security headers on pages");
 check(served && !served.headers.has("Cookie"), "session cookie not passed on to the static files");
 
 r = await worker.fetch(new Request(base + "/", {headers: {Cookie: "bt_session=deadbeef"}}), env);
 check(r.status === 401, "forged cookie rejected");
 
-r = await worker.fetch(new Request(base + "/", {headers: {Cookie: value}}), {PASSWORD: "new-password", ASSETS});
+r = await worker.fetch(new Request(base + "/", {headers: {Cookie: value}}), {...env, PASSWORD: "new-password"});
 check(r.status === 401, "changing PASSWORD signs everyone out");
+r = await worker.fetch(new Request(base + "/", {headers: {Cookie: value}}), {...env, SESSION_KEY: "j".repeat(40)});
+check(r.status === 401, "changing SESSION_KEY signs everyone out");
+const past = Math.floor(Date.now() / 1000) - 60;
+check(!(await validSession(env, await sessionToken(env, past))), "expired session rejected");
+const future = Math.floor(Date.now() / 1000) + 3600;
+check(await validSession(env, await sessionToken(env, future)), "unexpired session accepted");
+const tampered = (await sessionToken(env, future)).replace(/^\d+/, String(future + 10 * 365 * 86400));
+check(!(await validSession(env, tampered)), "extending the expiry by hand breaks the signature");
+const noKey = {PASSWORD: "robin-song", ASSETS};
+check(await validSession(noKey, await sessionToken(noKey, future)) && !(await validSession(env, await sessionToken(noKey, future))), "works without SESSION_KEY, but those cookies differ");
 
 r = await worker.fetch(post("robin-song", "https://evil.example/phish"), env);
 check(r.headers.get("Location") === "/", "external next ignored", r.headers.get("Location"));

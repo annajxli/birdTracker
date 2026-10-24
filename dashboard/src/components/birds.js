@@ -55,7 +55,7 @@ export function rangeInput(value = "30 days") {
 // so zero always recedes toward the card.
 const RAMP_LIGHT = ["#eaf5c8", "#c9d98e", "#aabc5b", "#8d9e36", "#728024", "#586226", "#40452d"];
 const RAMP_DARK = ["#262d05", "#414a02", "#5d6a00", "#7b8b1e", "#9cac54", "#bfcd8e", "#e5ecce"];
-export const MUTED = "#a89a85";
+export const MUTED = "#857866"; // 4:1 on both the light and the dark card
 
 const rampInterpolator = (dark) => d3.piecewise(d3.interpolateLab, dark ? RAMP_DARK : RAMP_LIGHT);
 
@@ -80,6 +80,16 @@ export function nameMargin(width) {
 }
 
 /** Species-name axis that truncates long names on narrow charts. */
+/**
+ * Takes a chart's links out of the Tab order. Plot wraps every linked mark in its own <a>, so
+ * a heatmap would otherwise make keyboard users tab through hundreds of cells. Mouse and touch
+ * still follow the links.
+ */
+export function untabbable(plot) {
+  for (const a of plot.querySelectorAll("a")) a.setAttribute("tabindex", "-1");
+  return plot;
+}
+
 export function nameAxis(width, options = {}, ticks) {
   const axisOptions = {tickSize: 0, label: null, textOverflow: "ellipsis", lineWidth: width < 480 ? 10 : 16, ...options};
   return ticks ? Plot.axisY(ticks, axisOptions) : Plot.axisY(axisOptions);
@@ -254,8 +264,11 @@ function sunMarkers(sunrise, sunset) {
 export const SPANS = new Map([["1 day", 1], ["3 days", 3], ["7 days", 7], ["30 days", 30], ["90 days", 90], ["All time", Infinity]]);
 
 /** First date of a window of `days` ending on `end`; Infinity means from the first date with data. */
+/** First day of a window of `days` ending on `end`, never before the data starts. */
 export function windowStart(end, days, firstDate) {
-  return days === Infinity ? firstDate : addDays(end, -(days - 1));
+  if (days === Infinity) return firstDate;
+  const start = addDays(end, -(days - 1));
+  return start < firstDate ? firstDate : start;
 }
 
 export const SORTS = new Map([["Category", "category"], ["Most heard", "count"], ["First heard", "first"]]);
@@ -310,8 +323,16 @@ export function dayTimeline(rows, sun, dates, {
   const density = spanDays >= DENSITY_FROM;
   const ref = sun[dates.at(-1)];
   const refStart = new Date(ref.start);
-  const offset = (date, t) => +t - +new Date(sun[date].start); // ms since local midnight
-  const onRef = (date, t) => new Date(+refStart + offset(date, t));
+  // Days are overlaid by wall-clock time. On the two DST days a year the day is 23 or 25 hours
+  // long and the clocks change at 2am, so elapsed time since midnight is off by an hour after that.
+  const dstShift = (date) => +new Date(sun[date].end) - +new Date(sun[date].start) - 864e5; // 0, +1h or -1h
+  const refShift = dstShift(dates.at(-1));
+  const offset = (date, t) => { // wall-clock ms since local midnight
+    const elapsed = +t - +new Date(sun[date].start), shift = dstShift(date);
+    return shift && elapsed >= 2 * 36e5 ? elapsed - shift : elapsed;
+  };
+  const refAt = (wall) => new Date(+refStart + (refShift && wall >= 2 * 36e5 ? wall + refShift : wall));
+  const onRef = (date, t) => refAt(offset(date, t));
 
   const sunrise = new Date(ref.sunrise);
   const sunset = new Date(ref.sunset);
@@ -320,7 +341,7 @@ export function dayTimeline(rows, sun, dates, {
   const earliestSunrise = d3.min(dates, (date) => offset(date, new Date(sun[date].sunrise)));
   const latestSunset = d3.max(dates, (date) => offset(date, new Date(sun[date].sunset)));
   const domain = daylightOnly
-    ? [new Date(+refStart + earliestSunrise - 90 * 6e4), new Date(+refStart + latestSunset + 90 * 6e4)]
+    ? [refAt(earliestSunrise - 90 * 6e4), refAt(latestSunset + 90 * 6e4)]
     : [dayStart, dayEnd];
 
   let shown = rows
@@ -465,14 +486,25 @@ export function dayTimeline(rows, sun, dates, {
     ]
   });
 
-  // Category headers toggle their category.
+  // Category headers toggle their category, by mouse or keyboard (Tab to one, then Enter or Space).
   for (const text of plot.querySelectorAll('[aria-label="text"] text')) {
     // Long labels wrap onto two lines (tspans), so compare without spaces.
     const match = /^[▸▾](.+?)(?:·\d+)?$/.exec(text.textContent.replace(/\s/g, ""));
     const group = match && groups.find(([g]) => g.toUpperCase().replace(/\s/g, "") === match[1])?.[0];
     if (!group) continue;
-    text.style.cursor = "pointer";
-    text.addEventListener("click", () => onToggle([[group, !collapsedOf(group)]]));
+    const toggle = () => onToggle([[group, !collapsedOf(group)]]);
+    text.classList.add("timeline-toggle");
+    text.setAttribute("tabindex", "0");
+    text.setAttribute("role", "button");
+    text.setAttribute("aria-expanded", String(!collapsedOf(group)));
+    text.setAttribute("aria-label", `${group}, ${groupSize.get(group)} species`);
+    text.addEventListener("click", toggle);
+    text.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggle();
+      }
+    });
   }
 
   // One button for everything: expand/collapse all categories, or show the whole list.
@@ -533,7 +565,7 @@ export function increaseColor(dark) {
 // Decreases in the changes chart: a dark rust, validated against olive in both modes.
 // It is darker than the olive so red-green colorblind readers can still tell them apart.
 export function declineColor(dark) {
-  return dark ? "#8a3915" : "#6a2300";
+  return dark ? "#c0582a" : "#6a2300";
 }
 
 // Rain gets its own blue, validated against the olive series in both modes.

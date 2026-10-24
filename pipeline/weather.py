@@ -46,9 +46,19 @@ def get(url: str, **params) -> pd.DataFrame:
 
 
 def detection_dates(db_path: Path) -> tuple[date, date]:
-    with sqlite3.connect(db_path) as conn:
-        first, last = conn.execute("SELECT min(detected_at), max(detected_at) FROM detections").fetchone()
-    # Pad a day either side so local dates near midnight UTC are covered.
+    """The days with detections, padded a day either side so local dates near midnight UTC are
+    covered; the last year if there's no database or it's empty (e.g. before simulating in CI)."""
+    yesterday = date.today() - timedelta(days=1)
+    fallback = (yesterday - timedelta(days=365), yesterday)
+    if not db_path.exists():
+        return fallback
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+        try:
+            first, last = conn.execute("SELECT min(detected_at), max(detected_at) FROM detections").fetchone()
+        except sqlite3.OperationalError:  # no detections table yet
+            return fallback
+    if not first:
+        return fallback
     return date.fromisoformat(first[:10]) - timedelta(days=1), date.fromisoformat(last[:10]) + timedelta(days=1)
 
 
@@ -59,8 +69,12 @@ if __name__ == "__main__":
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
     args = p.parse_args()
 
-    start, end = detection_dates(args.db)
-    start, end = args.start or start, min(args.end or end, date.today())
+    if args.start and args.end:
+        start, end = args.start, args.end
+    else:
+        start, end = detection_dates(args.db)
+        start, end = args.start or start, args.end or end
+    end = min(end, date.today() - timedelta(days=1))  # today's numbers are still mostly forecast
     recent_from = date.today() - timedelta(days=7)
 
     parts = []

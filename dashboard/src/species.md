@@ -11,6 +11,11 @@ import {loadDetections, loadPhotos, birdPhoto, minutesHeard, hourTicks, dateRang
 
 ```js
 const all = await loadDetections();
+if (!all.length) {
+  // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
+  display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
+  await new Promise(() => {});
+}
 const photos = await loadPhotos();
 const latest = d3.max(all, (d) => d.date);
 const dataStart = d3.min(all, (d) => d.date);

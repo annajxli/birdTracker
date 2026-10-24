@@ -368,12 +368,16 @@ a.stat-link[href]:hover {
     margin-right: 8px !important;
   }
 
+  /* Pills wrap onto a second line rather than scrolling out of sight. */
   .filters form.inputs-3a86ea-checkbox > div {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 4px;
-    overflow-x: auto;
-    scrollbar-width: none;
+  }
+
+  .filters form.inputs-3a86ea-checkbox > div > label:has(input:focus-visible) {
+    outline: 2px solid var(--theme-foreground-focus);
+    outline-offset: 2px;
   }
 
   .filters form.inputs-3a86ea-checkbox > div > label {
@@ -650,5 +654,25 @@ a.stat-link[href]:hover {
 @media (max-width: 960px) {
   .pair-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Keyboard focus: the photo-credit badge, and the timeline's category headers. */
+.credit:focus-visible .credit-badge,
+.timeline-toggle:focus-visible {
+  outline: 2px solid var(--theme-foreground-focus);
+  outline-offset: 2px;
+}
+
+.timeline-toggle {
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
   }
 }

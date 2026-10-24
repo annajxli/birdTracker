@@ -58,14 +58,32 @@ Always Use HTTPS** is on, so the password is never sent over plain HTTP.
    Variables and Secrets → Add**: type **Secret**, name **`PASSWORD`**, value
    the shared password. Save. Until this exists the site answers with an error
    rather than opening up.
-3. Open `https://birds.example.com` in a private window: you should get the
+3. Add a second **Secret**, **`SESSION_KEY`**: a long random string nobody
+   needs to remember (e.g. the output of `openssl rand -hex 32`). It signs the
+   session cookies, so a stolen cookie can't be used to guess the password.
+   Changing it signs everyone out.
+4. Open `https://birds.example.com` in a private window: you should get the
    sign-in page, and the password lets you in.
 
-Deploys replace the Worker's code and files but keep the `PASSWORD` secret.
+5. **Security → WAF → Rate limiting rules → Create rule** (on `example.com`):
+   name it "Sign-in", match **URI Path equals `/__signin`** and **Request
+   Method equals `POST`**, rate **5 requests per 1 minute** per IP, action
+   **Block** for 10 minutes. This stops password guessing at scale; the free
+   plan allows one such rule.
+
+Deploys replace the Worker's code and files but keep the secrets.
 To change the password, edit the secret; that signs everyone out. To sign out
 a single device, visit `/__signout`. The Worker's code is
 `deploy/password-worker.js`; run its checks with
 `node deploy/password-worker.test.mjs`.
+
+## Still to do
+
+Set up for `birds.annajxli.com` on 2026-10-23, except:
+
+- [ ] **`SESSION_KEY` secret** (step 4.3). Until it's set, sessions still
+      expire after 30 days, but the password doubles as the cookie key.
+- [ ] **Rate-limiting rule on sign-in** (step 4.5).
 
 ## Moving off GitHub Pages
 

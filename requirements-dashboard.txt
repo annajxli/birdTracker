@@ -1,6 +1,10 @@
 # Just what building the dashboard needs (simulator, weather, data loaders) -
-# no BirdNET. Used by the GitHub Pages workflow.
-numpy
-pandas
-pyarrow
-astral
+# no BirdNET. Used by the deploy workflow; versions are pinned so a daily build
+# can't pick up a new (or compromised) release unannounced. Bump on purpose.
+numpy==2.5.4
+pandas==3.1.0
+pyarrow==26.0.0
+astral==3.2
+python-dateutil==3.0.0
+six==1.17.0
+tzdata==2026.5

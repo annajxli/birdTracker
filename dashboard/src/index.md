@@ -7,11 +7,16 @@ toc: false
 
 
 ```js
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, dayInput, dateKey, spanInput, SPANS, sortInput, SORTS, windowStart, dayTimeline, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, rangeInput, confidenceInput, nameMargin, nameAxis, RANGES, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, speciesHref} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, dayInput, dateKey, spanInput, SPANS, sortInput, SORTS, windowStart, dayTimeline, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, rangeInput, confidenceInput, nameMargin, nameAxis, RANGES, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, speciesHref} from "./components/birds.js";
 ```
 
 ```js
 const all = await loadDetections();
+if (!all.length) {
+  // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
+  display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
+  await new Promise(() => {});
+}
 const photos = await loadPhotos();
 const sun = await loadSun();
 const categories = await loadCategories();
@@ -58,7 +63,8 @@ const daylightOnly = Generators.input(daylightIn);
 // The viewer's expand/collapse choices for the timeline (category or "*" -> collapsed?).
 const timelineOverrides = Mutable(new Map());
 const setTimelineCollapsed = (pairs) => { timelineOverrides.value = new Map([...timelineOverrides.value, ...pairs]); };
-const resetTimelineCollapsed = () => { timelineOverrides.value = new Map(); };
+// Only when there's something to reset, so a control change doesn't draw the timeline twice.
+const resetTimelineCollapsed = () => { if (timelineOverrides.value.size) timelineOverrides.value = new Map(); };
 ```
 
 ```js
@@ -269,7 +275,7 @@ const listSteps = [{day: new Date(dataStart), total: 0}, ...additions, {day: new
       <div class="card">
         ${comparable
           ? resize((width) => changeChart(changes, {width, dark, beforeLabel: cmp.prevLabel, nowLabel: cmp.nowLabel}))
-          : html`<p class="sub">There's no earlier period of the same length to compare with yet. Try a shorter range.</p>`}
+          : html`<p class="sub">${range === "30 days" ? "There's no full previous month to compare with yet." : "There's no earlier period of the same length to compare with yet. Try a shorter range."}</p>`}
       </div>
     </section>
     </div>
@@ -328,7 +334,7 @@ const richness = weeks.map((w) => ({week: w, species: speciesPerWeek.get(+w) ?? 
     ${resize((width) => {
       const byMonth = width < 520;
       const fmt = (d, opts) => d.toLocaleDateString("en-US", {timeZone: "UTC", ...opts});
-      return Plot.plot({
+      return untabbable(Plot.plot({
       width,
       height: order.length * 18 + 70,
       marginLeft: nameMargin(width),
@@ -345,7 +351,7 @@ const richness = weeks.map((w) => ({week: w, species: speciesPerWeek.get(+w) ?? 
           tip: {format: {x: (d) => (byMonth ? fmt(d, {month: "long", year: "numeric"}) : `Week of ${fmt(d, {month: "short", day: "numeric"})}`), fill: ".0%"}}
         })
       ]
-      });
+      }));
     })}
   </div>
   <div class="grid grid-cols-2">

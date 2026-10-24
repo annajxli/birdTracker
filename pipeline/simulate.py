@@ -183,6 +183,7 @@ if __name__ == "__main__":
     p.add_argument("--occurrence", type=Path, default=ROOT / "data" / "occurrence.csv")
     p.add_argument("--weather", type=Path, default=ROOT / "data" / "weather.csv", help="daily rain from weather.py, if present")
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
+    p.add_argument("--force", action="store_true", help="simulate even if this station already has real detections")
     args = p.parse_args()
 
     occ = pd.read_csv(args.occurrence)
@@ -190,6 +191,11 @@ if __name__ == "__main__":
     days = [args.end - timedelta(days=k) for k in range(args.days - 1, -1, -1)]
 
     conn = db.connect(args.db)
+    # Simulated rows look just like real ones on the dashboard, so don't mix them into a real station.
+    real = conn.execute("SELECT count(*) FROM detections WHERE station_id = ? AND source_file IS NOT ?", (args.station, SOURCE)).fetchone()[0]
+    if real and not args.force:
+        raise SystemExit(f"{args.db} already has {real} real detections for station {args.station!r}; "
+                         "use --station or --db to simulate elsewhere, or --force to mix them anyway")
     conn.execute("DELETE FROM detections WHERE station_id = ? AND source_file = ?", (args.station, SOURCE))
     n = db.insert_detections(conn, simulate(occ, days, args.station, np.random.default_rng(args.seed), rain))
     covered = sum(d.isoformat() in rain for d in days)

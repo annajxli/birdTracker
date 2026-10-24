@@ -177,16 +177,21 @@ def process(audio: Path, args, conn) -> int:
         except Exception:
             log.exception("couldn't cut a clip from %s at %.1fs", audio.name, offset)
 
-    inserted = db.insert_detections(conn, rows)
-    for row_id, _, old_path in replaced:
+    inserted = db.insert_detections(conn, rows, commit=False)  # one transaction with the clip updates
+    for row_id, _, _ in replaced:
         conn.execute("UPDATE detections SET clip_path = NULL WHERE id = ?", (row_id,))
-        (args.data / old_path).unlink(missing_ok=True)
     # A re-run may find rows that already exist; still attach any new clips to them.
     conn.executemany(
         "UPDATE detections SET clip_path = ? WHERE station_id = ? AND detected_at = ? AND scientific_name = ? AND clip_path IS NULL",
         [(r["clip_path"], r["station_id"], r["detected_at"], r["scientific_name"]) for r in rows if r["clip_path"]],
     )
     conn.commit()
+    # Only now that the database points at the new clips, delete the ones they replaced. A re-run of
+    # the same recording cuts its clip to the same path, which must not be deleted.
+    kept = {r["clip_path"] for r in rows if r["clip_path"]}
+    for _, _, old_path in replaced:
+        if old_path not in kept:
+            (args.data / old_path).unlink(missing_ok=True)
     return inserted
 
 

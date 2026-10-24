@@ -15,12 +15,14 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     return conn
 
 
-def insert_detections(conn: sqlite3.Connection, rows) -> int:
-    """Insert dicts/tuples in COLUMNS order, skipping duplicates. Returns rows inserted."""
+def insert_detections(conn: sqlite3.Connection, rows, commit: bool = True) -> int:
+    """Insert dicts/tuples in COLUMNS order, skipping duplicates. Returns rows inserted.
+    commit=False leaves the transaction open for the caller to finish."""
     before = conn.total_changes
     conn.executemany(
         f"INSERT OR IGNORE INTO detections ({', '.join(COLUMNS)}) VALUES ({', '.join('?' * len(COLUMNS))})",
         ([r[c] for c in COLUMNS] if isinstance(r, dict) else r for r in rows),
     )
-    conn.commit()
+    if commit:
+        conn.commit()
     return conn.total_changes - before
