@@ -5,3 +5,5 @@ __pycache__/
 node_modules/
 dashboard/dist/
 dashboard/src/.observablehq/cache/
+data/detections.sqlite
+data/samples/*.wav
