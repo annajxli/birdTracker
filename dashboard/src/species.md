@@ -6,19 +6,19 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
-import {loadDetections, loadPhotos, birdPhoto, minutesHeard, hourTicks, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref} from "./components/birds.js";
+import {loadDetections, loadPhotos, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref} from "./components/birds.js";
 ```
 
 ```js
-const all = await loadDetections();
+const [all, photos] = await Promise.all([loadDetections(), loadPhotos()]);
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
   await new Promise(() => {});
 }
-const photos = await loadPhotos();
 const latest = d3.max(all, (d) => d.date);
 const dataStart = d3.min(all, (d) => d.date);
+const heardRange = dateRange(dataStart, latest).split(" – ");
 const byCount = d3.rollups(all, (v) => v.length, (d) => d.species)
   .sort((a, b) => d3.descending(a[1], b[1]))
   .map(([s]) => s);
@@ -37,7 +37,7 @@ const minConf = Generators.input(confIn);
 history.replaceState(null, "", `?name=${encodeURIComponent(species)}`);
 ```
 
-<div class="filters">${speciesIn}${confIn}</div>
+<div class="filters species-filters">${speciesIn}${confIn}</div>
 
 ```js
 const sp = all.filter((d) => d.species === species);
@@ -54,64 +54,98 @@ const peakHour = heard.length ? d3.greatest(byHour, (d) => d.count).hour : null;
 const photo = photos[species];
 ```
 
+<div class="species-summary">
 <div class="species-head">
   <div>
     <p class="eyebrow">Species</p>
     <h1>${species}</h1>
     <p class="sub"><i>${sp[0]?.scientific}</i> · ${html`<a href=${guideHref(species)} target="_blank" rel="noopener">All About Birds guide ↗</a>`}${photo ? html` · <a href=${photo.wikipedia} target="_blank" rel="noopener">Wikipedia ↗</a>` : ""}</p>
   </div>
-  ${photo ? birdPhoto(species, photo) : ""}
+  <div class="species-photo-slot">${birdPhoto(species, photo)}</div>
 </div>
 
 <div class="grid grid-cols-4 stats">
   <div class="card">
     <h2>Minutes heard</h2>
+    <div class="stat-content">
     <div class="big">${d3.format(",")(heardMinutes.length)}</div>
-    <div class="sub date">${dateRange(dataStart, latest)}</div>
+    <div class="sub date date-range"><span>${heardRange[0]}</span>${heardRange.length > 1 ? html`<span class="date-end"> – ${heardRange[1]}</span>` : ""}</div>
+    </div>
   </div>
   <div class="card">
     <h2>Days heard</h2>
+    <div class="stat-content">
     <div class="big">${daysHeard}</div>
+    </div>
   </div>
   <div class="card">
     <h2>First and last heard</h2>
+    <div class="stat-content">
     <div class="big">${heard.length ? `${formatDate(heard[0].date)} – ${formatDate(heard.at(-1).date)}` : "–"}</div>
+    </div>
   </div>
   <div class="card">
     <h2>Busiest hour</h2>
+    <div class="stat-content">
     <div class="big">${peakHour === null ? "–" : formatHour(peakHour)}</div>
+    </div>
   </div>
+</div>
+
 </div>
 
 ${heard.length ? "" : html`<p class="sub">No detections at or above ${d3.format(".0%")(minConf)} confidence. Try lowering the threshold.</p>`}
 
-<div class="card">
-  ${resize((width) => Plot.plot({
-    width,
-    height: 220,
-    x: {domain: [new Date(dataStart), d3.utcDay.offset(new Date(latest), 1)], label: null},
-    y: {label: "Minutes heard per week", grid: true, tickFormat: "s"},
-    marks: [
-      Plot.rectY(heardMinutes, Plot.binX({y: "count"}, {x: (d) => new Date(d.date), interval: d3.utcWeek, fill: seriesColor(dark), insetLeft: 1, insetRight: 1, ry2: 2, tip: true})),
-      Plot.ruleY([0], {strokeOpacity: 0.3})
-    ]
-  }))}
-</div>
+```js
+const calendarDays = dateSpan(dataStart, latest);
+const recordedDays = new Set(all.map((d) => d.date));
+// Count distinct wall-clock minutes so the repeated DST hour still fits 0–60.
+const minutesByHour = d3.rollup(heardMinutes,
+  (v) => new Set(v.map((d) => d.time.getUTCMinutes())).size,
+  (d) => d.date, (d) => d.hour);
+const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
+  date, hour,
+  minutes: minutesByHour.get(date)?.get(hour) ?? 0,
+  recorded: recordedDays.has(date)
+})));
+```
+
+<section class="zoom">
+  <div class="section-top">
+    <p class="eyebrow">When this species is heard</p>
+    <p class="sub section-sub">${dateRange(dataStart, latest)}</p>
+  </div>
+  <div class="card">
+    <div class="chart-slot species-calendar" style="--chart-height: 368px" tabindex="0" role="region" aria-label="Daily and hourly activity calendar; scroll horizontally to explore dates">
+      ${resize((width) => {
+        const plotWidth = Math.max(width, calendarDays.length * 3 + 60);
+        const ticks = d3.utcMonth.range(new Date(dataStart), d3.utcDay.offset(new Date(latest), 1)).map((d) => d.toISOString().slice(0, 10));
+        return Plot.plot({
+          width: plotWidth,
+          height: 330,
+          marginLeft: 44,
+          marginRight: 8,
+          marginTop: 8,
+          marginBottom: 36,
+          x: {type: "band", domain: calendarDays, ticks, tickFormat: (d) => formatDate(d, d.endsWith("-01-01") ? {month: "short", year: "numeric"} : {month: "short"}), label: null, tickSize: 0, padding: 0},
+          y: {type: "band", domain: d3.range(24), ticks: [0, 3, 6, 9, 12, 15, 18, 21], tickFormat: formatHour, label: null, tickSize: 0, padding: 0},
+          color: sequential(dark, {type: "sqrt", domain: [0, 60], legend: true, label: "Minutes heard per hour", ticks: [0, 60], marginLeft: 8, marginRight: 8}),
+          marks: [
+            Plot.cell(calendar.filter((d) => d.recorded), {
+              x: "date", y: "hour", fill: "minutes", inset: 0.5,
+              channels: {Day: (d) => formatDate(d.date, {month: "short", day: "numeric", year: "numeric"}), Hour: (d) => `${formatHour(d.hour)}–${formatHour((d.hour + 1) % 24)}`, "Minutes heard": "minutes"},
+              tip: {format: {x: false, y: false, fill: false, Day: true, Hour: true, "Minutes heard": true}}
+            })
+          ]
+        });
+      })}
+    </div>
+  </div>
+</section>
 
 <div class="grid grid-cols-2">
   <div class="card">
-    ${resize((width) => Plot.plot({
-      width,
-      height: 220,
-      x: {domain: d3.range(24), ticks: hourTicks(width), tickFormat: formatHour, label: "Hour (Pacific)", labelAnchor: "center", labelArrow: "none"},
-      y: {label: "Minutes heard", grid: true, tickFormat: "s"},
-      marks: [
-        Plot.barY(byHour, {x: "hour", y: "count", fill: seriesColor(dark), insetLeft: 1, insetRight: 1, ry2: 2, tip: {format: {x: formatHour}}}),
-        Plot.ruleY([0], {strokeOpacity: 0.3})
-      ]
-    }))}
-  </div>
-  <div class="card">
+    <div class="chart-slot chart-slot-legend">
     ${resize((width) => Plot.plot({
       width,
       height: 220,
@@ -124,10 +158,11 @@ ${heard.length ? "" : html`<p class="sub">No detections at or above ${d3.format(
       ],
       color: {domain: ["shown", "below threshold"], range: [seriesColor(dark), MUTED], legend: true}
     }))}
+    </div>
   </div>
-</div>
 
 <div class="card">
+  <div class="table-slot" style="--table-height: 241px">
   ${Inputs.table(heard.slice(-200).reverse(), {
     select: false,
     rows: 10,
@@ -140,4 +175,7 @@ ${heard.length ? "" : html`<p class="sub">No detections at or above ${d3.format(
       clip: (c) => (c ? htl.html`<audio controls preload="none" src=${c}></audio>` : "–")
     }
   })}
+  </div>
+</div>
+
 </div>

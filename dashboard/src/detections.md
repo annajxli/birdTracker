@@ -50,6 +50,7 @@ const clock = (t) => t.toLocaleString("en-US", {timeZone: "America/Los_Angeles",
 ```
 
 <div class="card">
+  <div class="table-slot">
   ${Inputs.table(found, {
     select: false,
     rows: 25,
@@ -64,4 +65,5 @@ const clock = (t) => t.toLocaleString("en-US", {timeZone: "America/Los_Angeles",
       clip: (c) => (c ? htl.html`<audio controls preload="none" src=${c}></audio>` : "–")
     }
   })}
+  </div>
 </div>

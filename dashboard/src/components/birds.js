@@ -6,17 +6,25 @@ import * as Plot from "npm:@observablehq/plot";
 
 export async function loadDetections() {
   const table = await FileAttachment("../data/detections.parquet").parquet();
-  const rows = [];
-  for (const r of table) {
-    rows.push({
-      time: new Date(Number(r.time)),
-      date: r.date, // Pacific-time calendar date, "YYYY-MM-DD"
-      hour: r.hour, // Pacific-time hour, 0-23
-      species: r.species,
-      scientific: r.scientific,
-      confidence: r.confidence,
-      clip: r.clip
-    });
+  // Read columns directly: Arrow's row iterator creates a proxy for every detection.
+  const time = table.getChild("time");
+  const date = table.getChild("date");
+  const hour = table.getChild("hour");
+  const species = table.getChild("species");
+  const scientific = table.getChild("scientific");
+  const confidence = table.getChild("confidence");
+  const clip = table.getChild("clip");
+  const rows = new Array(table.numRows);
+  for (let i = 0; i < rows.length; ++i) {
+    rows[i] = {
+      time: new Date(Number(time.get(i))),
+      date: date.get(i), // Pacific-time calendar date, "YYYY-MM-DD"
+      hour: hour.get(i), // Pacific-time hour, 0-23
+      species: species.get(i),
+      scientific: scientific.get(i),
+      confidence: confidence.get(i),
+      clip: clip.get(i)
+    };
   }
   return rows;
 }
@@ -58,12 +66,6 @@ const RAMP_DARK = ["#262d05", "#414a02", "#5d6a00", "#7b8b1e", "#9cac54", "#bfcd
 export const MUTED = "#857866"; // 4:1 on both the light and the dark card
 
 const rampInterpolator = (dark) => d3.piecewise(d3.interpolateLab, dark ? RAMP_DARK : RAMP_LIGHT);
-
-/** Color for a BirdNET confidence (0.25-1), from the stronger two-thirds of the ramp. */
-export function confidenceColor(dark) {
-  const interpolate = rampInterpolator(dark);
-  return (c) => interpolate(0.35 + 0.65 * Math.max(0, Math.min(1, (c - 0.25) / 0.75)));
-}
 
 export function seriesColor(dark) {
   return dark ? "#829c35" : "#6f8a2a";
@@ -196,13 +198,27 @@ function wrapName(species) {
 
 /** A species photo with its credit tucked into an ⓘ badge (hover, or tap/focus on touch screens). */
 export function birdPhoto(species, photo, href) {
+  const status = photo ? htl.html`<span class="photo-loading" role="status" aria-label="Loading photo">
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 17 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
+  </span>` : null;
+  const settle = (loaded) => {
+    if (loaded) {
+      img.classList.add("is-loaded");
+      status.remove();
+    } else {
+      status.classList.add("is-error");
+      status.setAttribute("aria-label", "Photo unavailable");
+    }
+  };
   const img = photo
-    ? htl.html`<img src=${photo.image} alt=${`Photo of a ${species}`} title=${`Photo: ${photo.artist}, ${photo.license}`} loading="lazy" width=${photo.width} height=${photo.height}>`
+    ? htl.html`<img src=${photo.image} alt=${`Photo of a ${species}`} title=${`Photo: ${photo.artist}, ${photo.license}`} loading="lazy" width=${photo.width} height=${photo.height} onload=${() => settle(true)} onerror=${() => settle(false)}>`
     : htl.html`<span class="bird-photo-missing">No photo</span>`;
-  return htl.html`<div class="photo-wrap">
-    ${href ? htl.html`<a class="bird-photo" href=${href}>${img}</a>` : htl.html`<div class="bird-photo">${img}</div>`}
+  const wrap = htl.html`<div class="photo-wrap">
+    ${href ? htl.html`<a class="bird-photo" href=${href}>${img}${status}</a>` : htl.html`<div class="bird-photo">${img}${status}</div>`}
     ${photo ? photoCredit(photo) : ""}
   </div>`;
+  if (photo && img.complete) settle(img.naturalWidth > 0);
+  return wrap;
 }
 
 function photoCredit(photo) {
@@ -228,7 +244,7 @@ const clockShort = (t) =>
 
 /** Calendar picker for a day with data, from the first to the latest recorded date. */
 export function dayInput(dates) {
-  return Inputs.date({label: "Day", value: dates.at(-1), min: dates[0], max: dates.at(-1)});
+  return Inputs.date({label: "Date", value: dates.at(-1), min: dates[0], max: dates.at(-1)});
 }
 
 /** Inputs.date gives a UTC-midnight Date; turn it back into our "YYYY-MM-DD" key. */
@@ -241,9 +257,9 @@ const SUN_ICON = "M0-2.6a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2Z";
 const SUN_RAYS = "M0-5.5v1.4M0 4.1v1.4M-5.5 0h1.4M4.1 0h1.4M-3.9-3.9l1 1M2.9 2.9l1 1M-3.9 3.9l1-1M2.9-2.9l1-1";
 const MOON_ICON = "M1.6-4.6A4.8 4.8 0 1 0 4.4 2.4A3.8 3.8 0 0 1 1.6-4.6Z";
 
-/** Custom Plot mark: a sun icon + time at sunrise and a moon icon + time at sunset, above the frame. */
-function sunMarkers(sunrise, sunset) {
-  return (index, {x}, values, {marginTop, marginLeft, width, marginRight}) => {
+/** Sun and moon labels sit just above the timeline's top horizontal rule. */
+function sunMarkers(sunrise, sunset, top) {
+  return (index, {x, y}, values, {marginLeft, width, marginRight}) => {
     const g = htl.svg`<g fill="currentColor" font-size="10" aria-label="sunrise and sunset">`;
     for (const [t, kind] of [[sunrise, "Sunrise"], [sunset, "Sunset"]]) {
       const px = x(t);
@@ -251,10 +267,10 @@ function sunMarkers(sunrise, sunset) {
       const icon = kind === "Sunrise"
         ? htl.svg`<path d=${SUN_ICON}></path><path d=${SUN_RAYS} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>`
         : htl.svg`<path d=${MOON_ICON}></path>`;
-      g.append(htl.svg`<g transform=${`translate(${px},${marginTop - 14})`} fill-opacity="0.75">
+      g.append(htl.svg`<g transform=${`translate(${px + 10},${y(top) - 6})`} fill-opacity="0.75">
         <title>${`${kind} ${clock(t)}`}</title>
-        <g transform="translate(-7,-3.5)">${icon}</g>
-        <text x="0" y="0" text-anchor="start">${clockShort(t)}</text>
+        <g transform="translate(0,-3.5)">${icon}</g>
+        <text x="12" y="0" text-anchor="start">${clockShort(t)}</text>
       </g>`);
     }
     return g;
@@ -309,6 +325,7 @@ const SEGMENT_MS = 3000; // BirdNET scores 3-second segments
  */
 export function dayTimeline(rows, sun, dates, {
   spanDays = dates.length, categories, sort = "category", width, dark, daylightOnly = true,
+  controls = null,
   maxRows = Infinity, // more species rows than this and the chart starts collapsed
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
@@ -422,7 +439,6 @@ export function dayTimeline(rows, sun, dates, {
     ];
   } else {
     // Bouts: a species' detections on one day, merged while the gaps stay under BOUT_GAP_MINUTES.
-    const confColor = confidenceColor(dark);
     const bouts = [];
     for (const v of d3.groups(shown, (d) => d.species, (d) => d.date).flatMap(([, byDate]) => byDate.map(([, w]) => w))) {
       v.sort((a, b) => a.clock - b.clock);
@@ -448,7 +464,7 @@ export function dayTimeline(rows, sun, dates, {
     };
     if (n > 1) boutTip.Day = (b) => formatDate(b.date, {weekday: "short", month: "short", day: "numeric"});
     dataMarks = [
-      Plot.rect(bouts, {x1: "first", x2: "end", y1: (b) => rowOf(b.species).y1 + 0.2, y2: (b) => rowOf(b.species).y2 - 0.2, fill: (b) => confColor(b.confidence), fillOpacity: fade, rx: 1.5}),
+      Plot.rect(bouts, {x1: "first", x2: "end", y1: (b) => rowOf(b.species).y1 + 0.2, y2: (b) => rowOf(b.species).y2 - 0.2, fill: seriesColor(dark), fillOpacity: fade, rx: 1.5}),
       Plot.tip(bouts, Plot.pointer({
         x: (b) => new Date((+b.first + +b.end) / 2),
         y: (b) => rowOf(b.species).y,
@@ -464,20 +480,28 @@ export function dayTimeline(rows, sun, dates, {
     return collapsedOf(group) ? `▸ ${group.toUpperCase()} · ${groupSize.get(group)}` : `▾ ${group.toUpperCase()}`;
   }
 
+  // Expanded headers have a horizontal rule; collapsed headers contain bars,
+  // so their annotations and vertical rules start above the whole first row.
+  const firstHeader = headers[0];
+  const gridTop = firstHeader && !collapsedOf(firstHeader.slice(1))
+    ? rowsAt.get(firstHeader).y
+    : 0;
+  const gridHours = d3.timeHour.every(hourStep).range(domain[0], new Date(+domain[1] + 1));
   const plot = Plot.plot({
     width,
     height: Math.round(total * ROW_PX) + 50,
     marginLeft: nameMargin(width),
     marginRight: 16,
     marginTop: 24,
-    x: {type: "time", domain, ticks: d3.timeHour.every(hourStep), tickFormat: clockShort, label: null, grid: true},
+    x: {type: "time", domain, ticks: d3.timeHour.every(hourStep), tickFormat: clockShort, label: null},
     y: {domain: [total, 0], axis: null},
     color,
     marks: [
       // Night, when the full day is shown.
       daylightOnly ? null : Plot.rectX([[dayStart, sunrise], [sunset, dayEnd]], {x1: "0", x2: "1", fill: "currentColor", fillOpacity: 0.06}),
-      Plot.ruleX([sunrise, sunset], {stroke: "currentColor", strokeOpacity: 0.35}),
-      sunMarkers(sunrise, sunset),
+      Plot.ruleX(gridHours, {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.1}),
+      Plot.ruleX([sunrise, sunset], {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "3,3"}),
+      sunMarkers(sunrise, sunset, gridTop),
       // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
       Plot.text(headers, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
@@ -509,7 +533,7 @@ export function dayTimeline(rows, sun, dates, {
 
   // One button for everything: expand/collapse all categories, or show the whole list.
   let button = null;
-  if (sort === "category" && (auto || overrides.size)) {
+  if (sort === "category" && groups.length) {
     const anyCollapsed = groups.some(([g]) => collapsedOf(g));
     button = htl.html`<button class="timeline-expand" type="button">${anyCollapsed ? "Expand all" : "Collapse all"}</button>`;
     button.onclick = () => onToggle(groups.map(([g]) => [g, !anyCollapsed]));
@@ -517,7 +541,10 @@ export function dayTimeline(rows, sun, dates, {
     button = htl.html`<button class="timeline-expand" type="button">${hiddenCount ? `Show all ${hiddenCount + order.length} species` : "Show fewer"}</button>`;
     button.onclick = () => onToggle([["*", !hiddenCount]]);
   }
-  return htl.html`<div class="timeline">${button}${plot}</div>`;
+  return htl.html`<div class="timeline">
+    <div class="timeline-toolbar">${button}${controls ? htl.html`<div class="filters timeline-sort">${controls}</div>` : ""}</div>
+    ${plot}
+  </div>`;
 }
 
 /** Label for a dayTicks tick: "Oct 23", "Nov 1"; adds the year to the first tick and Jan 1 when the range spans years. */
@@ -556,16 +583,13 @@ export function loadWeather() {
   return FileAttachment("../data/weather.json").json();
 }
 
-// Increases in the changes chart: a teal, so "heard more" doesn't read as the plain olive data color.
-// With the rust it makes a warm/cool pair that stays distinct for colorblind readers.
+// More activity uses warm rust; less activity uses cool teal.
 export function increaseColor(dark) {
-  return dark ? "#19a9b0" : "#00939a";
+  return dark ? "#c0582a" : "#6a2300";
 }
 
-// Decreases in the changes chart: a dark rust, validated against olive in both modes.
-// It is darker than the olive so red-green colorblind readers can still tell them apart.
 export function declineColor(dark) {
-  return dark ? "#c0582a" : "#6a2300";
+  return dark ? "#19a9b0" : "#00939a";
 }
 
 // Rain gets its own blue, validated against the olive series in both modes.
@@ -577,19 +601,19 @@ const MAX_BAR = 28; // px; wider days get air between bars instead of fatter bar
 const BAR_SHARE = 0.7; // a bar fills at most this share of its day's slot
 
 /** Inset on each side of a day's slot so bars keep a gap and never exceed MAX_BAR. */
-export function dayInset(dates, width, gap = 0) {
-  const frame = dayFrame(dates, width);
+export function dayInset(dates, width, gap = 0, margins = {}) {
+  const frame = dayFrame(dates, width, margins);
   const slot = (width - frame.marginLeft - frame.marginRight) / dates.length;
   return Math.max(gap, (slot - Math.min(MAX_BAR, slot * BAR_SHARE)) / 2);
 }
 
 /** Shared x layout for the per-day chart and the weather strips under it, so days line up. */
-export function dayFrame(dates, width) {
+export function dayFrame(dates, width, {marginLeft = 62, marginRight = 24} = {}) {
   const halfDay = 12 * 36e5;
   return {
     width,
-    marginLeft: 62,
-    marginRight: 24, // room for the last date label, centered on the last day
+    marginLeft,
+    marginRight,
     x: {domain: [new Date(+new Date(dates[0]) - halfDay), new Date(+new Date(dates.at(-1)) + halfDay)], label: null}
   };
 }
@@ -651,9 +675,9 @@ let gradientId = 0;
  * cold-to-hot scale (the gradient is laid over the whole y axis, so the ribbon
  * shows each day's slice of it).
  */
-export function temperatureStrip(dates, weather, {width}) {
+export function temperatureStrip(dates, weather, {width, ...margins}) {
   const days = dates.filter((d) => weather[d]).map((date) => ({date, day: new Date(date), ...weather[date], ...barSpan(date)}));
-  const frame = dayFrame(dates, width);
+  const frame = dayFrame(dates, width, margins);
   const id = `temp-gradient-${++gradientId}`;
   const gradient = (index, {y}) => {
     const [lo, hi] = [TEMP_STOPS[0][0], TEMP_STOPS.at(-1)[0]];
@@ -686,16 +710,16 @@ export function temperatureStrip(dates, weather, {width}) {
  * Without room (long ranges, phones), a thin strip of tiles: blank when dry,
  * rain-colored when wet, shaded by how much fell.
  */
-export function conditionsStrip(dates, weather, {width, dark}) {
+export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
   const days = dates.filter((d) => weather[d]).map((date) => {
     const w = weather[date];
     return {date, day: new Date(date), ...barSpan(date), precip: w.precip, level: rainLevel(w.precip), kind: weatherKind(w.code)};
   });
-  const frame = dayFrame(dates, width);
+  const frame = dayFrame(dates, width, margins);
   const slot = (width - frame.marginLeft - frame.marginRight) / dates.length;
   const wet = rainColor(dark);
   const strength = (precip) => 0.45 + 0.55 * Math.min(1, Math.sqrt(precip / 0.6));
-  const describe = (d) => `${formatDate(d.date)}: ${d.kind[1]}${d.level ? `, ${d3.format(".2f")(d.precip)} in` : ""}`;
+  const describe = (d) => `${formatDate(d.date)}: ${d.kind[1]}${d.level ? `, ${d3.format(".2f")(d.precip)}"` : ""}`;
 
   if (slot < 14) {
     return Plot.plot({
@@ -741,8 +765,8 @@ export function conditionsStrip(dates, weather, {width, dark}) {
 }
 
 /** Just the shared date axis, for the bottom of a stack of strips. */
-export function dayAxis(dates, {width, ticks, tickFormat}) {
-  const frame = dayFrame(dates, width);
+export function dayAxis(dates, {width, ticks, tickFormat, ...margins}) {
+  const frame = dayFrame(dates, width, margins);
   return Plot.plot({...frame, height: 26, marginTop: 2, marginBottom: 22, x: {...frame.x, ticks, tickFormat}, y: {axis: null}, marks: [Plot.ruleY([0], {strokeOpacity: 0})]});
 }
 
@@ -760,7 +784,7 @@ function barSpan(date) {
  *
  * changes: [{species, before, now}], average minutes heard per day.
  */
-export function changeChart(changes, {width, dark, beforeLabel, nowLabel}) {
+export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annotatePeriods = false}) {
   const up = increaseColor(dark);
   const down = declineColor(dark);
   const colorOf = (d) => (d.now >= d.before ? up : down);
@@ -776,7 +800,7 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel}) {
 
   const plot = Plot.plot({
     width,
-    height: changes.length * 26 + 46,
+    height: changes.length * (annotatePeriods ? 56 : 26) + 46,
     marginLeft: nameMargin(width),
     marginRight: 48,
     marginTop: 8,
@@ -793,12 +817,23 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel}) {
       label(ups, "now", "right", (d) => num(d.now), true),
       label(downs, "now", "left", (d) => num(d.now), true),
       label(downs, "before", "right", (d) => num(d.before), false),
+      annotatePeriods ? Plot.text(changes, {
+        y: "species", frameAnchor: "left", textAnchor: "start", dy: 18,
+        text: (d) => `${formatDate(d.prevFrom, {month: "short", year: "numeric"})} → ${formatDate(d.nowFrom, {month: "short", year: "numeric"})}`,
+        fontSize: 9, fill: "currentColor", fillOpacity: 0.65,
+        lineWidth: Math.max(12, (width - nameMargin(width) - 16) / 5), lineHeight: 1.1
+      }) : null,
       Plot.tip(changes, Plot.pointerY({
         x: "now", y: "species",
         channels: {
           Species: "species",
           [beforeLabel]: (d) => `${d3.format(".1f")(d.before)} per day`,
-          [nowLabel]: (d) => `${d3.format(".1f")(d.now)} per day`
+          [nowLabel]: (d) => `${d3.format(".1f")(d.now)} per day`,
+          ...(annotatePeriods ? {
+            "Earlier dates": (d) => dateRange(d.prevFrom, d.prevTo),
+            "Following dates": (d) => dateRange(d.nowFrom, d.nowTo),
+            "Change (min/day)": (d) => d3.format("+.1f")(d.delta)
+          } : {})
         },
         format: {x: false, y: false}
       }))

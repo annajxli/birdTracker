@@ -32,6 +32,52 @@ const themeScript = `<script>
 // published builds (`observable build`) leave them out.
 const dev = process.argv.includes("preview");
 
+// Reuse the last loaded size of variable-height home charts during a refresh.
+// CSS supplies first-visit fallbacks; it releases the space as each cell resolves.
+const layoutScript = `<script>
+(() => {
+  const ids = ["home-recent", "home-timeline", "home-ranking", "home-trends", "home-seasons"];
+  const key = () => "birdtracker-layout-v1:" + innerWidth + "x" + innerHeight;
+  let sizes = {};
+  try { sizes = JSON.parse(sessionStorage.getItem(key()) || "{}"); } catch {}
+  const style = document.createElement("style");
+  const apply = () => {
+    style.textContent = ids.filter((id) => Number.isFinite(sizes[id]) && sizes[id] > 0)
+      .map((id) => "#" + id + " { --layout-saved-height: " + sizes[id] + "px; }").join("\\n");
+  };
+  apply();
+  document.head.append(style);
+  addEventListener("DOMContentLoaded", () => {
+    const nodes = ids.map((id) => document.getElementById(id)).filter(Boolean);
+    if (!nodes.length) return;
+    let frame;
+    const remember = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        for (const node of nodes) {
+          if (node.querySelector("observablehq-loading, .observablehq--error")) continue;
+          const height = node.getBoundingClientRect().height;
+          if (height > 0) sizes[node.id] = height;
+        }
+        try { sessionStorage.setItem(key(), JSON.stringify(sizes)); } catch {}
+        apply();
+      });
+    };
+    const resize = new ResizeObserver(remember);
+    const changes = new MutationObserver(remember);
+    for (const node of nodes) {
+      resize.observe(node);
+      changes.observe(node, {childList: true, subtree: true});
+    }
+    addEventListener("resize", () => {
+      try { sizes = JSON.parse(sessionStorage.getItem(key()) || "{}"); } catch { sizes = {}; }
+      apply();
+      remember();
+    });
+  });
+})();
+</script>`;
+
 // Phone preview (dev only): shows the current page in an iPhone 16 Pro-sized frame
 // (402 x 874 pt). The page loads in an iframe at that real width, so media queries and
 // chart sizing behave exactly as on a phone. Inside the frame, the phone button is hidden.
@@ -137,7 +183,7 @@ export default {
     {name: "Detections", path: "/detections"}
   ],
   sidebar: false,
-  head: `${fonts}\n${icon}\n${themeScript}\n${dev ? phoneScript : ""}\n${menuScript}`,
+  head: `${fonts}\n${icon}\n${themeScript}\n${layoutScript}\n${dev ? phoneScript : ""}\n${menuScript}`,
   header,
   interpreters: {".py": [python]},
   search: false,
