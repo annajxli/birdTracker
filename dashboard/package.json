@@ -1,0 +1,16 @@
+{
+  "name": "birdtracker-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "observable preview",
+    "build": "observable build",
+    "clean": "rm -rf src/.observablehq/cache"
+  },
+  "dependencies": {
+    "@observablehq/framework": "^1.13.3"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,0 +1,373 @@
+@import url("observablehq:default.css");
+
+/* Cedar & Olive field-guide theme: sand and cedar-bark ink, olive greens, hairline rules.
+   Newsreader (serif) for headings and bird names; Public Sans for data, labels and details.
+   Light is the default; dark applies from the OS setting unless the toggle
+   (data-theme on <html>) says otherwise. */
+
+:root {
+  --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
+  --sans-serif: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: var(--serif);
+
+  --theme-foreground: #2a221b;
+  --theme-foreground-focus: #5a6b1f;
+  --theme-background-a: #f3ede2;
+  --theme-background-b: #faf6ee;
+  --rule: #d4c8b2;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --theme-foreground: #ece3d3;
+    --theme-foreground-focus: #c2cf7a;
+    --theme-background-a: #17130f;
+    --theme-background-b: #201b16;
+    --rule: #3d352b;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --theme-foreground: #ece3d3;
+  --theme-foreground-focus: #c2cf7a;
+  --theme-background-a: #17130f;
+  --theme-background-b: #201b16;
+  --rule: #3d352b;
+  color-scheme: dark;
+}
+
+:root {
+  --theme-background: var(--theme-background-a);
+  --theme-background-alt: var(--theme-background-b);
+  --theme-foreground-alt: color-mix(in srgb, var(--theme-foreground) 90%, var(--theme-background-a));
+  --theme-foreground-muted: color-mix(in srgb, var(--theme-foreground) 66%, var(--theme-background-a));
+  --theme-foreground-faint: color-mix(in srgb, var(--theme-foreground) 50%, var(--theme-background-a));
+  --theme-foreground-fainter: color-mix(in srgb, var(--theme-foreground) 30%, var(--theme-background-a));
+  --theme-foreground-faintest: color-mix(in srgb, var(--theme-foreground) 14%, var(--theme-background-a));
+  --font-big: 600 32px/1 var(--sans-serif);
+  --font-small: 14px var(--sans-serif);
+  accent-color: var(--theme-foreground-focus);
+}
+
+body {
+  font: 16px/1.55 var(--sans-serif);
+  transition: background-color 150ms, color 150ms;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--display);
+  font-weight: 500;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 1.1rem + 1.8vw, 2.25rem);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  max-width: none;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+a[href] {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Small-caps labels, like annotations on a survey drawing. */
+.eyebrow,
+.card h2,
+#observablehq-sidebar > ol:first-child::before,
+.filters label {
+  font-family: var(--sans-serif);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--theme-foreground-muted);
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+}
+
+/* Cards: square corners and hairline rules instead of rounded boxes. */
+.card {
+  border-radius: 0;
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--theme-foreground-alt);
+  font: 14px var(--sans-serif);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.card h2 {
+  margin-bottom: 0.75rem;
+}
+
+.big,
+.hero {
+  font-family: var(--sans-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variant-numeric: lining-nums;
+}
+
+/* Plot draws its own text; charts use the data face. */
+svg[class^="plot"],
+figure[class^="plot"] {
+  font-family: var(--sans-serif) !important;
+  font-size: 11px;
+}
+
+/* Inputs */
+input[type="radio"],
+input[type="checkbox"],
+input[type="range"] {
+  accent-color: var(--theme-foreground-focus);
+}
+
+.filters form {
+  --label-width: 9.5rem;
+}
+
+form,
+input,
+select,
+button,
+table {
+  font-family: var(--sans-serif) !important;
+}
+
+/* Sidebar and header */
+#observablehq-sidebar {
+  border-right: 1px solid var(--rule);
+}
+
+#observablehq-sidebar > ol:first-child > li > a,
+#observablehq-sidebar-toggle {
+  font-family: var(--display);
+}
+
+#observablehq-header {
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--sans-serif);
+}
+
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.site-header .site-title {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--theme-foreground);
+}
+
+.header-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.theme-toggle,
+.phone-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground);
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.theme-toggle:hover,
+.phone-toggle:hover {
+  border-color: var(--theme-foreground-muted);
+}
+
+:root[data-phone] .phone-toggle {
+  border-color: var(--theme-foreground-focus);
+  color: var(--theme-foreground-focus);
+}
+
+.theme-toggle svg,
+.phone-toggle svg {
+  width: 15px;
+  height: 15px;
+}
+
+.theme-toggle .sun,
+.theme-toggle .label-light {
+  display: none;
+}
+
+:root[data-scheme="dark"] .theme-toggle .sun,
+:root[data-scheme="dark"] .theme-toggle .label-light {
+  display: inline;
+}
+
+:root[data-scheme="dark"] .theme-toggle .moon,
+:root[data-scheme="dark"] .theme-toggle .label-dark {
+  display: none;
+}
+
+#observablehq-footer {
+  border-top: 1px solid var(--rule);
+  font-style: italic;
+}
+
+/* Compact page links in the header for small screens, where the sidebar is hidden. */
+.site-nav {
+  display: none;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.site-nav a[href] {
+  color: var(--theme-foreground-muted);
+  text-decoration: none;
+}
+
+.site-nav a[href]:hover {
+  color: var(--theme-foreground);
+}
+
+@media (max-width: 640px) {
+  .site-header .eyebrow {
+    display: none;
+  }
+
+  .site-nav {
+    display: flex;
+  }
+
+  .theme-toggle span {
+    display: none !important;
+  }
+
+  .card {
+    padding: 0.75rem 0.9rem 0.9rem;
+  }
+}
+
+/* Slim fixed header. */
+:root {
+  --observablehq-header-height: 1.9rem;
+}
+
+#observablehq-header {
+  padding: 0.55rem 2rem 0.45rem 2rem;
+}
+
+#observablehq-header ~ #observablehq-main {
+  margin-top: calc(var(--observablehq-header-height) + 2rem);
+}
+
+.theme-toggle {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+/* Page title and its main control share one line. */
+.page-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 2rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.page-top h1 {
+  font-size: clamp(1.35rem, 1.1rem + 0.8vw, 1.75rem);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.page-top .filters {
+  margin: 0;
+}
+
+.page-top .filters form {
+  --label-width: auto;
+  --input-width: 200px;
+}
+
+.page-top .filters form > label {
+  margin-right: 0.75rem;
+}
+
+/* The number box next to a slider only needs room for "0.60". */
+.filters input[type="number"] {
+  max-width: 3.6rem;
+  font-size: 0.8rem;
+}
+
+/* Native date picker: match the theme and keep it compact. */
+input[type="date"] {
+  color-scheme: inherit;
+  font-size: 0.8rem;
+  padding: 1px 4px;
+}
+
+/* Phone preview overlay (see phoneScript in observablehq.config.js). */
+#phone-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: color-mix(in srgb, var(--theme-background-a) 70%, transparent);
+  backdrop-filter: blur(6px);
+}
+
+#phone-preview .phone-frame {
+  flex: none;
+  box-sizing: content-box;
+  border: 12px solid #0d0d0d;
+  border-radius: 56px;
+  outline: 1px solid var(--rule);
+  overflow: hidden;
+  background: var(--theme-background-a);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.35);
+  transform-origin: center;
+}
+
+#phone-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+#phone-preview .phone-caption {
+  font-size: 0.75rem;
+  color: var(--theme-foreground-muted);
+}
+
+/* No phone button inside the preview itself, or on actual phones. */
+:root[data-in-frame] .phone-toggle {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .phone-toggle {
+    display: none;
+  }
+}
