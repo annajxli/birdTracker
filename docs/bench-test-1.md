@@ -56,14 +56,14 @@ ends up on the Pico, its real firmware will be written with the Pico SDK
 | VDD | 3V3 | 3V3(OUT), pin 36 |
 | GND | GND | GND |
 | L/R | GND (left channel) | GND |
-| SCK | GPIO 26 | GP16 |
-| WS | GPIO 25 | GP17 (must be SCK + 1) |
-| SD | GPIO 34 | GP18 |
-| marker: recording | GPIO 14 | GP14 |
-| marker: uploading | GPIO 13 | GP15 |
+| SCK | D3 (GPIO 26) | GP16 |
+| WS | D2 (GPIO 25) | GP17 (must be SCK + 1) |
+| SD | A2 (GPIO 34) | GP18 |
+| marker: recording | D6 (GPIO 14) | GP14 |
+| marker: uploading | D7 (GPIO 13) | GP15 |
 
-The pin numbers are GPIO numbers, not the board's D/A labels; check the
-board's pinout card. Any free GPIO works on the FireBeetle (change the
+FireBeetle pins show the board's silkscreen label (D3) with the GPIO number the
+sketch's `PIN_` constants use. Any free GPIO works on the FireBeetle (change the
 `PIN_` constants); on the Pico, WS must be the pin after SCK. Marker pins are
 optional today; they're for the scope and, later, the PPK2. Keep mic wires
 short (under ~15 cm).
@@ -112,11 +112,11 @@ Fill in as you go.
 
 | | FireBeetle 2 ESP32-E | Pico 2 W |
 | --- | --- | --- |
-| T1 wifi join time, RSSI | | |
-| T2 quiet / clap RMS (dBFS) | | |
-| T3 record time for 10 s, upload HTTP code | | |
-| T4 upload kbit/s (bench / near mount) | | |
-| T5 BirdNET species + confidence vs phone | | |
+| T1 wifi join time, RSSI | 1.8 s, −55 dBm; NTP missed its 15 s window at boot but set later | |
+| T2 quiet / clap RMS (dBFS) | −55 to −64 / −15.6 (peak 20,689 of 32,767, no clip) | |
+| T3 record time for 10 s, upload HTTP code | 9.99 s, HTTP 201; 32 kHz mono, no sample jumps found | |
+| T4 upload kbit/s (bench / near mount) | 2,187 / not yet | |
+| T5 BirdNET species + confidence vs phone | Merlin clip 2024-04-12 1632 played from a phone: Black-capped Chickadee 0.82 / 0.63 / 0.86 in 3 segments (original phone recording: 0.75 / 0.68 / 0.55 / …) | |
 | Problems / notes | | |
 
 ## Next (bench test 2)

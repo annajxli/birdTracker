@@ -82,7 +82,7 @@
 <tr><th>Software effort</th><td>Custom firmware (ESP-IDF / Arduino), plus a small upload receiver indoors</td><td>Same as A, plus direction-finding later</td><td>Least: <code>arecord</code>, <code>flac</code>, <code>rsync</code>, cron</td></tr>
 <tr><th>Rough parts cost</th><td>~$60–110</td><td>~$70–125</td><td>~$170–330 (panel and battery dominate)</td></tr>
 </table></div>
-<p class="note"><strong>The two 4.8 V / 50 mA cells</strong> (~0.5 W peak together) give roughly 0.3 Wh on an average December day here, and ~2–3 Wh in summer. That runs build A on the nRF5340 with compressed audio in summer, but no build through a Seattle winter. Plan on a 3–6 W panel for A/B, or add more cells.</p>
+<p class="note"><strong>Small cells like Stratolink's two 4.8 V / 50 mA cells</strong> (~0.5 W peak together) would give roughly 0.3 Wh on an average December day here, and ~2–3 Wh in summer. That runs build A on the nRF5340 with compressed audio in summer, but no build through a Seattle winter. Plan on a 3–6 W panel for A/B, or add more cells.</p>
 
 <!-- ============================ ENERGY ============================ -->
 <h2>Where the energy goes</h2>
@@ -372,7 +372,7 @@
 <div class="wrap"><table class="choices">
 <colgroup><col style="width:26%"><col style="width:37%"><col style="width:37%"></colgroup>
 <tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
-<tr><td>Two 4.8 V / 50 mA cells (have them)</td><td>Tiny, already owned</td><td>~0.3 Wh on an average December day: summer only for A/B, unless on nRF + Opus</td></tr>
+<tr><td>Two small 4.8 V / 50 mA cells (as on Stratolink)</td><td>Tiny and cheap</td><td>~0.3 Wh on an average December day: summer only for A/B, unless on nRF + Opus</td></tr>
 <tr><td class="pick">3–6 W, 6 V panel (A/B)</td><td>~2–4 Wh on a December day; small (~20×25 cm for 5 W); ~$15–30</td><td>Needs a south-facing, unshaded spot; mount at a steep angle (~60°) for winter sun</td></tr>
 <tr><td>20–50 W, 12 V panel (C)</td><td>Covers a Pi through winter</td><td>Big; needs a pole/roof mount and a 12 V system</td></tr>
 </table></div>
@@ -383,7 +383,7 @@
 <tr><th>Option</th><th>Pros</th><th>Cons</th></tr>
 <tr><td class="pick">BQ24074 (e.g. Adafruit solar charger, ~$15)</td><td>Takes 5–6 V panels; input-voltage regulation keeps weak panels near their best point; load sharing; battery temperature input (no charging below 0 °C)</td><td>Not true MPPT; tops out around 1–1.5 A (plenty here)</td></tr>
 <tr><td>CN3791 MPPT (e.g. DFRobot Solar Power Manager)</td><td>Real MPPT for 6 V panels; versions with a 5 V output suit build C or a 1-cell Pi</td><td>Usually no temperature cutoff on cheap boards; higher idle draw</td></tr>
-<tr><td>BQ25570 harvester</td><td>Built for tiny cells (µW–mW), cold-starts from near-empty; pairs with the two small cells</td><td>Input ≤ ~5 V (the 4.8 V cells sit near that); 100 mA-class output: too small for ESP32 wifi bursts without the battery buffering</td></tr>
+<tr><td>BQ25570 harvester</td><td>Built for tiny cells (µW–mW), cold-starts from near-empty; pairs with small cells like those</td><td>Input ≤ ~5 V (the 4.8 V cells sit near that); 100 mA-class output: too small for ESP32 wifi bursts without the battery buffering</td></tr>
 <tr><td>12 V MPPT controller, e.g. Victron 75/10 (C)</td><td>Robust, Bluetooth monitoring, LiFePO4 profiles</td><td>~$50+; 12 V system means a 5 V buck for the Pi</td></tr>
 </table></div>
 
@@ -440,7 +440,7 @@
 <tr><td>C3 MCU</td><td>ESP32-S3 board with 8 MB PSRAM and a low-Iq regulator (XIAO ESP32S3 Sense includes a microSD slot)</td><td>$10–20</td></tr>
 <tr><td>C4 Storage</td><td>32–64 GB high-endurance microSD (+ breakout if no slot)</td><td>$10–15</td></tr>
 <tr><td>C7 Clock</td><td>RV-3028 RTC breakout (optional)</td><td>$10</td></tr>
-<tr><td>C8 Panel</td><td>5 W 6 V panel (or start with the two 4.8 V cells for summer tests)</td><td>$15–30</td></tr>
+<tr><td>C8 Panel</td><td>5 W 6 V panel</td><td>$15–30</td></tr>
 <tr><td>C9 Charger</td><td>BQ24074 solar charger board + 10 k NTC on the cell</td><td>$15</td></tr>
 <tr><td>C10 Battery</td><td>Protected 18650, ~3.5 Ah, + holder</td><td>$10</td></tr>
 <tr><td>C11 Regulator</td><td>3.3 V buck-boost module</td><td>$5–10</td></tr>
@@ -475,7 +475,7 @@
 <ol>
 <li><strong>Bench prototype of A on USB power:</strong> ESP32-S3 + one ICS-43434 + microSD, writing 5-minute 32 kHz FLAC files named by UTC start time, uploading to a small receiver on the indoor computer. Measure real power with a USB meter, and compare BirdNET results against a phone recording side by side.</li>
 <li><strong>Add a second mic</strong> (build B) on the bench; check both channels line up. Cheap, and it tells you whether direction-finding is worth the bar outdoors.</li>
-<li><strong>Size solar from the measured numbers</strong>, then add charger, 18650 and panel. Test the two 4.8 V cells as a summer-only supply at the same time.</li>
+<li><strong>Size solar from the measured numbers</strong>, then add charger, 18650 and panel.</li>
 <li><strong>Keep C as the fallback</strong> if MEMS mics miss too many quiet birds, or if a cable run to the house turns out to be possible.</li>
 </ol>
 </main>

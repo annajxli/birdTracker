@@ -18,3 +18,6 @@ deploy/.wrangler/
 firmware/**/secrets.h
 firmware/**/build/
 firmware/**/.pio/
+
+# Personal recordings (Merlin exports) for trying the analyzer
+data/merlin/
