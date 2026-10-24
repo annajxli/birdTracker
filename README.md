@@ -10,6 +10,7 @@ for the recorder hardware and how data will get from the yard to the dashboard.
 ```
 pipeline/
   schema.sql      detections table (SQLite now, Cloudflare D1 later)
+  analyzer.py     watch for new recordings, run BirdNET, store detections and clips
   ingest.py       load BirdNET-Analyzer CSV results into the database
   occurrence.py   species x week likelihoods for our location, from BirdNET's location model
   simulate.py     a year of realistic fake detections, for building the dashboard
@@ -61,7 +62,25 @@ Species photos come from Wikimedia Commons and are linked, not copied. Most
 are CC BY-SA, so the dashboard shows each photo's credit and license next to
 it; keep that if you change the layout.
 
-## Real BirdNET results
+## Real recordings
+
+`pipeline/analyzer.py` is the indoor half of the setup in `docs/hardware.md`.
+The recorder drops audio files into `data/incoming/`, named by their UTC start
+time (e.g. `20260512T131500Z.flac`). For each one the analyzer runs BirdNET
+with the station's location and week, adds the detections to the database,
+and cuts a 5-second Opus clip of the most confident detection of each species
+per hour into `data/clips/`. Finished recordings move to `data/processed/` and
+are deleted after `--keep-days` (default 3); unreadable or misnamed ones go to
+`data/failed/`.
+
+```bash
+.venv/bin/python pipeline/analyzer.py --watch
+```
+
+Use `--once` to process what's waiting and exit. Clips aren't shown on the
+dashboard yet; they'll be served from Cloudflare R2 once that's set up.
+
+To load results from running BirdNET-Analyzer by hand instead:
 
 ```bash
 .venv/bin/birdnet-analyze recordings/ -o results/ --lat 47.61 --lon -122.33 --rtype csv

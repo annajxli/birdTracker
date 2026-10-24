@@ -7,3 +7,8 @@ dashboard/dist/
 dashboard/src/.observablehq/cache/
 data/detections.sqlite
 data/samples/*.wav
+# Analyzer working folders: raw audio in flight and generated clips
+data/incoming/
+data/processed/
+data/failed/
+data/clips/
