@@ -28,9 +28,13 @@ const themeScript = `<script>
 })();
 </script>`;
 
-// Phone preview: shows the current page in an iPhone 16 Pro-sized frame (402 x 874 pt).
-// The page loads in an iframe at that real width, so media queries and chart sizing
-// behave exactly as on a phone. Inside the frame, the phone button is hidden.
+// The local preview server (`npm run dev`, i.e. `observable preview`) gets dev-only tools;
+// published builds (`observable build`) leave them out.
+const dev = process.argv.includes("preview");
+
+// Phone preview (dev only): shows the current page in an iPhone 16 Pro-sized frame
+// (402 x 874 pt). The page loads in an iframe at that real width, so media queries and
+// chart sizing behave exactly as on a phone. Inside the frame, the phone button is hidden.
 const phoneScript = `<script>
 (() => {
   const PHONE = {name: "iPhone 16 Pro", width: 402, height: 874};
@@ -72,14 +76,50 @@ const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 
 const icon = `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐦</text></svg>">`;
 
+// Page menu: a hamburger button that opens a small panel (replaces Framework's sidebar).
+const menuPages = [
+  ["Overview", "./"],
+  ["Species", "./species"],
+  ["Year", "./year"],
+  ["Detections", "./detections"]
+];
+
+const menuScript = `<script>
+(() => {
+  const root = document.documentElement;
+  const setOpen = (open) => {
+    root.toggleAttribute("data-menu-open", open);
+    document.querySelector(".menu-toggle")?.setAttribute("aria-expanded", String(open));
+  };
+  document.addEventListener("click", (event) => {
+    if (event.target.closest(".menu-toggle")) return setOpen(!root.hasAttribute("data-menu-open"));
+    if (!event.target.closest(".site-menu")) setOpen(false);
+  });
+  addEventListener("keydown", (event) => { if (event.key === "Escape") setOpen(false); });
+  // Mark the current page in the menu.
+  addEventListener("DOMContentLoaded", () => {
+    const here = location.pathname.replace(/\\.html$/, "").replace(/\\/$/, "").split("/").pop() || "index";
+    for (const a of document.querySelectorAll(".site-menu a")) {
+      const page = a.getAttribute("href").replace("./", "") || "index";
+      if (page === here) a.setAttribute("aria-current", "page");
+    }
+  });
+})();
+</script>`;
+
 const header = `<div class="site-header">
-  <span class="eyebrow">Backyard station · Seattle, WA</span>
-  <nav class="site-nav"><a href="./">Overview</a><a href="./species">Species</a><a href="./year">Year</a></nav>
+  <div class="header-left">
+    <button class="menu-toggle" type="button" aria-label="Pages" aria-expanded="false" aria-controls="site-menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <span class="eyebrow">Backyard station · Seattle, WA</span>
+    <nav class="site-menu" id="site-menu">${menuPages.map(([name, href]) => `<a href="${href}">${name}</a>`).join("")}</nav>
+  </div>
   <div class="header-buttons">
-  <button class="phone-toggle" type="button" aria-label="Preview this page at phone size" title="Preview at phone size">
+  ${dev ? `<button class="phone-toggle" type="button" aria-label="Preview this page at phone size" title="Preview at phone size">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
     <span>Phone</span>
-  </button>
+  </button>` : ""}
   <button class="theme-toggle" type="button" aria-label="Switch between light and dark mode">
     <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
     <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
@@ -95,9 +135,11 @@ export default {
   pages: [
     {name: "Overview", path: "/"},
     {name: "Species", path: "/species"},
-    {name: "Year", path: "/year"}
+    {name: "Year", path: "/year"},
+    {name: "Detections", path: "/detections"}
   ],
-  head: `${fonts}\n${icon}\n${themeScript}\n${phoneScript}`,
+  sidebar: false,
+  head: `${fonts}\n${icon}\n${themeScript}\n${dev ? phoneScript : ""}\n${menuScript}`,
   header,
   interpreters: {".py": [python]},
   search: false,

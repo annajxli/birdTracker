@@ -227,28 +227,9 @@ table {
 }
 
 /* Compact page links in the header for small screens, where the sidebar is hidden. */
-.site-nav {
-  display: none;
-  gap: 1rem;
-  font-size: 0.85rem;
-}
-
-.site-nav a[href] {
-  color: var(--theme-foreground-muted);
-  text-decoration: none;
-}
-
-.site-nav a[href]:hover {
-  color: var(--theme-foreground);
-}
-
 @media (max-width: 640px) {
   .site-header .eyebrow {
     display: none;
-  }
-
-  .site-nav {
-    display: flex;
   }
 
   .theme-toggle span {
@@ -370,4 +351,72 @@ input[type="date"] {
   .phone-toggle {
     display: none;
   }
+}
+
+/* Page menu (see menuScript in observablehq.config.js). */
+.header-left {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.menu-toggle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground);
+  cursor: pointer;
+}
+
+.menu-toggle:hover,
+:root[data-menu-open] .menu-toggle {
+  border-color: var(--theme-foreground-muted);
+}
+
+.menu-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.site-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  padding: 6px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--theme-background-alt);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+}
+
+:root[data-menu-open] .site-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.site-menu a[href] {
+  padding: 0.45rem 0.7rem;
+  border-radius: 6px;
+  color: var(--theme-foreground);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+
+.site-menu a[href]:hover {
+  background: var(--theme-background-a);
+}
+
+.site-menu a[aria-current="page"] {
+  color: var(--theme-foreground-focus);
+  font-weight: 600;
 }

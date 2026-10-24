@@ -63,7 +63,6 @@ const spanDateSet = new Set(spanDates);
 
 <section class="zoom">
   <div class="section-top">
-    <p class="eyebrow">A day in the yard</p>
     <div class="filters">${spanIn}${sortIn}${dayIn}${daylightIn}</div>
   </div>
   <div class="card">
@@ -152,7 +151,6 @@ const top = d3.rollups(rows, (v) => v.length, (d) => d.species)
   .map(([species, count]) => ({species, count}));
 ```
 
-<div class="grid grid-cols-2">
   <div class="card">
     ${resize((width) => Plot.plot({
       width,
@@ -170,22 +168,6 @@ const top = d3.rollups(rows, (v) => v.length, (d) => d.species)
     }))}
     <details class="table-view"><summary>Show as table</summary>${Inputs.table(top, {select: false, header: {species: "Species", count: "Detections"}})}</details>
   </div>
-  <div class="card">
-    ${Inputs.table(rows.slice(-200).reverse(), {
-      select: false,
-      // On narrow screens fix the columns so long names shorten instead of pushing Confidence off-screen.
-      ...(width < 520 ? {layout: "fixed", width: {time: 82, confidence: 40}} : {layout: "auto"}),
-      rows: 14,
-      columns: ["time", "species", "confidence"],
-      header: {time: "Time", species: "Species", confidence: width < 520 ? "Conf." : "Confidence"},
-      format: {
-        time: (t) => t.toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit"}).replace(",", "").replace(" AM", "a").replace(" PM", "p"),
-        species: (s) => htl.html`<a href=${speciesHref(s)}>${s}</a>`,
-        confidence: d3.format(".0%")
-      }
-    })}
-  </div>
-</div>
 
 ```js
 // Compare the chosen period with the one just before it, of the same length.
