@@ -41,6 +41,9 @@ const weekOf = (date) => +d3.utcWeek.floor(new Date(date));
 const weekDays = d3.rollup(yearDates, (v) => v.length, weekOf);
 const weeks = [...weekDays.keys()].sort(d3.ascending);
 const byWeekHour = d3.rollup(yearRows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => weekOf(d.date), (d) => d.hour);
+// Each week's mid-week sunrise and sunset, as wall-clock hours.
+const wallHours = (iso) => { const [h, m] = new Date(iso).toLocaleTimeString("en-GB", {timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit"}).split(":"); return +h + m / 60; };
+const weekSun = weeks.map((w, row) => { const mid = sun[new Date(w + 3 * 864e5).toISOString().slice(0, 10)]; return mid && {row, sunrise: wallHours(mid.sunrise), sunset: wallHours(mid.sunset)}; }).filter(Boolean);
 const grid = weeks.flatMap((w, row) => d3.range(24).map((hour) => ({row, hour, perDay: (byWeekHour.get(w)?.get(hour) ?? 0) / weekDays.get(w)})));
 
 // A daily-rhythm timeline that fills the screen: open as many categories as fit (smallest first,
@@ -95,13 +98,17 @@ const slides = [
       Plot.ruleX([0], {strokeOpacity: 0.3})
     ]
   })},
-  {title: "Birdsong through the year, by hour", body: () => Plot.plot({
-    width: W, height: H - 60, marginLeft: 60, style: {fontSize: "15px"},
+  {title: "Birdsong through the year", body: () => Plot.plot({
+    width: W, height: H - 60, marginLeft: 60, marginTop: 24, style: {fontSize: "15px"},
     x: {domain: [0, 24], ticks: [0, 6, 12, 18, 24], tickFormat: (h) => ["12a", "6a", "12p", "6p", "12a"][h / 6], label: null},
     y: {domain: [weeks.length, 0], ticks: weeks.map((w, i) => i).filter((i) => i > 0 && new Date(weeks[i]).getUTCMonth() !== new Date(weeks[i - 1]).getUTCMonth()).map((i) => i + 0.5),
       tickFormat: (y) => new Date(weeks[Math.floor(y)]).toLocaleDateString("en-US", {timeZone: "UTC", month: "short"}), tickSize: 0, label: null},
     color: sequential(dark, {type: "sqrt", legend: true, label: "Minutes of birdsong per day, by hour", domain: [0, Math.max(1, d3.quantile(grid, 0.995, (d) => d.perDay))], clamp: true, marginLeft: 60}),
-    marks: [Plot.rect(grid, {x1: "hour", x2: (d) => d.hour + 1, y1: "row", y2: (d) => d.row + 1, fill: "perDay"})]
+    marks: [
+      Plot.rect(grid, {x1: "hour", x2: (d) => d.hour + 1, y1: "row", y2: (d) => d.row + 1, fill: "perDay"}),
+      ...["sunrise", "sunset"].map((k) => Plot.line(weekSun, {x: k, y: (d) => d.row + 0.5, stroke: "currentColor", strokeOpacity: 0.75, strokeDasharray: "4,4", strokeWidth: 1.5, curve: "monotone-y"})),
+      weekSun.length ? Plot.text([["sunrise", weekSun[0].sunrise], ["sunset", weekSun[0].sunset]], {x: ([, h]) => h, y: 0, text: ([k]) => k, dy: -9, fontSize: 13, fill: "currentColor", fillOpacity: 0.8}) : null
+    ]
   })}
 ];
 ```
