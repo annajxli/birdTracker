@@ -9,9 +9,11 @@ toc: false
      of audio, saves its sound as MP3 and lists that minute's detections in live.json;
      pipeline/publish.py uploads them to R2 and the password Worker serves them under /api/live/.
      This page polls live.json, lays the strips out by their start time and names the birds above
-     them. A playhead follows the recording far enough behind that the next minute has arrived
-     before it gets there, so the view scrolls smoothly; Listen plays the sound, which then drives
-     the playhead. Scrolling by hand stops following until Back to live is pressed. -->
+     them. A playhead (the line) marks the moment being shown or heard. Live, it runs far enough
+     behind the recording that the next minute has arrived before it gets there; clicking the
+     spectrogram plays from that point, and the transport buttons (or space, arrow keys, L) play,
+     pause, step 10 s and return to live. The view keeps the playhead in place; scrolling by hand
+     frees the view without stopping the sound. -->
 
 ```js
 import {speciesHref} from "./components/birds.js";
@@ -32,9 +34,15 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
   <div class="live-controls">
-    <button type="button" class="live-button live-follow" id="live-follow" hidden>Back to live</button>
-    <button type="button" class="live-button" id="live-listen" aria-pressed="false" hidden>Listen</button>
+    <button type="button" class="live-button live-follow" id="live-follow" title="Back to live (L)" hidden>Back to live</button>
+    <div class="live-transport" id="live-transport" hidden>
+      <button type="button" class="live-button live-icon" id="live-back" title="Back 10 seconds (←)" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/></svg></button>
+      <button type="button" class="live-button live-icon live-play" id="live-play" title="Play (space)" aria-label="Play" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="icon-play" d="M8 5l11 7-11 7z"/><path class="icon-pause" d="M8 5v14M16 5v14"/></svg></button>
+      <button type="button" class="live-button live-icon" id="live-fwd" title="Forward 10 seconds (→)" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg></button>
+      <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: quieter rumble, brighter birdsong (B)" aria-pressed="false">Bird boost</button>
+    </div>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
+    <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
   </div>
 </div>
 
@@ -55,7 +63,9 @@ const status = document.getElementById("live-status");
 const earlier = document.getElementById("live-earlier");
 const heard = document.getElementById("live-heard");
 const followButton = document.getElementById("live-follow");
-const listenButton = document.getElementById("live-listen");
+const transport = document.getElementById("live-transport");
+const playButton = document.getElementById("live-play");
+const fullButton = document.getElementById("live-full");
 
 let strips = []; // from live.json, oldest first
 let shownFrom = null; // start of the earliest strip drawn (ms)
@@ -65,12 +75,21 @@ const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
 const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
 const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
 
-// The playhead: where the right edge of the view sits while following. Wall clock minus `lag`,
-// held at the newest audio if the next strip is late; while listening, the audio's own position.
-let following = true, lag = null, playhead = null;
-// Listening: one audio element for the whole session, so browsers that only allow sound after a
+// The playhead: the moment shown or heard, marked by a line. While playing it's the sound's own
+// position; otherwise, while live, the wall clock minus `lag` (held at the newest audio if the
+// next strip is late); otherwise it stays put (paused).
+let live = true, lag = null, playhead = null;
+// Tracking: the view scrolls to keep the playhead `anchor` of the way across it (where it was
+// clicked, or PLAYHEAD_AT); scrolling by hand stops that until the next seek, step or Live.
+// While live the playhead keeps to the right edge (LIVE_INSET px in), with nothing newer shown.
+const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
+const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
+let tracking = true, anchor = PLAYHEAD_AT;
+// Playing: one audio element for the whole session, so browsers that only allow sound after a
 // tap (Safari) keep allowing it from one minute to the next.
-let listening = false, player = null, current = null, waitingFor = null;
+let playing = false, player = null, current = null, waitingFor = null;
+let loads = 0, positioned = false; // the sound has loaded and been moved to its starting point
+const playheadLine = Object.assign(document.createElement("div"), {className: "live-playhead"});
 
 const LANE = 20, LANES = 4, SPEC_TOP = LANE * LANES + 6, SPEC_H = 160, AXIS_H = 22;
 const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
@@ -128,10 +147,11 @@ function runs(list, minConf = MIN_CONF) {
   return out;
 }
 
-// Strips are masks (loudness in the alpha channel; spectrogram.py); each is painted through the
-// YlGn colormap (dark green for silence, light yellow for loud), with a square root so faint
-// sound shows. Images are loaded once and kept.
-const lut = d3.range(256).map((i) => d3.rgb(d3.interpolateYlGn(1 - Math.sqrt(i / 255))));
+// Strips are masks (loudness in the alpha channel; spectrogram.py); each is painted through
+// colorcet's CET-L5 colormap (near black for silence, through green to yellow-green for loud;
+// sampled at 16 stops), with a square root so faint sound shows. Images are loaded once and kept.
+const CET_L5 = d3.piecewise(d3.interpolateRgb, "001505 092205 083104 0b4004 104f05 145f06 187008 1c810a 21920c 25a40e 2ab610 2ec812 33db14 4bed15 92f915 d8ff14".split(" ").map((h) => "#" + h));
+const lut = d3.range(256).map((i) => d3.rgb(CET_L5(Math.sqrt(i / 255))));
 const images = new Map();
 function loadImage(url) {
   if (!images.has(url)) images.set(url, new Promise((resolve, reject) => {
@@ -142,7 +162,7 @@ function loadImage(url) {
   }));
   return images.get(url);
 }
-async function paintStrip(canvas, url) {
+async function paintStrip(canvas, url, strip) {
   let img;
   try { img = await loadImage(url); } catch { return; }
   const ctx = canvas.getContext("2d", {willReadFrequently: true});
@@ -155,9 +175,30 @@ async function paintStrip(canvas, url) {
     px[i] = c.r; px[i + 1] = c.g; px[i + 2] = c.b; px[i + 3] = 255;
   }
   ctx.putImageData(data, 0, 0);
+  // Dropouts the receiver filled with silence: hatched, so they don't pass for quiet audio. The
+  // hatching is anchored to the track, so it runs on unbroken from one strip into the next.
+  const left = parseFloat(canvas.style.left) || 0;
+  for (const [a, b] of strip.gaps ?? []) {
+    const x0 = Math.floor(a / strip.seconds * canvas.width), x1 = Math.ceil(b / strip.seconds * canvas.width);
+    ctx.fillStyle = "#14110d";
+    ctx.fillRect(x0, 0, x1 - x0, canvas.height);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, 0, x1 - x0, canvas.height);
+    ctx.clip();
+    ctx.strokeStyle = "rgba(232, 224, 207, 0.28)";
+    ctx.lineWidth = 1;
+    for (let k = Math.floor((x0 + left - canvas.height) / HATCH) * HATCH - left; k < x1; k += HATCH) {
+      ctx.moveTo(k, canvas.height);
+      ctx.lineTo(k + canvas.height, 0);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
 }
+const HATCH = 7; // px between the hatching's lines
 
-// Redraws the track; the moment at the right edge of the view stays put (while following, the
+// Redraws the track; the moment at the right edge of the view stays put (while tracking, the
 // next frame puts the playhead there anyway).
 function draw() {
   const rightEdge = geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : null;
@@ -169,18 +210,30 @@ function draw() {
   // At least one full span before the newest audio, so the view can always be filled.
   const t0 = Math.min(Date.parse(shown[0].start), t1 - span * 1e3);
   geo = {t0, pps};
-  const width = Math.max(scroller.clientWidth, x(t1));
+  const width = Math.max(scroller.clientWidth, x(t1) + LIVE_INSET); // room for the line at the newest audio
   track.style.width = width + "px";
   track.style.height = SPEC_TOP + SPEC_H + AXIS_H + "px";
 
   for (const s of shown) {
     const el = document.createElement("canvas");
     el.className = "live-strip";
-    el.width = Math.max(1, Math.round(s.seconds * pps));
+    // Whole pixels at both ends, so neighbouring strips meet without a hairline between them.
+    const left = Math.round(x(Date.parse(s.start)));
+    el.width = Math.max(1, Math.round(x(endOf(s))) - left);
     el.height = SPEC_H;
-    Object.assign(el.style, {left: x(Date.parse(s.start)) + "px", width: el.width + "px", top: SPEC_TOP + "px", height: SPEC_H + "px"});
-    paintStrip(el, LIVE + s.image);
+    Object.assign(el.style, {left: left + "px", width: el.width + "px", top: SPEC_TOP + "px", height: SPEC_H + "px"});
+    paintStrip(el, LIVE + s.image, s);
     track.append(el);
+  }
+  // No audio at all between strips (the recorder was offline, or reconnecting for over 10 s):
+  // hatched like the dropouts inside them.
+  for (let i = 1; i < shown.length; i++) {
+    const a = Math.round(x(endOf(shown[i - 1]))), b = Math.round(x(Date.parse(shown[i].start)));
+    if (b - a < 1) continue;
+    const gap = document.createElement("div");
+    gap.className = "live-gap";
+    Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundPosition: `${-a}px 0`});
+    track.append(gap);
   }
   // Time ticks under the strips, far enough apart that their labels don't touch.
   const label = span < 300 ? 100 : 80; // labels with seconds are wider
@@ -216,23 +269,23 @@ function draw() {
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
   }
-  if (!following && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
+  Object.assign(playheadLine.style, {top: SPEC_TOP - 6 + "px", height: SPEC_H + 6 + "px"}); // the spectrogram, and a little above
+  track.append(playheadLine);
+  if (!tracking && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
   else if (rightEdge === null) scroller.scrollLeft = scroller.scrollWidth;
 }
 
-// Following: each frame, put the playhead at the right edge of the view.
+// Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
 function frame() {
-  if (following && geo && strips.length) {
+  if (geo && strips.length) {
     const newest = endOf(strips.at(-1));
-    if (listening && current && !player.paused) playhead = Date.parse(current.start) + player.currentTime * 1e3;
-    else if (!listening) {
-      if (lag === null) lag = Date.now() - newest + FOLLOW_MARGIN;
-      playhead = Math.min(Date.now() - lag, newest);
-    }
-    if (playhead !== null) {
-      lag = Date.now() - playhead; // so stopping the sound or a late strip doesn't jump the view
-      scroller.scrollLeft = x(playhead) - scroller.clientWidth;
-    }
+    if (playhead === null) { playhead = newest - FOLLOW_MARGIN; lag = Date.now() - playhead; }
+    // The sound's position, once it has loaded and found its place (until then, where it was sent).
+    if (playing && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
+    else if (live && !playing) playhead = Math.min(Date.now() - lag, newest);
+    if (live) lag = Date.now() - playhead; // so stopping the sound or a late strip doesn't jump
+    playheadLine.style.left = x(playhead) + "px";
+    if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
   showView();
   raf = requestAnimationFrame(frame);
@@ -241,69 +294,179 @@ let raf = requestAnimationFrame(frame);
 
 function markLive() {
   followButton.hidden = !strips.length;
-  followButton.classList.toggle("is-live", following);
-  followButton.textContent = following ? "Live" : "Back to live";
-  followButton.setAttribute("aria-pressed", String(following));
-  listenButton.setAttribute("aria-pressed", String(listening));
-  listenButton.textContent = listening ? "Stop" : "Listen";
-  summarize(); // its hour ends at the playhead only while following
+  followButton.classList.toggle("is-live", live);
+  followButton.textContent = live ? "Live" : "Back to live";
+  followButton.setAttribute("aria-pressed", String(live));
+  playButton.setAttribute("aria-pressed", String(playing));
+  playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
+  playButton.title = playing ? "Pause (space)" : "Play (space)";
+  summarize(); // its hour ends at the playhead only while live
 }
 
-// Scrolling by hand (wheel, touch, scrollbar, keys) stops following, and pauses the sound.
-function stopFollowing() {
-  if (!following) return;
-  following = false;
-  player?.pause();
-  waitingFor = null;
-  markLive();
-}
-for (const type of ["wheel", "touchstart", "mousedown", "keydown"]) scroller.addEventListener(type, stopFollowing, {passive: true});
+// Scrolling by hand (wheel, touch, dragging the scrollbar) frees the view; the sound plays on.
+const freeView = () => { tracking = false; };
+for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListener(type, freeView, {passive: true});
 
-// Back to live: jump to just behind the newest audio and follow (and listen, if Listen was on).
-followButton.onclick = () => {
-  if (following || !strips.length) return;
-  following = true;
-  playhead = endOf(strips.at(-1)) - FOLLOW_MARGIN;
-  lag = Date.now() - playhead;
-  if (listening) playFrom(playhead);
-  markLive();
+// Bird boost: the sound runs through two filters on its way out. A high-pass at 1 kHz takes away
+// the low rumble (wind, traffic, the house, voices) that covers most songbirds, and a broad lift
+// of 6 dB around 4 kHz brings out where they sing. Low-voiced birds (doves, owls, crows) go thin
+// with it, so it's a switch, remembered per viewer. Set up on the first play (browsers only allow
+// sound after a tap), on the one audio element.
+// After it, always, leveling: the recorder keeps its gain fixed so stored audio keeps true
+// loudness, which leaves it quiet (background about -60 dBFS, bird calls peaking around -42).
+// MAKEUP_DB brings that up to an ordinary volume; a compressor above the background then holds
+// loud sounds back (a voice near the mic ends up only a few dB above a bird call, not 20), so
+// quiet birds come up without close voices blasting; a limiter at -3 dBFS catches the rest
+// (a door, the board being handled), and a soft clipper rounds off the few clicks too sharp for it. The compressor's threshold sits above the boosted
+// background, so it doesn't pump the hiss up between calls.
+const MAKEUP_DB = 30;
+const BOOST_KEY = "birdtracker-live-boost";
+let boost = false, audio = null; // audio: {context, source, chain, out}
+try { boost = localStorage.getItem(BOOST_KEY) === "1"; } catch {}
+const boostButton = document.getElementById("live-boost");
+function route() {
+  if (!audio) return;
+  audio.source.disconnect();
+  audio.source.connect(boost ? audio.chain : audio.out);
+}
+function setBoost(on) {
+  boost = on;
+  try { localStorage.setItem(BOOST_KEY, on ? "1" : "0"); } catch {}
+  boostButton.setAttribute("aria-pressed", String(on));
+  route();
+}
+boostButton.setAttribute("aria-pressed", String(boost));
+boostButton.onclick = () => setBoost(!boost);
+const newPlayer = () => {
+  const el = Object.assign(new Audio(), {preload: "auto", onended: () => { if (playing) playFrom(endOf(current)); }});
+  const Context = window.AudioContext ?? window.webkitAudioContext;
+  if (Context) {
+    const context = new Context();
+    const source = context.createMediaElementSource(el);
+    const highpass = Object.assign(context.createBiquadFilter(), {type: "highpass"});
+    highpass.frequency.value = 1000;
+    highpass.Q.value = 0.7;
+    const lift = Object.assign(context.createBiquadFilter(), {type: "peaking"});
+    lift.frequency.value = 4000;
+    lift.Q.value = 0.8;
+    lift.gain.value = 6;
+    const makeup = context.createGain();
+    makeup.gain.value = 10 ** (MAKEUP_DB / 20);
+    const compressor = context.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 12;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.005;
+    compressor.release.value = 0.3;
+    const limiter = context.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.25;
+    const clipper = context.createWaveShaper();
+    // Unchanged up to 0.7, then bending smoothly toward 0.95 (inputs past full scale stay there).
+    clipper.curve = Float32Array.from({length: 1025}, (_, i) => {
+      const v = (i - 512) / 512, a = Math.abs(v);
+      return a <= 0.7 ? v : Math.sign(v) * (0.7 + 0.25 * Math.tanh((a - 0.7) / 0.25));
+    });
+    makeup.connect(compressor).connect(limiter).connect(clipper).connect(context.destination);
+    highpass.connect(lift).connect(makeup);
+    audio = {context, source, chain: highpass, out: makeup};
+    route();
+  }
+  return el;
 };
 
-// Listen: play the minute under the playhead, then each next one; if the next hasn't arrived
-// yet, wait for it (poll() picks the sound up again).
+// Play the minute under `t`, then each next one; if the next hasn't arrived yet, wait for it
+// (poll() picks the sound up again).
 function playFrom(t) {
+  audio?.context.resume(); // a context made before the tap starts suspended
   const strip = strips.find((s) => s.audio && endOf(s) > t + 250);
   if (!strip) { waitingFor = t; showStatus(); return; }
   waitingFor = null;
   current = strip;
   const offset = Math.max(0, (t - Date.parse(strip.start)) / 1e3);
+  const load = ++loads;
+  positioned = false;
   player.src = LIVE + strip.audio;
-  player.addEventListener("loadedmetadata", () => { player.currentTime = Math.min(offset, player.duration || offset); }, {once: true});
+  player.addEventListener("loadedmetadata", () => {
+    if (load !== loads) return; // replaced by a later playFrom
+    player.currentTime = Math.min(offset, player.duration || offset);
+    positioned = true;
+  }, {once: true});
   player.play().catch((error) => {
     if (error.name === "AbortError") return; // replaced by the next playFrom
-    listening = false;
+    playing = false;
     markLive();
-    status.textContent = "The browser stopped the sound. Press Listen to start it again.";
+    status.textContent = "The browser stopped the sound. Press play to start it again.";
   });
   showStatus();
 }
-listenButton.onclick = () => {
-  player ??= Object.assign(new Audio(), {preload: "auto", onended: () => { if (listening && following) playFrom(endOf(current)); }});
-  if (listening) {
-    listening = false;
+
+// Move the playhead to `t` (within the audio there is), with the view keeping it `at` of the way
+// across; the sound, if on, follows. Leaves live, unless that's where `t` is.
+function seek(t, at = anchor) {
+  if (!strips.length) return;
+  const newest = endOf(strips.at(-1));
+  t = Math.max(Date.parse(strips[0].start), Math.min(t, newest));
+  if (t < shownFrom) { shownFrom = t - 60e3; draw(); }
+  playhead = t;
+  live = false;
+  tracking = true;
+  anchor = at;
+  if (playing) playFrom(t); else waitingFor = null;
+  markLive();
+  showStatus();
+}
+const step = (ms) => seek((playhead ?? endOf(strips.at(-1))) + ms, live ? liveAnchor() : anchor); // the line stays put
+
+function togglePlay() {
+  if (!strips.some((s) => s.audio)) return;
+  player ??= newPlayer();
+  if (playing) {
+    playing = false;
     player.pause();
     waitingFor = null;
+    if (live) anchor = liveAnchor(); // pausing holds the playhead (and the view) where it is
+    live = false;
   } else {
-    listening = true;
-    // From where the view is: the playhead while following, else the right edge of the view.
-    const from = following && playhead !== null ? playhead : geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : endOf(strips.at(-1)) - FOLLOW_MARGIN;
-    following = true;
-    lag = Date.now() - from;
-    playFrom(from);
+    playing = true;
+    tracking = true;
+    playFrom(playhead ?? endOf(strips.at(-1)) - FOLLOW_MARGIN);
   }
   markLive();
   showStatus();
-};
+}
+
+// Back to live: just behind the newest audio, the view tracking it (and the sound, if on).
+function goLive() {
+  if (!strips.length) return;
+  live = true;
+  tracking = true;
+  playhead = endOf(strips.at(-1)) - FOLLOW_MARGIN;
+  lag = Date.now() - playhead;
+  if (playing) playFrom(playhead);
+  markLive();
+  showStatus();
+}
+
+followButton.onclick = () => { if (!live) goLive(); };
+playButton.onclick = togglePlay;
+document.getElementById("live-back").onclick = () => step(-STEP);
+document.getElementById("live-fwd").onclick = () => step(STEP);
+// Clicking these shouldn't leave them focused, where space would press them again.
+for (const b of [followButton, playButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
+
+// Clicking the spectrogram plays from there (the names above it are links to the species).
+track.addEventListener("click", (event) => {
+  if (!geo || event.target.closest("a")) return;
+  const box = scroller.getBoundingClientRect();
+  const at = (event.clientX - box.left) / scroller.clientWidth;
+  player ??= newPlayer();
+  if (strips.some((s) => s.audio)) playing = true;
+  seek(tAt(scroller.scrollLeft + event.clientX - box.left), at);
+});
 
 // The last hour as a chart: a row per species, in the order they were first heard (so a new bird
 // is added at the bottom), with a cell for each clock minute it was heard in (the site's
@@ -311,13 +474,35 @@ listenButton.onclick = () => {
 // right: the minutes in total and when it was last heard. The stretch the spectrogram shows is
 // shaded; clicking the chart takes the spectrogram (and the sound, if on) to that moment.
 let hourView = null; // {w0, w1}: the chart's time range
+// Row order: first heard (the default; new birds join at the bottom), total minutes or last heard,
+// either way round. Clicking a column's header sorts by it, again reverses it; First heard resets.
+const SORT_KEY = "birdtracker-live-sort";
+const SORTS = {first: (r) => r.first, minutes: (r) => r.minutes, last: (r) => r.last};
+const FIRST_DIR = {first: 1, minutes: -1, last: -1}; // a column's first click: most minutes, latest first
+let sort = {by: "first", dir: 1};
+try { const saved = JSON.parse(localStorage.getItem(SORT_KEY)); if (SORTS[saved?.by] && Math.abs(saved.dir) === 1) sort = saved; } catch {}
+function sortBy(by) {
+  sort = by === "first" ? {by, dir: 1} : {by, dir: sort.by === by ? -sort.dir : FIRST_DIR[by]};
+  try { localStorage.setItem(SORT_KEY, JSON.stringify(sort)); } catch {}
+  summarize();
+}
 const ganttTip = Object.assign(document.createElement("div"), {className: "live-gantt-tip", hidden: true});
 
+// A sortable column's header: a button showing the order while it's the one in use.
+function header(by, label, className = "") {
+  const active = sort.by === by;
+  const arrow = html`<span class="live-gantt-arrow" aria-hidden="true">${active ? (sort.dir > 0 ? "↑" : "↓") : "↕"}</span>`;
+  const b = html`<button type="button" class=${`live-gantt-sort ${className}`} aria-pressed=${String(active)}
+    title=${by === "first" ? "Order rows by when each bird was first heard (default)" : `Sort by ${label.toLowerCase()}${active ? ", click again to reverse" : ""}`}>${label}${arrow}</button>`;
+  b.onclick = () => sortBy(by);
+  return b;
+}
+
 function summarize() {
-  // The hour ends at the moment shown while following (so the chart never gets ahead of the
+  // The hour ends at the moment shown while live (so the chart never gets ahead of the
   // spectrogram), else at the newest audio.
   const newest = strips.length ? endOf(strips.at(-1)) : Date.now();
-  const w1 = following && playhead !== null ? Math.min(playhead, newest) : newest, w0 = w1 - HOUR;
+  const w1 = live && playhead !== null ? Math.min(playhead, newest) : newest, w0 = w1 - HOUR;
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
   const confident = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
@@ -331,28 +516,30 @@ function summarize() {
       else bars.push({start: m, end: m + 60e3, minutes: 1, best, first}); // first: its first detection, where a click goes
     }
     return {name, bars, minutes: byMinute.size, first: d3.min(v, (d) => Date.parse(d.at)), last: d3.max(v, (d) => Date.parse(d.at))};
-  }).sort((a, b) => a.first - b.first);
+  }).sort((a, b) => sort.dir * (SORTS[sort.by](a) - SORTS[sort.by](b)) || a.first - b.first);
 
   if (!rows.length) {
     heard.replaceChildren(html`<p class="sub">No birds named in the last hour.</p>`);
   } else {
     const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
-    const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 1}`}>${r.bars.map((b, j) =>
+    const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 2}`}>${r.bars.map((b, j) =>
         html`<span class=${j === r.bars.length - 1 ? "live-gantt-bar is-last" : "live-gantt-bar"} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · best ${Math.round(b.best * 100)}%`}
           style=${{left: pct(Math.max(b.start, w0)), width: `calc(${pct(Math.min(b.end, w1))} - ${pct(Math.max(b.start, w0))})`}}></span>`)}</div>`);
     heard.replaceChildren(html`<div class="live-gantt">
       <p class="eyebrow">Heard in the last hour</p>
       <div class="live-gantt-grid">
+        ${header("first", "First heard", "live-gantt-sort-first")}
+        <span class="live-gantt-total live-gantt-head">${header("minutes", "Total")}${header("last", "Last")}</span>
         ${rows.flatMap((r, i) => [
-          html`<a class="live-gantt-name" href=${speciesHref(r.name)} title=${r.name} style=${`grid-row: ${i + 1}`}>${r.name}</a>`,
+          html`<a class="live-gantt-name" href=${speciesHref(r.name)} title=${r.name} style=${`grid-row: ${i + 2}`}>${r.name}</a>`,
           lanes[i],
-          html`<span class="sub live-gantt-total" style=${`grid-row: ${i + 1}`}><span>total ${r.minutes} min</span><span>last ${time(new Date(r.last))}</span></span>`
+          html`<span class="sub live-gantt-total" style=${`grid-row: ${i + 2}`}><span>${r.minutes} min</span><span>${time(new Date(r.last))}</span></span>`
         ])}
-        <div class="live-gantt-overlay" aria-hidden="true" style=${`grid-row: 1 / span ${rows.length}`}>
+        <div class="live-gantt-overlay" aria-hidden="true" style=${`grid-row: 2 / span ${rows.length}`}>
           ${ticks.map((t) => html`<span class="live-gantt-grid-line" style=${{left: pct(t)}}></span>`)}
           <span class="live-gantt-view" id="live-gantt-view" hidden></span>
         </div>
-        <div class="live-gantt-axis" aria-hidden="true" style=${`grid-row: ${rows.length + 1}`}>${ticks.map((t) => html`<span class=${new Date(t).getMinutes() % 30 ? "is-minor" : ""} style=${{left: pct(t)}}>${time(new Date(t))}</span>`)}</div>
+        <div class="live-gantt-axis" aria-hidden="true" style=${`grid-row: ${rows.length + 2}`}>${ticks.map((t) => html`<span class=${new Date(t).getMinutes() % 30 ? "is-minor" : ""} style=${{left: pct(t)}}>${time(new Date(t))}</span>`)}</div>
       </div>
       ${ganttTip}
     </div>`);
@@ -392,26 +579,9 @@ function showView() {
   view.style.width = `max(2px, ${((b - a) / (w1 - w0)) * 100}%)`;
 }
 
-// From the hour chart: show the spectrogram at `t`. With the sound on, play from there and
-// follow; otherwise stop following and put `t` a quarter of the way into the view.
+// From the hour chart: the playhead to `t`, at its usual place in the view.
 function jumpTo(t) {
-  if (!strips.length) return;
-  if (t < shownFrom) { shownFrom = t - 60e3; draw(); }
-  const newest = endOf(strips.at(-1));
-  if (listening) {
-    following = true;
-    playhead = Math.min(t, newest);
-    lag = Date.now() - playhead;
-    playFrom(playhead);
-  } else {
-    following = false;
-    player?.pause();
-    waitingFor = null;
-    scroller.scrollLeft = x(t + span * 750) - scroller.clientWidth;
-  }
-  markLive();
-  showStatus();
-  showView();
+  seek(t, PLAYHEAD_AT);
   document.querySelector(".live-head").scrollIntoView({block: "nearest", behavior: "smooth"});
 }
 
@@ -420,14 +590,12 @@ function showStatus() {
   const last = strips.at(-1);
   const end = new Date(Date.parse(last.start) + last.seconds * 1e3);
   const quiet = (Date.now() - end) / 60e3 > STALE_MINUTES;
-  status.textContent = quiet
+  status.textContent = quiet && live && !playing
     ? `No audio from the recorder since ${time(end)}.`
-    : listening && waitingFor !== null
+    : playing && waitingFor !== null
     ? "Waiting for the next minute of audio…"
-    : following && playhead !== null
-    ? `Showing ${time(new Date(playhead), true)}`
-    : geo
-    ? `Showing ${time(new Date(Math.min(tAt(scroller.scrollLeft + scroller.clientWidth), end)), true)}`
+    : playhead !== null
+    ? `${playing ? "Playing" : live ? "Showing" : "Paused at"} ${time(new Date(playhead), true)}`
     : `Latest audio ${time(end)}`;
   status.classList.toggle("is-quiet", quiet);
 }
@@ -444,10 +612,11 @@ async function poll() {
       strips = j.strips ?? [];
     }
     if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
-    listenButton.hidden = !strips.some((s) => s.audio);
+    transport.hidden = !strips.length;
+    playButton.hidden = !strips.some((s) => s.audio);
     draw();
     markLive();
-    if (listening && following && waitingFor !== null) playFrom(waitingFor);
+    if (playing && waitingFor !== null) playFrom(waitingFor);
     summarize();
     showStatus();
   } catch (e) {
@@ -455,7 +624,34 @@ async function poll() {
   }
 }
 
+// Fullscreen (button or F): the page without the site's header and footer.
+const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
+const markFull = () => {
+  const on = Boolean(document.fullscreenElement);
+  fullButton.setAttribute("aria-pressed", String(on));
+  fullButton.title = on ? "Exit fullscreen (F)" : "Fullscreen (F)";
+  fullButton.setAttribute("aria-label", on ? "Exit fullscreen" : "Fullscreen");
+};
+fullButton.hidden = !document.documentElement.requestFullscreen;
+fullButton.onclick = toggleFull;
+// Keys: space plays and pauses, arrows step 10 s, L goes back to live, F toggles fullscreen.
+const keys = (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, textarea, select")) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (k === " " && !e.target.closest?.("a")) togglePlay(); // even with a button focused
+  else if (k === "ArrowLeft") step(-STEP);
+  else if (k === "ArrowRight") step(STEP);
+  else if (k === "l") goLive();
+  else if (k === "b") setBoost(!boost);
+  else if (k === "f") toggleFull();
+  else return;
+  e.preventDefault();
+};
+document.addEventListener("keydown", keys);
+document.addEventListener("fullscreenchange", markFull);
+
 earlier.onclick = () => {
+  tracking = false;
   const keep = scroller.scrollWidth - scroller.scrollLeft;
   shownFrom -= HOUR;
   draw();
@@ -469,5 +665,5 @@ const clock = setInterval(showStatus, 1000); // the playing time
 const hourTimer = setInterval(summarize, 5e3); // slide the hour chart along with the playhead
 const resize = new ResizeObserver(() => draw());
 resize.observe(scroller);
-invalidation.then(() => { clearInterval(timer); clearInterval(clock); clearInterval(hourTimer); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
+invalidation.then(() => { document.removeEventListener("keydown", keys); document.removeEventListener("fullscreenchange", markFull); clearInterval(timer); clearInterval(clock); clearInterval(hourTimer); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
 ```

@@ -52,6 +52,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import numpy as np
 import soundfile as sf
 from scipy.signal import resample_poly
 
@@ -231,6 +232,14 @@ def process(audio: Path, args, conn) -> int:
     return inserted
 
 
+def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float]]:
+    """Where the receiver filled a dropout with silence: runs of exact zeros (a live mic never
+    gives those), as [start, end] seconds into the recording. The site hatches them."""
+    zero = np.r_[False, data == 0, False]
+    edges = np.flatnonzero(zero[1:] != zero[:-1])
+    return [[round(float(a) / rate, 2), round(float(b) / rate, 2)] for a, b in zip(edges[::2], edges[1::2]) if b - a >= min_seconds * rate]
+
+
 def update_live(audio: Path, rows: list[dict], args) -> None:
     """Add the recording's spectrogram strip to live/ and live/live.json; drop strips older than
     --live-hours. live.json lists the strips oldest first, each with its detections."""
@@ -248,11 +257,13 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
              format="MP3", subtype="MPEG_LAYER_III", compression_level=LIVE_AUDIO_LEVEL)
     os.replace(part, sound)
     start = recording_start(audio.name, None)
+    gaps = silence_fills(data, rate)
     entry = {
         "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "seconds": round(sf.info(audio).duration, 2),
         "image": image.name,
         "audio": sound.name,
+        **({"gaps": gaps} if gaps else {}),
         "detections": [
             {"at": r["detected_at"], "common_name": r["common_name"], "scientific_name": r["scientific_name"],
              "confidence": round(r["confidence"], 3)}
