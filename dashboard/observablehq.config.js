@@ -148,7 +148,7 @@ const menuScript = `<script>
   // Mark the current page in the menu.
   addEventListener("DOMContentLoaded", () => {
     const here = location.pathname.replace(/\\.html$/, "").replace(/\\/$/, "").split("/").pop() || "index";
-    for (const a of document.querySelectorAll(".site-menu a")) {
+    for (const a of document.querySelectorAll(".site-menu a, .page-icons a")) {
       const page = a.getAttribute("href").replace("./", "") || "index";
       if (page === here) a.setAttribute("aria-current", "page");
     }
@@ -169,6 +169,17 @@ const header = `<div class="site-header">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
     <span>Phone</span>
   </button>` : ""}
+  <nav class="page-icons" aria-label="Quick links">
+    <a class="icon-link" href="./" aria-label="Overview" title="Overview">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/><path d="M10.5 19v-5h3v5"/></svg>
+    </a>
+    <a class="icon-link" href="./live" aria-label="Live" title="Live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
+    </a>
+    <a class="icon-link" href="./display" aria-label="Display" title="Display">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M9 20h6M12 16.5V20"/></svg>
+    </a>
+  </nav>
   <button class="refresh-button" type="button" aria-label="Refresh: load the latest detections" title="Load the latest detections" onclick="location.reload()">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg>
   </button>

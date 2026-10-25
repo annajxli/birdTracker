@@ -177,7 +177,8 @@ table {
 
 .theme-toggle,
 .phone-toggle,
-.refresh-button {
+.refresh-button,
+.icon-link {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -193,8 +194,20 @@ table {
 
 .theme-toggle:hover,
 .phone-toggle:hover,
-.refresh-button:hover {
+.refresh-button:hover,
+.icon-link:hover {
   border-color: var(--theme-foreground-muted);
+}
+
+/* Quick links to the pages people jump between; the current one is marked. */
+.page-icons {
+  display: flex;
+  gap: 0.35rem;
+}
+.icon-link { padding: 0.3rem 0.55rem; }
+.icon-link[aria-current="page"] {
+  border-color: var(--theme-foreground-focus);
+  color: var(--theme-foreground-focus);
 }
 
 :root[data-phone] .phone-toggle {
@@ -204,7 +217,8 @@ table {
 
 .theme-toggle svg,
 .phone-toggle svg,
-.refresh-button svg {
+.refresh-button svg,
+.icon-link svg {
   width: 15px;
   height: 15px;
 }
