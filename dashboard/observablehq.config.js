@@ -127,7 +127,8 @@ const menuPages = [
   ["Overview", "./"],
   ["Species", "./species"],
   ["Detections", "./detections"],
-  ["Display", "./display"]
+  ["Display", "./display"],
+  ["Hardware analytics", "./hardware"]
 ];
 
 const menuScript = `<script>
@@ -182,7 +183,8 @@ export default {
     {name: "Overview", path: "/"},
     {name: "Species", path: "/species"},
     {name: "Detections", path: "/detections"},
-    {name: "Display", path: "/display"}
+    {name: "Display", path: "/display"},
+    {name: "Hardware analytics", path: "/hardware"}
   ],
   sidebar: false,
   pager: false, // no "Next page" link at the bottom of each page
