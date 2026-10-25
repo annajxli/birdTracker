@@ -1458,3 +1458,36 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   }
   @keyframes skeleton-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 }
+
+/* Clip player: the clip's spectrogram (a mask, tinted with the ink colour); tap to play. */
+.clip-player {
+  position: relative;
+  display: block;
+  width: 120px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--theme-background);
+  color: var(--theme-foreground);
+  cursor: pointer;
+  overflow: hidden;
+}
+.clip-spec {
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  -webkit-mask: var(--spec) center / 100% 100% no-repeat;
+  mask: var(--spec) center / 100% 100% no-repeat;
+}
+.clip-head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--progress, 0) * 100%);
+  width: 2px;
+  background: var(--theme-foreground-focus);
+  opacity: 0;
+}
+.clip-player.is-playing .clip-head { opacity: 1; }
+.clip-player:hover, .clip-player.is-playing { border-color: var(--theme-foreground-focus); }

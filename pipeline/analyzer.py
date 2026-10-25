@@ -7,9 +7,10 @@ into the incoming folder, and for each one this:
   1. runs BirdNET-Analyzer with the station's location and the week of year
   2. adds the detections to the database (same rows as ingest.py)
   3. cuts a short Opus clip of the most confident detection per species per
-     hour, and records its path on that detection
-  4. moves the recording to processed/, and deletes recordings processed more
-     than --keep-days ago
+     hour, records its path on that detection, and renders the clip's
+     spectrogram beside it (same name, .webp; see spectrogram.py)
+  4. deletes the recording (or, with --keep-days, moves it to processed/ and
+     deletes it that many days later)
 
 A recording only counts as finished once its size and modification time have
 held still across two checks at least SETTLE_SECONDS apart. Recorders should
@@ -47,6 +48,7 @@ import soundfile as sf
 
 import db
 from ingest import read_results, recording_start
+from spectrogram import render as render_spectrogram
 
 ROOT = Path(__file__).resolve().parent.parent
 AUDIO_SUFFIXES = {".flac", ".wav", ".mp3", ".ogg"}
@@ -176,6 +178,11 @@ def process(audio: Path, args, conn) -> int:
                 replaced.append(prev)
         except Exception:
             log.exception("couldn't cut a clip from %s at %.1fs", audio.name, offset)
+            continue
+        try:
+            render_spectrogram(written)
+        except Exception:  # the clip still plays without its picture
+            log.exception("couldn't render a spectrogram for %s", written.name)
 
     inserted = db.insert_detections(conn, rows, commit=False)  # one transaction with the clip updates
     for row_id, _, _ in replaced:
@@ -192,6 +199,7 @@ def process(audio: Path, args, conn) -> int:
     for _, _, old_path in replaced:
         if old_path not in kept:
             (args.data / old_path).unlink(missing_ok=True)
+            (args.data / old_path).with_suffix(".webp").unlink(missing_ok=True)
     return inserted
 
 
@@ -237,12 +245,15 @@ def run_once(args, conn, state: dict) -> int:
                 del attempts[audio.name]
             continue
         attempts.pop(audio.name, None)
+        log.info("%s: %d new detections", audio.name, n)
+        if args.keep_days <= 0:  # the clips are all we keep
+            audio.unlink(missing_ok=True)
+            continue
         move(audio, processed)
         try:
             os.utime(processed / audio.name)  # keep-days counts from processing, not from recording
         except FileNotFoundError:
             pass
-        log.info("%s: %d new detections", audio.name, n)
     prune(processed, args.keep_days)
     return len(files)
 
@@ -269,7 +280,7 @@ if __name__ == "__main__":
     p.add_argument("--lat", type=float, default=47.61)
     p.add_argument("--lon", type=float, default=-122.33)
     p.add_argument("--min-conf", type=float, default=0.25, help="BirdNET's own cutoff; the dashboard filters further")
-    p.add_argument("--keep-days", type=float, default=3, help="delete recordings this many days after processing them")
+    p.add_argument("--keep-days", type=float, default=0, help="keep recordings in processed/ this many days (default: delete right after analysis)")
     p.add_argument("--interval", type=float, default=30, help="seconds between checks when watching")
     args = p.parse_args()
 

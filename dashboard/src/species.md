@@ -6,7 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
-import {loadDetections, loadPhotos, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref} from "./components/birds.js";
+import {loadDetections, loadPhotos, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
 ```
 
 ```js
@@ -172,7 +172,7 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
     format: {
       time: (t) => t.toLocaleString("en-US", {timeZone: "America/Los_Angeles", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}).replace(" AM", "a").replace(" PM", "p"),
       confidence: d3.format(".0%"),
-      clip: (c) => (c ? htl.html`<audio controls preload="none" src=${c}></audio>` : "–")
+      clip: clipPlayer
     }
   })}
   </div>

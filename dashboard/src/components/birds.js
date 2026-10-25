@@ -32,6 +32,47 @@ export async function loadDetections() {
 /** Crop a photo around its bird (focal point from pipeline/photo_focus.py) when it's cropped to fit. */
 export const focusStyle = (photo) => (photo?.focus ? `object-position: ${photo.focus.x * 100}% ${photo.focus.y * 100}%` : "");
 
+/** Where clips (and their spectrograms, same name with .webp) are served; the analyzer uploads them there. */
+export const CLIP_BASE = "/api/clips/";
+
+let playing = null; // the one clip playing anywhere on the page: {audio, button}
+
+/** A clip's spectrogram; tap to play it, with a line sweeping across as it plays. */
+export function clipPlayer(path) {
+  if (!path) return "–";
+  const url = CLIP_BASE + path;
+  const spec = url.replace(/\.[^./]+$/, ".webp");
+  const button = htl.html`<button type="button" class="clip-player" aria-label="Play clip" style=${`--spec: url("${spec}")`}>
+    <span class="clip-spec"></span><span class="clip-head"></span>
+  </button>`;
+  button.onclick = () => {
+    if (playing?.button === button) return stop();
+    stop();
+    const audio = new Audio(url);
+    playing = {audio, button};
+    button.classList.add("is-playing");
+    button.setAttribute("aria-label", "Stop clip");
+    const tick = () => {
+      if (playing?.audio !== audio) return;
+      if (audio.duration) button.style.setProperty("--progress", audio.currentTime / audio.duration);
+      requestAnimationFrame(tick);
+    };
+    audio.onended = audio.onerror = stop;
+    audio.play().then(tick, stop);
+  };
+  return button;
+}
+
+function stop() {
+  if (!playing) return;
+  const {audio, button} = playing;
+  playing = null;
+  audio.pause();
+  button.classList.remove("is-playing");
+  button.style.removeProperty("--progress");
+  button.setAttribute("aria-label", "Play clip");
+}
+
 export function loadPhotos() {
   return FileAttachment("../data/species-images.json").json();
 }

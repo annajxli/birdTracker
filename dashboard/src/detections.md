@@ -6,7 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
-import {loadDetections, loadPhotos, loadCategories, rangeInput, confidenceInput, RANGES, windowStart, speciesHref, speciesCards, speciesInfoFrom, minutesHeard} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadCategories, rangeInput, confidenceInput, RANGES, windowStart, speciesHref, speciesCards, speciesInfoFrom, minutesHeard, clipPlayer} from "./components/birds.js";
 ```
 
 ```js
@@ -71,7 +71,7 @@ const clock = (t) => t.toLocaleString("en-US", {timeZone: "America/Los_Angeles",
       time: clock,
       species: (s) => htl.html`<a href=${speciesHref(s)}>${s}</a>`,
       confidence: d3.format(".0%"),
-      clip: (c) => (c ? htl.html`<audio controls preload="none" src=${c}></audio>` : "–")
+      clip: clipPlayer
     }
   })}
   </div>

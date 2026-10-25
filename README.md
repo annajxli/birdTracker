@@ -25,6 +25,7 @@ data/
   weather.csv     output of weather.py; re-run when new detections arrive
   detections.sqlite  generated, not checked in
 docs/hardware.md  hardware and data transfer plan
+docs/raspberry-pi-3b.md  plan for running the analyzer on a Pi 3B+
 docs/palettes.html  theme palette options (Cedar & Olive was picked)
 ```
 
@@ -69,8 +70,9 @@ The recorder drops audio files into `data/incoming/`, named by their UTC start
 time (e.g. `20260512T131500Z.flac`). For each one the analyzer runs BirdNET
 with the station's location and week, adds the detections to the database,
 and cuts a 5-second Opus clip of the most confident detection of each species
-per hour into `data/clips/`. Finished recordings move to `data/processed/` and
-are deleted after `--keep-days` (default 3); unreadable or misnamed ones go to
+per hour into `data/clips/`, with a spectrogram image beside each clip.
+Recordings are deleted right after analysis (`--keep-days N` keeps them in
+`data/processed/` for N days instead); unreadable or misnamed ones go to
 `data/failed/`.
 
 `pipeline/live.py` is the live view: the recorder also streams its microphone
