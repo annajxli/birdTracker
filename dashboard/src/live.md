@@ -72,7 +72,7 @@ let following = true, lag = null, playhead = null;
 // tap (Safari) keep allowing it from one minute to the next.
 let listening = false, player = null, current = null, waitingFor = null;
 
-const LANE = 20, LANES = 4, SPEC_TOP = LANE * LANES + 6, SPEC_H = 128, AXIS_H = 22;
+const LANE = 20, LANES = 4, SPEC_TOP = LANE * LANES + 6, SPEC_H = 160, AXIS_H = 22;
 const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
 
 // Frequency labels, fixed over the left edge while the strips scroll under them.
@@ -125,6 +125,35 @@ function runs(list, minConf = MIN_CONF) {
   return out;
 }
 
+// Strips are masks (loudness in the alpha channel; spectrogram.py); each is painted through the
+// YlGn colormap (dark green for silence, light yellow for loud), with a square root so faint
+// sound shows. Images are loaded once and kept.
+const lut = d3.range(256).map((i) => d3.rgb(d3.interpolateYlGn(1 - Math.sqrt(i / 255))));
+const images = new Map();
+function loadImage(url) {
+  if (!images.has(url)) images.set(url, new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = url;
+  }));
+  return images.get(url);
+}
+async function paintStrip(canvas, url) {
+  let img;
+  try { img = await loadImage(url); } catch { return; }
+  const ctx = canvas.getContext("2d", {willReadFrequently: true});
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const px = data.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const c = lut[px[i + 3]];
+    px[i] = c.r; px[i + 1] = c.g; px[i + 2] = c.b; px[i + 3] = 255;
+  }
+  ctx.putImageData(data, 0, 0);
+}
+
 // Redraws the track; the moment at the right edge of the view stays put (while following, the
 // next frame puts the playhead there anyway).
 function draw() {
@@ -142,10 +171,12 @@ function draw() {
   track.style.height = SPEC_TOP + SPEC_H + AXIS_H + "px";
 
   for (const s of shown) {
-    const el = document.createElement("div");
+    const el = document.createElement("canvas");
     el.className = "live-strip";
-    Object.assign(el.style, {left: x(Date.parse(s.start)) + "px", width: s.seconds * pps + "px", top: SPEC_TOP + "px", height: SPEC_H + "px"});
-    el.style.setProperty("--spec", `url("${LIVE}${s.image}")`);
+    el.width = Math.max(1, Math.round(s.seconds * pps));
+    el.height = SPEC_H;
+    Object.assign(el.style, {left: x(Date.parse(s.start)) + "px", width: el.width + "px", top: SPEC_TOP + "px", height: SPEC_H + "px"});
+    paintStrip(el, LIVE + s.image);
     track.append(el);
   }
   // Time ticks under the strips, far enough apart that their labels don't touch.

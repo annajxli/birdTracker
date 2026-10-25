@@ -1568,12 +1568,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   position: relative;
   min-height: 216px;
 }
-.live-strip {
-  position: absolute;
-  background: var(--theme-foreground);
-  -webkit-mask: var(--spec) left / 100% 100% no-repeat;
-  mask: var(--spec) left / 100% 100% no-repeat;
-}
+.live-strip { position: absolute; display: block; } /* a canvas, painted through a colormap */
 .live-tick {
   position: absolute;
   padding: 4px 0 0 4px;
