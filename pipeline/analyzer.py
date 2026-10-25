@@ -69,7 +69,8 @@ MAX_ATTEMPTS = 3  # analysis failures before a recording is moved to failed/
 MAX_BACKOFF_SECONDS = 15 * 60
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # the station's time zone, for BirdNET's week
 LIVE_AUDIO_RATE = 24000  # keeps the spectrogram's 0-12 kHz
-LIVE_AUDIO_LEVEL = 0.5  # libsndfile's MP3 compression level: ~35 kbit/s, ~260 KB a minute. MP3 rather
+LIVE_AUDIO_LEVEL = 0.2  # libsndfile's MP3 compression level: ~53 kbit/s, ~390 KB a minute (0.5 left holes
+                        # at 8-11 kHz that warble once playback lifts quiet audio 30 dB). MP3 rather
                         # than Opus: ~35x faster to encode (a Pi 3B+ took 27 s a minute for Opus), and
                         # every browser plays it
 

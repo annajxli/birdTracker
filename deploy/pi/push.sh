@@ -24,4 +24,4 @@ if ! ssh "$HOST" "test -f $DEST/birdtracker.env"; then
   { grep '^R2_' publish.env; echo "RECEIVER_TOKEN=$TOKEN"; echo "BIRDNET_MODELS=models"; } \
     | ssh "$HOST" "umask 077; cat > $DEST/birdtracker.env"
 fi
-ssh "$HOST" "sh $DEST/deploy/pi/install.sh"
+ssh -t "$HOST" "sh $DEST/deploy/pi/install.sh"  # -t: sudo can ask for the password
