@@ -9,7 +9,10 @@ into the incoming folder, and for each one this:
   3. cuts a short Opus clip of the most confident detection per species per
      hour, records its path on that detection, and renders the clip's
      spectrogram beside it (same name, .webp; see spectrogram.py)
-  4. deletes the recording (or, with --keep-days, moves it to processed/ and
+  4. renders the whole recording's spectrogram into live/ and lists it, with
+     its detections, in live/live.json, for the site's near-live view;
+     strips older than --live-hours are deleted (publish.py uploads them)
+  5. deletes the recording (or, with --keep-days, moves it to processed/ and
      deletes it that many days later)
 
 A recording only counts as finished once its size and modification time have
@@ -33,6 +36,7 @@ Usage:
 import argparse
 import errno
 import fcntl
+import json
 import logging
 import os
 import shutil
@@ -200,7 +204,46 @@ def process(audio: Path, args, conn) -> int:
         if old_path not in kept:
             (args.data / old_path).unlink(missing_ok=True)
             (args.data / old_path).with_suffix(".webp").unlink(missing_ok=True)
+    if args.live_hours > 0:
+        try:
+            update_live(audio, rows, args)
+        except Exception:  # the near-live view is a nicety; the detections are already stored
+            log.exception("couldn't add %s to the live view", audio.name)
     return inserted
+
+
+def update_live(audio: Path, rows: list[dict], args) -> None:
+    """Add the recording's spectrogram strip to live/ and live/live.json; drop strips older than
+    --live-hours. live.json lists the strips oldest first, each with its detections."""
+    live = args.data / "live"
+    live.mkdir(exist_ok=True)
+    image = live / (audio.stem + ".webp")
+    render_spectrogram(audio, image)
+    start = recording_start(audio.name, None)
+    entry = {
+        "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "seconds": round(sf.info(audio).duration, 2),
+        "image": image.name,
+        "detections": [
+            {"at": r["detected_at"], "common_name": r["common_name"], "scientific_name": r["scientific_name"],
+             "confidence": round(r["confidence"], 3)}
+            for r in sorted(rows, key=lambda r: r["detected_at"])
+        ],
+    }
+    index = live / "live.json"
+    try:
+        strips = json.loads(index.read_text())["strips"]
+    except (FileNotFoundError, KeyError, ValueError):
+        strips = []
+    strips = [s for s in strips if s["image"] != entry["image"]] + [entry]
+    cutoff = (datetime.now(UTC) - timedelta(hours=args.live_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    keep = sorted((s for s in strips if s["start"] >= cutoff), key=lambda s: s["start"])
+    for s in strips:
+        if s["start"] < cutoff:
+            (live / s["image"]).unlink(missing_ok=True)
+    tmp = index.with_suffix(".json.part")
+    tmp.write_text(json.dumps({"updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "strips": keep}))
+    os.replace(tmp, index)
 
 
 def prune(processed: Path, keep_days: float) -> None:
@@ -282,6 +325,7 @@ if __name__ == "__main__":
     p.add_argument("--min-conf", type=float, default=0.25, help="BirdNET's own cutoff; the dashboard filters further")
     p.add_argument("--keep-days", type=float, default=0, help="keep recordings in processed/ this many days (default: delete right after analysis)")
     p.add_argument("--interval", type=float, default=30, help="seconds between checks when watching")
+    p.add_argument("--live-hours", type=float, default=24, help="keep this many hours of spectrogram strips in live/ (0 = off)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
