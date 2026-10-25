@@ -554,26 +554,6 @@ const weekSun = weeks.map((w, row) => {
   </div>
 </section>
 
-<details class="advanced">
-  <summary>Recorder status</summary>
-  <div class="grid grid-cols-3" style="margin-top: 1rem;">
-    <div class="card">
-      <h2>Uptime</h2>
-      <div class="big">${daysUp} of ${period.length} days</div>
-      <div class="sub">${period.length - daysUp ? `${period.length - daysUp} days with no recordings` : "No gaps"}</div>
-    </div>
-    <div class="card">
-      <h2>Latest recording</h2>
-      <div class="big">${formatDate(latest)}</div>
-      <div class="sub">${all.at(-1).time.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})} (last detection)</div>
-    </div>
-    <div class="card">
-      <h2>Low-confidence share</h2>
-      <div class="big">${d3.format(".0%")(1 - rows.length / Math.max(1, all.filter((d) => d.date >= start && d.date <= end).length))}</div>
-      <div class="sub">of detections in this period are below the threshold</div>
-    </div>
-  </div>
-</details>
 
 ```js
 const swipeTargets = [document.getElementById("home-timeline"), document.getElementById("home-activity")].filter(Boolean);

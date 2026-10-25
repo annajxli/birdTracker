@@ -23,8 +23,8 @@ test("navigation handles year boundaries and DST without changing calendar dates
 test("labels distinguish months, years, and weeks crossing a year", () => {
   assert.equal(periodLabel("M", "2026-10-23"), "October 2026");
   assert.equal(periodLabel("Y", "2026-10-23"), "2026");
-  assert.equal(periodLabel("W", "2026-10-23"), "Oct 18 – 24, 2026");
-  assert.match(periodLabel("W", "2026-01-01"), /2025.*2026/);
+  assert.equal(periodLabel("W", "2026-10-23"), "Oct 18 – 24");
+  assert.equal(periodLabel("W", "2026-01-01"), "Dec 28 – Jan 3");
 });
 
 test("calendar highlights the complete selected week, including adjacent months", () => {

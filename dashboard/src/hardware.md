@@ -21,6 +21,8 @@ const recs = Array.from({length: table.numRows}, (_, i) => ({
   rms: col("rms").get(i), rssi: col("rssi").get(i), upload: col("upload").get(i), delay: col("delay").get(i)
 }));
 const sun = await loadSun();
+// Share of BirdNET's detections below the dashboard's 0.6 confidence threshold.
+const detections = await FileAttachment("data/detections.parquet").parquet();
 const simulated = table.numRows > 0 && col("simulated").get(0);
 ```
 
@@ -51,13 +53,17 @@ const wallHours = (iso) => { const [h, m] = new Date(iso).toLocaleTimeString("en
 const sunLines = span.filter((d) => sun[d]).map((d) => ({date: new Date(d), sunrise: wallHours(sun[d].sunrise), sunset: wallHours(sun[d].sunset)}));
 const fmtDay = (d) => formatDate(d.toISOString().slice(0, 10));
 const last = recs.at(-1);
+const detDate = detections.getChild("date"), detConf = detections.getChild("confidence");
+let detTotal = 0, detLow = 0;
+for (let i = 0; i < detections.numRows; ++i) if (detDate.get(i) >= from) { ++detTotal; if (detConf.get(i) < 0.6) ++detLow; }
 ```
 
 # Hardware analytics
 
 <p class="sub">${dateRange(from, latest)}${simulated ? " · simulated until the recorder is running" : ""}</p>
 
-<div class="grid grid-cols-4 stats">
+<div class="grid stats" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
+  <div class="card"><h2>Low-confidence share</h2><div class="big">${d3.format(".0%")(detTotal ? detLow / detTotal : 0)}</div><div class="sub">of BirdNET detections are below the 0.6 threshold</div></div>
   <div class="card"><h2>Days recorded</h2><div class="big">${daysUp} of ${DAYS}</div><div class="sub">${DAYS - daysUp ? `${DAYS - daysUp} days with no audio` : "No missing days"}</div></div>
   <div class="card"><h2>Audio per day</h2><div class="big">${d3.format(".1f")(d3.mean(daily, (d) => d.hours))} h</div><div class="sub">average on days recorded</div></div>
   <div class="card"><h2>Wifi signal</h2><div class="big">${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm</div><div class="sub">median; −70 or better is solid</div></div>

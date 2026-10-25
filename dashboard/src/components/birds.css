@@ -120,7 +120,11 @@
   text-align: center;
   font-family: var(--display);
   font-size: 0.92rem;
-  min-width: 8rem;
+  /* Fixed width, just enough for the longest label ("September 2026"), so the arrows never
+     shift as the date changes; the icon and date stay centered between them. */
+  width: 10.5rem;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
   min-height: 28px;
   padding: 0.25rem 0.5rem;
   border: 0;
@@ -301,7 +305,7 @@
   .period-segments button { padding: 0.25rem 0.55rem; font-size: 0.85rem; min-height: 34px; min-width: 34px; }
   .period-navigation { gap: 0.35rem; }
   .overview-navigation { padding: 0.35rem 0.5rem; }
-  .period-label { min-width: 34px; min-height: 34px; padding: 0; justify-content: center; }
+  .period-label { width: 34px; min-width: 34px; min-height: 34px; padding: 0; justify-content: center; }
   .period-label-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .period-label svg { width: 19px; height: 19px; }
   .period-navigation > button[data-step] { width: 34px; height: 34px; }
