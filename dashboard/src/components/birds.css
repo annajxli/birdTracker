@@ -1509,6 +1509,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-span { flex: none; }
 .live-controls {
   display: flex;
+  flex-wrap: wrap; /* onto two lines on a phone */
   align-items: center;
   gap: 0.5rem;
 }
@@ -1559,11 +1560,18 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 :root:fullscreen:has(#live-track) #observablehq-main { margin-top: 0; padding-top: 1rem; }
 .live-transport { display: inline-flex; gap: 0.25rem; }
 .live-transport[hidden] { display: none; }
+.live-button:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .live-icon { display: inline-flex; align-items: center; padding-inline: 0.45rem; }
 .live-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.live-play .icon-play { fill: currentColor; }
-.live-play .icon-pause, .live-play[aria-pressed="true"] .icon-play { display: none; }
-.live-play[aria-pressed="true"] .icon-pause { display: inline; }
+.live-sound { gap: 0.35rem; padding-inline: 0.55rem 0.7rem; }
+.live-sound .speaker { fill: currentColor; }
+.live-sound .icon-on, .live-sound[aria-pressed="true"] .icon-off { display: none; }
+.live-sound[aria-pressed="true"] .icon-on { display: inline; }
+/* Both words in one cell, the hidden one keeping its room, so the button doesn't change width. */
+.live-sound-label { display: inline-grid; }
+.live-sound-label > span { grid-area: 1 / 1; text-align: left; }
+.live-sound .when-on, .live-sound[aria-pressed="true"] .when-off { visibility: hidden; }
+.live-sound[aria-pressed="true"] .when-on { visibility: visible; }
 .live-playhead { /* the moment shown or heard */
   position: absolute;
   width: 0;

@@ -11,9 +11,10 @@ toc: false
      This page polls live.json, lays the strips out by their start time and names the birds above
      them. A playhead (the line) marks the moment being shown or heard. Live, it runs far enough
      behind the recording that the next minute has arrived before it gets there; clicking the
-     spectrogram plays from that point, and the transport buttons (or space, arrow keys, L) play,
-     pause, step 10 s and return to live. The view keeps the playhead in place; scrolling by hand
-     frees the view without stopping the sound. -->
+     spectrogram moves the playhead there, and the transport buttons (or space, arrow keys, L)
+     unmute, step 10 s and return to live. Time always runs: the sound only mutes and unmutes
+     (muted to start). The view keeps the playhead in place; scrolling by hand frees the view
+     without stopping it. -->
 
 ```js
 import {speciesHref} from "./components/birds.js";
@@ -34,11 +35,13 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
   <div class="live-controls">
-    <button type="button" class="live-button live-follow" id="live-follow" title="Back to live (L)" hidden>Back to live</button>
     <div class="live-transport" id="live-transport" hidden>
       <button type="button" class="live-button live-icon" id="live-back" title="Back 10 seconds (←)" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/></svg></button>
-      <button type="button" class="live-button live-icon live-play" id="live-play" title="Play (space)" aria-label="Play" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="icon-play" d="M8 5l11 7-11 7z"/><path class="icon-pause" d="M8 5v14M16 5v14"/></svg></button>
+      <button type="button" class="live-button live-follow" id="live-follow" title="Back to live (L)">Back to live</button>
       <button type="button" class="live-button live-icon" id="live-fwd" title="Forward 10 seconds (→)" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg></button>
+    </div>
+    <div class="live-transport" id="live-audio" hidden>
+      <button type="button" class="live-button live-icon live-sound" id="live-sound" title="Unmute (space)" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="icon-off" d="M16 9.5l5 5M21 9.5l-5 5"/><path class="icon-on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="live-sound-label"><span class="when-off">Unmute</span><span class="when-on">Mute</span></span></button>
       <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: quieter rumble, brighter birdsong (B)" aria-pressed="false">Bird boost</button>
     </div>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
@@ -64,7 +67,9 @@ const earlier = document.getElementById("live-earlier");
 const heard = document.getElementById("live-heard");
 const followButton = document.getElementById("live-follow");
 const transport = document.getElementById("live-transport");
-const playButton = document.getElementById("live-play");
+const audioControls = document.getElementById("live-audio");
+const fwdButton = document.getElementById("live-fwd");
+const soundButton = document.getElementById("live-sound");
 const fullButton = document.getElementById("live-full");
 
 let strips = []; // from live.json, oldest first
@@ -75,9 +80,9 @@ const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
 const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
 const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
 
-// The playhead: the moment shown or heard, marked by a line. While playing it's the sound's own
-// position; otherwise, while live, the wall clock minus `lag` (held at the newest audio if the
-// next strip is late); otherwise it stays put (paused).
+// The playhead: the moment shown or heard, marked by a line. Time always runs: with the sound on
+// it's the sound's own position, otherwise the wall clock minus `lag` (held at the newest audio
+// if the next strip is late). Live means it's just behind the newest audio.
 let live = true, lag = null, playhead = null;
 // Tracking: the view scrolls to keep the playhead `anchor` of the way across it (where it was
 // clicked, or PLAYHEAD_AT); scrolling by hand stops that until the next seek, step or Live.
@@ -85,9 +90,9 @@ let live = true, lag = null, playhead = null;
 const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
 const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
 let tracking = true, anchor = PLAYHEAD_AT;
-// Playing: one audio element for the whole session, so browsers that only allow sound after a
-// tap (Safari) keep allowing it from one minute to the next.
-let playing = false, player = null, current = null, waitingFor = null;
+// Sound (muted to start): one audio element for the whole session, so browsers that only allow
+// sound after a tap (Safari) keep allowing it from one minute to the next.
+let soundOn = false, player = null, current = null, waitingFor = null;
 let loads = 0, positioned = false; // the sound has loaded and been moved to its starting point
 const playheadLine = Object.assign(document.createElement("div"), {className: "live-playhead"});
 
@@ -281,9 +286,9 @@ function frame() {
     const newest = endOf(strips.at(-1));
     if (playhead === null) { playhead = newest - FOLLOW_MARGIN; lag = Date.now() - playhead; }
     // The sound's position, once it has loaded and found its place (until then, where it was sent).
-    if (playing && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
-    else if (live && !playing) playhead = Math.min(Date.now() - lag, newest);
-    if (live) lag = Date.now() - playhead; // so stopping the sound or a late strip doesn't jump
+    if (soundOn && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
+    else if (!(soundOn && waitingFor !== null)) playhead = Math.min(Date.now() - lag, newest);
+    lag = Date.now() - playhead; // so muting or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
@@ -293,17 +298,16 @@ function frame() {
 let raf = requestAnimationFrame(frame);
 
 function markLive() {
-  followButton.hidden = !strips.length;
   followButton.classList.toggle("is-live", live);
+  fwdButton.disabled = live; // nothing newer to step to
   followButton.textContent = live ? "Live" : "Back to live";
   followButton.setAttribute("aria-pressed", String(live));
-  playButton.setAttribute("aria-pressed", String(playing));
-  playButton.setAttribute("aria-label", playing ? "Pause" : "Play");
-  playButton.title = playing ? "Pause (space)" : "Play (space)";
+  soundButton.setAttribute("aria-pressed", String(soundOn));
+  soundButton.title = soundOn ? "Mute (space)" : "Unmute (space)";
   summarize(); // its hour ends at the playhead only while live
 }
 
-// Scrolling by hand (wheel, touch, dragging the scrollbar) frees the view; the sound plays on.
+// Scrolling by hand (wheel, touch, dragging the scrollbar) frees the view; time runs on.
 const freeView = () => { tracking = false; };
 for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListener(type, freeView, {passive: true});
 
@@ -317,9 +321,30 @@ for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListen
 // MAKEUP_DB brings that up to an ordinary volume; a compressor above the background then holds
 // loud sounds back (a voice near the mic ends up only a few dB above a bird call, not 20), so
 // quiet birds come up without close voices blasting; a limiter at -3 dBFS catches the rest
-// (a door, the board being handled), and a soft clipper rounds off the few clicks too sharp for it. The compressor's threshold sits above the boosted
-// background, so it doesn't pump the hiss up between calls.
-const MAKEUP_DB = 30;
+// (a door, the board being handled), and a soft clipper rounds off the few clicks too sharp for
+// it. The compressor's threshold sits above the boosted background, so it doesn't pump the hiss
+// up between calls. Raising everything 30 dB raises that hiss too, though, so before the
+// compressor a gentle gate (a downward expander) turns sound below GATE_DB down, by up to
+// GATE_MAX_DB: the hiss between calls drops about 10 dB while the calls pass unchanged.
+const MAKEUP_DB = 30, GATE_DB = -22, GATE_RATIO = 2.5, GATE_MAX_DB = 12;
+const GATE = `class Gate extends AudioWorkletProcessor {
+  constructor() { super(); this.env = 0; this.g = 1; }
+  process(inputs, outputs) {
+    const i = inputs[0][0], o = outputs[0][0];
+    if (!i) return true;
+    // A level follower (fast up, slow down), and the gain smoothed so it never clicks.
+    const up = Math.exp(-1 / (0.005 * sampleRate)), down = Math.exp(-1 / (0.2 * sampleRate)), smooth = Math.exp(-1 / (0.01 * sampleRate));
+    for (let n = 0; n < i.length; n++) {
+      const v = Math.abs(i[n]);
+      this.env = v > this.env ? up * this.env + (1 - up) * v : down * this.env + (1 - down) * v;
+      const under = Math.max(0, ${GATE_DB} - 20 * Math.log10(this.env + 1e-9));
+      this.g = smooth * this.g + (1 - smooth) * 10 ** (-Math.min(${GATE_MAX_DB}, under * (${GATE_RATIO} - 1)) / 20);
+      o[n] = i[n] * this.g;
+    }
+    return true;
+  }
+}
+registerProcessor("gate", Gate);`;
 const BOOST_KEY = "birdtracker-live-boost";
 let boost = false, audio = null; // audio: {context, source, chain, out}
 try { boost = localStorage.getItem(BOOST_KEY) === "1"; } catch {}
@@ -338,7 +363,7 @@ function setBoost(on) {
 boostButton.setAttribute("aria-pressed", String(boost));
 boostButton.onclick = () => setBoost(!boost);
 const newPlayer = () => {
-  const el = Object.assign(new Audio(), {preload: "auto", onended: () => { if (playing) playFrom(endOf(current)); }});
+  const el = Object.assign(new Audio(), {preload: "auto", onended: () => { if (soundOn) playFrom(endOf(current)); }});
   const Context = window.AudioContext ?? window.webkitAudioContext;
   if (Context) {
     const context = new Context();
@@ -371,6 +396,11 @@ const newPlayer = () => {
       return a <= 0.7 ? v : Math.sign(v) * (0.7 + 0.25 * Math.tanh((a - 0.7) / 0.25));
     });
     makeup.connect(compressor).connect(limiter).connect(clipper).connect(context.destination);
+    // The gate goes in between makeup and compressor once its code has loaded (a moment later).
+    context.audioWorklet?.addModule(URL.createObjectURL(new Blob([GATE], {type: "text/javascript"}))).then(() => {
+      makeup.disconnect();
+      makeup.connect(new AudioWorkletNode(context, "gate")).connect(compressor);
+    }).catch(() => {}); // without it, the sound just keeps its hiss
     highpass.connect(lift).connect(makeup);
     audio = {context, source, chain: highpass, out: makeup};
     route();
@@ -397,9 +427,9 @@ function playFrom(t) {
   }, {once: true});
   player.play().catch((error) => {
     if (error.name === "AbortError") return; // replaced by the next playFrom
-    playing = false;
+    soundOn = false;
     markLive();
-    status.textContent = "The browser stopped the sound. Press play to start it again.";
+    status.textContent = "The browser stopped the sound. Press Unmute to start it again.";
   });
   showStatus();
 }
@@ -412,27 +442,32 @@ function seek(t, at = anchor) {
   t = Math.max(Date.parse(strips[0].start), Math.min(t, newest));
   if (t < shownFrom) { shownFrom = t - 60e3; draw(); }
   playhead = t;
+  lag = Date.now() - t;
   live = false;
   tracking = true;
   anchor = at;
-  if (playing) playFrom(t); else waitingFor = null;
+  if (soundOn) playFrom(t); else waitingFor = null;
   markLive();
   showStatus();
 }
-const step = (ms) => seek((playhead ?? endOf(strips.at(-1))) + ms, live ? liveAnchor() : anchor); // the line stays put
+// Step 10 s, the line staying put; a step forward that would pass the live point goes live.
+function step(ms) {
+  if (!strips.length) return;
+  const t = (playhead ?? endOf(strips.at(-1))) + ms;
+  if (ms > 0 && t >= endOf(strips.at(-1)) - FOLLOW_MARGIN) { if (!live) goLive(); return; }
+  seek(t, live ? liveAnchor() : anchor);
+}
 
-function togglePlay() {
+// Mute and unmute; either way the playhead runs on.
+function toggleSound() {
   if (!strips.some((s) => s.audio)) return;
   player ??= newPlayer();
-  if (playing) {
-    playing = false;
+  if (soundOn) {
+    soundOn = false;
     player.pause();
     waitingFor = null;
-    if (live) anchor = liveAnchor(); // pausing holds the playhead (and the view) where it is
-    live = false;
   } else {
-    playing = true;
-    tracking = true;
+    soundOn = true;
     playFrom(playhead ?? endOf(strips.at(-1)) - FOLLOW_MARGIN);
   }
   markLive();
@@ -446,25 +481,23 @@ function goLive() {
   tracking = true;
   playhead = endOf(strips.at(-1)) - FOLLOW_MARGIN;
   lag = Date.now() - playhead;
-  if (playing) playFrom(playhead);
+  if (soundOn) playFrom(playhead);
   markLive();
   showStatus();
 }
 
 followButton.onclick = () => { if (!live) goLive(); };
-playButton.onclick = togglePlay;
+soundButton.onclick = toggleSound;
 document.getElementById("live-back").onclick = () => step(-STEP);
-document.getElementById("live-fwd").onclick = () => step(STEP);
+fwdButton.onclick = () => step(STEP);
 // Clicking these shouldn't leave them focused, where space would press them again.
-for (const b of [followButton, playButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
+for (const b of [followButton, soundButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
 
-// Clicking the spectrogram plays from there (the names above it are links to the species).
+// Clicking the spectrogram moves the playhead there (the names above it are links to the species).
 track.addEventListener("click", (event) => {
   if (!geo || event.target.closest("a")) return;
   const box = scroller.getBoundingClientRect();
   const at = (event.clientX - box.left) / scroller.clientWidth;
-  player ??= newPlayer();
-  if (strips.some((s) => s.audio)) playing = true;
   seek(tAt(scroller.scrollLeft + event.clientX - box.left), at);
 });
 
@@ -590,12 +623,12 @@ function showStatus() {
   const last = strips.at(-1);
   const end = new Date(Date.parse(last.start) + last.seconds * 1e3);
   const quiet = (Date.now() - end) / 60e3 > STALE_MINUTES;
-  status.textContent = quiet && live && !playing
+  status.textContent = quiet && live && !soundOn
     ? `No audio from the recorder since ${time(end)}.`
-    : playing && waitingFor !== null
+    : soundOn && waitingFor !== null
     ? "Waiting for the next minute of audio…"
     : playhead !== null
-    ? `${playing ? "Playing" : live ? "Showing" : "Paused at"} ${time(new Date(playhead), true)}`
+    ? `${soundOn ? "Listening to" : "Showing"} ${time(new Date(playhead), true)}`
     : `Latest audio ${time(end)}`;
   status.classList.toggle("is-quiet", quiet);
 }
@@ -613,10 +646,10 @@ async function poll() {
     }
     if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
     transport.hidden = !strips.length;
-    playButton.hidden = !strips.some((s) => s.audio);
+    audioControls.hidden = !strips.some((s) => s.audio);
     draw();
     markLive();
-    if (playing && waitingFor !== null) playFrom(waitingFor);
+    if (soundOn && waitingFor !== null) playFrom(waitingFor);
     summarize();
     showStatus();
   } catch (e) {
@@ -634,11 +667,11 @@ const markFull = () => {
 };
 fullButton.hidden = !document.documentElement.requestFullscreen;
 fullButton.onclick = toggleFull;
-// Keys: space plays and pauses, arrows step 10 s, L goes back to live, F toggles fullscreen.
+// Keys: space (or M) mutes and unmutes, arrows step 10 s, L goes back to live, F toggles fullscreen.
 const keys = (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, textarea, select")) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (k === " " && !e.target.closest?.("a")) togglePlay(); // even with a button focused
+  if ((k === " " && !e.target.closest?.("a")) || k === "m") toggleSound(); // space even with a button focused
   else if (k === "ArrowLeft") step(-STEP);
   else if (k === "ArrowRight") step(STEP);
   else if (k === "l") goLive();
@@ -661,7 +694,7 @@ earlier.onclick = () => {
 
 poll();
 const timer = setInterval(poll, POLL_SECONDS * 1e3);
-const clock = setInterval(showStatus, 1000); // the playing time
+const clock = setInterval(showStatus, 1000); // the time shown
 const hourTimer = setInterval(summarize, 5e3); // slide the hour chart along with the playhead
 const resize = new ResizeObserver(() => draw());
 resize.observe(scroller);
