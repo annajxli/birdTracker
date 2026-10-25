@@ -303,11 +303,15 @@ listenButton.onclick = () => {
 function summarize() {
   const since = Date.now() - HOUR;
   const recent = strips.filter((s) => Date.parse(s.start) + s.seconds * 1e3 >= since);
-  const bySpecies = d3.rollups(runs(recent), (v) => ({count: v.length, last: d3.max(v, (r) => r.end)}), (r) => r.name)
+  // Minutes heard: clock minutes in the hour with a confident detection, as elsewhere on the site.
+  const minutes = d3.rollup(recent.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= since),
+    (v) => new Set(v.map((d) => d.at.slice(0, 16))).size, (d) => d.common_name);
+  const bySpecies = d3.rollups(runs(recent), (v) => ({last: d3.max(v, (r) => r.end)}), (r) => r.name)
+    .filter(([name]) => minutes.has(name))
     .sort((a, b) => b[1].last - a[1].last);
   heard.replaceChildren(bySpecies.length
     ? html`<div class="live-heard"><p class="eyebrow">Heard in the last hour</p><ul>${bySpecies.map(([name, v]) =>
-        html`<li><a href=${speciesHref(name)}>${name}</a><span class="sub">${time(new Date(v.last))}</span></li>`)}</ul></div>`
+        html`<li><a href=${speciesHref(name)}>${name}</a><span class="sub">heard for ${minutes.get(name)} min</span><span class="sub">last heard ${time(new Date(v.last))}</span></li>`)}</ul></div>`
     : html`<p class="sub">No birds named in the last hour.</p>`);
   earlier.hidden = !strips.length || Date.parse(strips[0].start) >= shownFrom;
 }
