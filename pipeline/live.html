@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live | Bird Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400..600&family=Public+Sans:wght@400..700&display=swap">
+<style>
+  :root {
+    --ink: #2a221b; --muted: #6f6253; --focus: #5a6b1f; --bg: #f3ede2; --card: #faf6ee; --rule: #d4c8b2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #ece3d3; --muted: #a89a86; --focus: #c2cf7a; --bg: #17130f; --card: #201b16; --rule: #3d352b; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 "Public Sans", system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 48px; }
+  .nav { position: relative; display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; color: var(--ink); background: var(--card); border: 1px solid var(--rule); cursor: pointer; }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .menu { display: none; position: absolute; top: 42px; left: 0; z-index: 2; min-width: 200px; background: var(--card); border: 1px solid var(--rule); padding: 6px 0; }
+  .menu.open { display: block; }
+  .menu a { display: block; padding: 8px 14px; color: var(--ink); text-decoration: none; }
+  .menu a:hover { background: var(--bg); }
+  .menu a[aria-current] { font-weight: 600; box-shadow: inset 3px 0 0 var(--focus); }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font: 600 28px/1.1 "Newsreader", Georgia, serif; margin: 0; }
+  .eyebrow { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .controls { display: flex; align-items: center; gap: 14px; }
+  .listen { font: inherit; font-size: 14px; color: var(--ink); background: var(--card); border: 1px solid var(--rule); padding: 5px 12px; cursor: pointer; }
+  .listen[aria-pressed="true"] { border-color: var(--focus); box-shadow: inset 0 -2px 0 var(--focus); }
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--rule); }
+  .on .dot { background: var(--focus); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .spec-card { position: relative; background: var(--card); border: 1px solid var(--rule); border-top: 3px solid var(--ink); padding: 12px 12px 6px 44px; }
+  canvas { display: block; width: 100%; height: 220px; }
+  .axis { position: absolute; left: 6px; top: 12px; height: 220px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .time-axis { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding-top: 2px; }
+  .offline { position: absolute; inset: 12px 12px 26px 44px; display: grid; place-items: center; text-align: center; color: var(--muted); font-size: 15px; }
+  h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 500; margin: 28px 0 10px; }
+  .birds { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .bird { display: grid; grid-template-columns: 64px 1fr; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--rule); padding: 10px; transition: border-color .3s; }
+  .bird.now { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+  .bird .live { display: none; font-size: 12px; font-weight: 600; color: var(--focus); letter-spacing: .04em; }
+  .bird.now .live { display: inline; }
+  .bird.now .when { display: none; }
+  .bird img, .bird .ph { width: 64px; height: 64px; object-fit: cover; background: var(--rule); }
+  .bird .name { font-weight: 600; line-height: 1.25; }
+  .bird .meta { font-size: 13px; color: var(--muted); }
+  .bar { height: 4px; background: var(--rule); margin-top: 6px; }
+  .bar i { display: block; height: 100%; background: var(--focus); }
+  .empty { color: var(--muted); font-size: 15px; }
+  @media (max-width: 520px) { canvas, .axis { height: 160px; } h1 { font-size: 24px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="nav">
+    <button class="icon-btn" id="menu-toggle" aria-label="Pages" aria-expanded="false" aria-controls="menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <a class="icon-btn" href="__DASHBOARD__" aria-label="Home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></svg>
+    </a>
+    <nav class="menu" id="menu">
+      <a href="__DASHBOARD__">Overview</a>
+      <a href="./" aria-current="page">Live</a>
+      <a href="__DASHBOARD__species">Species</a>
+      <a href="__DASHBOARD__display">Display</a>
+      <a href="__DASHBOARD__hardware">Hardware analytics</a>
+      <a href="__DASHBOARD__detections">Detections</a>
+    </nav>
+  </div>
+  <header>
+    <div><div class="eyebrow">Seattle, WA</div><h1>Live</h1></div>
+    <div class="controls">
+      <button class="listen" id="listen" aria-pressed="false">Listen</button>
+      <div class="status" id="status"><span class="dot"></span><span id="status-text">Connecting…</span></div>
+    </div>
+  </header>
+  <div class="spec-card">
+    <div class="axis" id="axis"></div>
+    <canvas id="spec"></canvas>
+    <div class="time-axis"><span id="t-left"></span><span>now</span></div>
+    <div class="offline" id="offline">Waiting for the recorder to start streaming</div>
+  </div>
+  <h2>Heard this session</h2>
+  <div class="birds" id="birds"><div class="empty">Nothing identified yet. Names appear here as BirdNET hears them.</div></div>
+</main>
+<script>
+const menuToggle = document.getElementById("menu-toggle"), menu = document.getElementById("menu");
+const setMenu = (open) => { menu.classList.toggle("open", open); menuToggle.setAttribute("aria-expanded", String(open)); };
+document.addEventListener("click", (e) => {
+  if (e.target.closest("#menu-toggle")) return setMenu(!menu.classList.contains("open"));
+  if (!e.target.closest("#menu")) setMenu(false);
+});
+addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
+
+const SECONDS = 10; // spectrogram width
+const canvas = document.getElementById("spec");
+const ctx = canvas.getContext("2d");
+let rows = 128, maxHz = 12000, colsPerSecond = 100;
+let strip, stripCtx, stripW, colImage; // ring buffer of columns, one pixel each
+let written = 0; // columns received
+let shown = 0; // columns scrolled in (fractional), trails `written` to smooth network bursts
+let lastFrame = performance.now();
+let colTimes = []; // server time of recent columns, for placing labels: [index, t]
+let marks = []; // {col, name}
+const birds = new Map(); // scientific -> {el, species, best, last}
+let photos = {};
+fetch("photos.json").then((r) => r.json()).then((p) => (photos = p)).catch(() => {});
+
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+
+function setup() {
+  stripW = SECONDS * colsPerSecond + 200;
+  strip = new OffscreenCanvas(stripW, rows);
+  stripCtx = strip.getContext("2d");
+  colImage = stripCtx.createImageData(1, rows);
+  written = 0; shown = 0; colTimes = []; marks = [];
+  document.getElementById("axis").innerHTML = [maxHz, maxHz / 2, 0].map((h) => `<span>${h / 1000} kHz</span>`).join("");
+  document.getElementById("t-left").textContent = `${SECONDS} s ago`;
+}
+
+function addColumn(hexCol) {
+  const [r, g, b] = hex(css("--ink"));
+  const d = colImage.data;
+  for (let i = 0; i < rows; i++) {
+    const v = parseInt(hexCol.substr(i * 2, 2), 16);
+    d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; d[i * 4 + 3] = v;
+  }
+  stripCtx.putImageData(colImage, written % stripW, 0);
+  written++;
+}
+
+function draw(now) {
+  const dt = (now - lastFrame) / 1000;
+  lastFrame = now;
+  // Scroll at real speed, never past the newest column and never more than 0.25 s behind it,
+  // so the bursty arrival of columns over the network still scrolls smoothly.
+  shown = Math.min(written, Math.max(shown + dt * colsPerSecond, written - colsPerSecond * 0.25));
+  const dpr = devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  if (strip && written) {
+    const span = SECONDS * colsPerSecond;
+    const end = shown, start = end - span;
+    const px = w / span;
+    ctx.imageSmoothingEnabled = true;
+    // Draw the visible stretch of the ring buffer, possibly in two pieces across its wrap.
+    for (let c0 = Math.max(0, Math.floor(start)); c0 < end; ) {
+      const pos = c0 % stripW;
+      const n = Math.min(Math.ceil(end) - c0, stripW - pos);
+      ctx.drawImage(strip, pos, 0, n, rows, (c0 - start) * px, 0, n * px, h);
+      c0 += n;
+    }
+    ctx.font = "600 13px 'Public Sans', sans-serif";
+    ctx.textBaseline = "top";
+    for (const m of marks) {
+      const x = (m.col - start) * px;
+      if (x < -200 || x > w) continue;
+      ctx.fillStyle = css("--focus");
+      ctx.fillRect(x, 0, 2, h);
+      const tw = ctx.measureText(m.name).width + 10;
+      ctx.fillStyle = css("--card");
+      ctx.fillRect(x + 2, 4, tw, 20);
+      ctx.fillStyle = css("--ink");
+      ctx.fillText(m.name, x + 7, 7);
+    }
+    marks = marks.filter((m) => m.col > start - 400);
+  }
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+// Which column was received at server time t (columns are timestamped in batches).
+function columnAt(t) {
+  for (let i = colTimes.length - 1; i >= 0; i--) if (colTimes[i][1] <= t) return colTimes[i][0];
+  return colTimes.length ? colTimes[0][0] : written;
+}
+
+function ago(t) {
+  const s = Math.round(Date.now() / 1000 - t);
+  return s < 10 ? "just now" : s < 60 ? `${s} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : new Date(t * 1000).toLocaleTimeString([], {hour: "numeric", minute: "2-digit"});
+}
+
+function detection(e) {
+  let b = birds.get(e.scientific);
+  if (!b) {
+    document.querySelector("#birds .empty")?.remove();
+    const el = document.createElement("div");
+    el.className = "bird";
+    const p = photos[e.scientific];
+    el.innerHTML = `${p?.image ? `<img alt="" src="${p.image}" style="${p.focus ? `object-position:${p.focus.x * 100}% ${p.focus.y * 100}%` : ""}">` : `<div class="ph"></div>`}
+      <div><div class="name"></div><div class="meta"><span class="live">● Hearing now</span><span class="when"></span></div><div class="bar"><i></i></div></div>`;
+    el.querySelector(".name").textContent = e.species;
+    b = {el, best: 0, last: 0};
+    birds.set(e.scientific, b);
+    document.getElementById("birds").prepend(el); // newest species first; cards then keep their place
+  }
+  b.best = Math.max(b.best, e.confidence);
+  b.conf = e.confidence;
+  b.last = e.t;
+  b.el.querySelector(".bar i").style.width = `${Math.round(e.confidence * 100)}%`;
+  if (e.new) marks.push({col: columnAt(e.t) - colsPerSecond * 1.5, name: e.species}); // middle of BirdNET's 3 s window
+  b.el.classList.add("now"); // the outline goes on at once; refresh() takes it off when the species goes quiet
+}
+
+function refresh() {
+  const now = Date.now() / 1000;
+  for (const b of birds.values()) {
+    b.el.classList.toggle("now", now - b.last < 4);
+    b.el.querySelector(".when").textContent = `${ago(b.last)} · best ${Math.round(b.best * 100)}%`;
+  }
+}
+setInterval(refresh, 1000);
+
+function status(e) {
+  const el = document.getElementById("status");
+  el.classList.toggle("on", e.connected);
+  document.getElementById("status-text").textContent = e.connected ? `Listening · ${e.station}` : "Recorder offline";
+  document.getElementById("offline").style.display = e.connected ? "none" : "";
+  if (e.connected) {
+    rows = e.rows; maxHz = e.maxHz; colsPerSecond = e.colsPerSecond;
+    setup();
+  }
+}
+
+function connect() {
+  const es = new EventSource("events");
+  es.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.type === "spec") {
+      if (!strip) return;
+      for (const c of e.cols) addColumn(c);
+      colTimes.push([written, e.t]);
+      if (colTimes.length > 400) colTimes.splice(0, 100);
+    } else if (e.type === "detection") detection(e);
+    else if (e.type === "status") status(e);
+  };
+  es.onerror = () => {
+    document.getElementById("status").classList.remove("on");
+    document.getElementById("status-text").textContent = "Reconnecting…";
+  };
+}
+connect();
+
+// Listen: play the stream through the speakers, scheduled a little ahead to ride out network jitter.
+const LEAD = 0.25; // seconds of audio queued ahead of playback
+let audio = null; // {ctx, source, next}
+document.getElementById("listen").onclick = (ev) => {
+  const button = ev.currentTarget;
+  if (audio) {
+    audio.source.close();
+    audio.ctx.close();
+    audio = null;
+    button.setAttribute("aria-pressed", "false");
+    button.textContent = "Listen";
+    return;
+  }
+  const ctx = new AudioContext();
+  const source = new EventSource("audio");
+  audio = {ctx, source, next: 0};
+  button.setAttribute("aria-pressed", "true");
+  button.textContent = "Mute";
+  source.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    const bytes = Uint8Array.from(atob(e.pcm), (c) => c.charCodeAt(0));
+    const ints = new Int16Array(bytes.buffer);
+    const buf = ctx.createBuffer(1, ints.length, e.rate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < ints.length; i++) ch[i] = ints[i] / 32768;
+    const node = ctx.createBufferSource();
+    node.buffer = buf;
+    node.connect(ctx.destination);
+    // Fell behind (or just started): restart LEAD ahead; too far ahead: skip to catch up.
+    if (audio.next < ctx.currentTime || audio.next > ctx.currentTime + LEAD + 0.3) audio.next = ctx.currentTime + LEAD;
+    node.start(audio.next);
+    audio.next += buf.duration;
+  };
+};
+</script>
+</body>
+</html>

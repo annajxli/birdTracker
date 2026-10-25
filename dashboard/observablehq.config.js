@@ -123,13 +123,17 @@ const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 // Favicon (src/favicon.svg): a perched songbird with song waves, in the dashboard's olive and cream.
 const icon = `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
 
+// The live view (pipeline/live.py) runs on the indoor computer, so it only opens on the home network.
+const LIVE_URL = process.env.BIRDTRACKER_LIVE_URL ?? "http://localhost:8000/";
+
 // Page menu: a hamburger button that opens a small panel (replaces Framework's sidebar).
 const menuPages = [
   ["Overview", "./"],
+  ["Live", LIVE_URL],
   ["Species", "./species"],
-  ["Detections", "./detections"],
   ["Display", "./display"],
-  ["Hardware analytics", "./hardware"]
+  ["Hardware analytics", "./hardware"],
+  ["Detections", "./detections"]
 ];
 
 const menuScript = `<script>
@@ -148,6 +152,7 @@ const menuScript = `<script>
   addEventListener("DOMContentLoaded", () => {
     const here = location.pathname.replace(/\\.html$/, "").replace(/\\/$/, "").split("/").pop() || "index";
     for (const a of document.querySelectorAll(".site-menu a")) {
+      if (!a.getAttribute("href").startsWith("./")) continue; // the live view lives elsewhere
       const page = a.getAttribute("href").replace("./", "") || "index";
       if (page === here) a.setAttribute("aria-current", "page");
     }

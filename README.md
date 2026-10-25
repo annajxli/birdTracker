@@ -73,6 +73,12 @@ per hour into `data/clips/`. Finished recordings move to `data/processed/` and
 are deleted after `--keep-days` (default 3); unreadable or misnamed ones go to
 `data/failed/`.
 
+`pipeline/live.py` is the live view: the recorder also streams its microphone
+to the indoor computer, and this serves a page (port 8000) with a scrolling
+spectrogram and BirdNET's identifications as they happen, about half a second
+behind. Try it without a recorder by replaying a recording:
+`python pipeline/live_fake_stream.py data/samples/soundscape.wav`.
+
 ```bash
 .venv/bin/python pipeline/analyzer.py --watch
 ```
