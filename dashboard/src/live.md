@@ -96,11 +96,14 @@ let soundOn = false, player = null, current = null, waitingFor = null;
 let loads = 0, positioned = false; // the sound has loaded and been moved to its starting point
 const playheadLine = Object.assign(document.createElement("div"), {className: "live-playhead"});
 
-const LANE = 20, LANES = 4, SPEC_TOP = LANE * LANES + 6, SPEC_H = 160, AXIS_H = 22;
+const LANE = 22, LANES = 4, SPEC_TOP = LANE * LANES + 6, AXIS_H = 22;
+// The spectrogram's height: 160 px, or in fullscreen about half the screen.
+let SPEC_H = 160;
+const specHeight = () => (document.fullscreenElement ? Math.max(160, Math.round(window.innerHeight * 0.5)) : 160);
 const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
 
 // Frequency labels, in their own column left of the strips (which scroll past them).
-document.getElementById("live-freq").replaceChildren(
+const drawFreqLabels = () => document.getElementById("live-freq").replaceChildren(
   ...[12, 8, 4, 0].map((khz) => {
     const label = document.createElement("span");
     label.textContent = String(khz);
@@ -109,6 +112,7 @@ document.getElementById("live-freq").replaceChildren(
   }),
   Object.assign(document.createElement("span"), {className: "live-freq-unit", textContent: "kHz", style: `top: ${SPEC_TOP - 16}px`})
 );
+drawFreqLabels();
 
 let span = 300;
 try { span = SPANS.find(([s]) => s === Number(localStorage.getItem(SPAN_KEY)))?.[0] ?? span; } catch {}
@@ -217,6 +221,7 @@ function draw() {
   geo = {t0, pps};
   const width = Math.max(scroller.clientWidth, x(t1) + LIVE_INSET); // room for the line at the newest audio
   track.style.width = width + "px";
+  if (specHeight() !== SPEC_H) { SPEC_H = specHeight(); drawFreqLabels(); }
   track.style.height = SPEC_TOP + SPEC_H + AXIS_H + "px";
 
   for (const s of shown) {
@@ -260,7 +265,7 @@ function draw() {
   const sure = (r) => r.best >= MIN_CONF;
   for (const r of runs(shown, 0).sort((a, b) => sure(b) - sure(a) || b.best - a.best)) {
     const label = `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
-    const left = x(r.start), labelWidth = label.length * 7 + 12;
+    const left = x(r.start), labelWidth = label.length * 7.8 + 12;
     const right = Math.max(left + labelWidth, x(r.end));
     const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
     if (lane < 0) continue;
@@ -582,7 +587,7 @@ function summarize() {
       if (!lane) return;
       const bar = event.target.closest(".live-gantt-bar");
       const box = lane.getBoundingClientRect();
-      jumpTo(bar ? Number(bar.dataset.first) : w0 + ((event.clientX - box.left) / box.width) * HOUR);
+      jumpTo(bar ? runStart(lane.dataset.name, Number(bar.dataset.first)) : w0 + ((event.clientX - box.left) / box.width) * HOUR);
     };
     grid.onpointermove = (event) => {
       const bar = event.target.closest(".live-gantt-bar");
@@ -610,6 +615,14 @@ function showView() {
   if (b <= a) return;
   view.style.left = ((a - w0) / (w1 - w0)) * 100 + "%";
   view.style.width = `max(2px, ${((b - a) / (w1 - w0)) * 100}%)`;
+}
+
+// Where the stretch of song holding the detection at `t` begins: weaker detections of the same
+// species just before it count too, as they do for the names over the spectrogram.
+function runStart(name, t) {
+  const times = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name).map((d) => Date.parse(d.at)).sort((a, b) => b - a);
+  for (const at of times) if (at < t && t - at <= RUN_GAP + 3e3) t = at;
+  return t;
 }
 
 // From the hour chart: the playhead to `t`, at its usual place in the view.
@@ -661,6 +674,7 @@ async function poll() {
 const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
 const markFull = () => {
   const on = Boolean(document.fullscreenElement);
+  draw(); // the spectrogram's height follows
   fullButton.setAttribute("aria-pressed", String(on));
   fullButton.title = on ? "Exit fullscreen (F)" : "Fullscreen (F)";
   fullButton.setAttribute("aria-label", on ? "Exit fullscreen" : "Fullscreen");

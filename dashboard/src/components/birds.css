@@ -1521,7 +1521,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   border-radius: 8px;
   background: var(--theme-background);
   color: var(--theme-foreground);
-  font: 600 0.78rem var(--sans-serif);
+  font: 600 0.85rem var(--sans-serif);
   cursor: pointer;
 }
 .live-button[aria-pressed="true"] { color: var(--theme-foreground-focus); border-color: var(--theme-foreground-focus); }
@@ -1548,12 +1548,12 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   position: absolute;
   right: 6px;
   transform: translateY(-50%);
-  font: 11px var(--sans-serif);
+  font: 12.5px var(--sans-serif);
   font-variant-numeric: tabular-nums;
   color: var(--theme-foreground-muted);
   white-space: nowrap;
 }
-.live-freq .live-freq-unit { transform: none; font-size: 10px; letter-spacing: 0.04em; }
+.live-freq .live-freq-unit { transform: none; font-size: 11px; letter-spacing: 0.04em; }
 .live-full { display: inline-flex; align-items: center; padding-inline: 0.5rem; }
 .live-full svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 :root:fullscreen:has(#live-track) :is(#observablehq-header, #observablehq-footer) { display: none; } /* Live in fullscreen: just the page */
@@ -1591,7 +1591,9 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   border-bottom: 1px solid var(--rule);
   padding: 0.75rem 0 0.25rem;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent; /* the scrollbar shows only while hovering */
 }
+.live-scroller:hover, .live-scroller:focus-visible { scrollbar-color: var(--theme-foreground-faint) transparent; }
 .live-track {
   position: relative;
   min-height: 216px;
@@ -1605,7 +1607,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   position: absolute;
   padding: 4px 0 0 4px;
   border-left: 1px solid var(--rule);
-  font: 11px var(--sans-serif);
+  font: 12.5px var(--sans-serif);
   font-variant-numeric: tabular-nums;
   color: var(--theme-foreground-muted);
   white-space: nowrap;
@@ -1613,7 +1615,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-name {
   position: absolute;
   height: 18px;
-  font: 600 12px/14px var(--sans-serif);
+  font: 600 13.5px/16px var(--sans-serif);
   color: var(--theme-foreground);
   text-decoration: none;
   white-space: nowrap;
@@ -1641,7 +1643,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   border-radius: 6px;
   background: var(--theme-background);
   color: var(--theme-foreground);
-  font: 13px var(--sans-serif);
+  font: 14px var(--sans-serif);
   cursor: pointer;
 }
 .live-gantt { position: relative; }
@@ -1657,7 +1659,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: right;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 .live-gantt-lane {
   grid-column: 2;
@@ -1679,8 +1681,8 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-gantt-total { /* total and last heard, in two aligned columns */
   grid-column: 3;
   display: grid;
-  grid-template-columns: 4rem 4.5rem;
-  font-size: 12px;
+  grid-template-columns: 4.5rem 5rem;
+  font-size: 13.5px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1690,7 +1692,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   border: 0;
   background: none;
   color: var(--theme-foreground-muted);
-  font: 11px var(--sans-serif);
+  font: 12px var(--sans-serif);
   letter-spacing: 0.03em;
   text-align: left;
   white-space: nowrap;
@@ -1715,7 +1717,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   position: absolute;
   top: 4px;
   transform: translateX(-50%);
-  font-size: 11px;
+  font-size: 12px;
   color: var(--theme-foreground-muted);
   white-space: nowrap;
 }
@@ -1727,14 +1729,14 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   border: 1px solid var(--rule);
   border-radius: 6px;
   background: var(--theme-background);
-  font-size: 12px;
+  font-size: 13px;
   white-space: pre-line;
   pointer-events: none;
 }
 @media (max-width: 480px) {
   .live-gantt-grid { grid-template-columns: 5.5rem minmax(0, 1fr) auto; column-gap: 0.5rem; }
-  .live-gantt-name { font-size: 12px; }
+  .live-gantt-name { font-size: 13px; }
   .live-gantt-lane { height: 30px; }
-  .live-gantt-total { grid-template-columns: auto; font-size: 11px; line-height: 1.25; } /* stacked */
+  .live-gantt-total { grid-template-columns: auto; font-size: 12px; line-height: 1.25; } /* stacked */
   .live-gantt-axis .is-minor { display: none; }
 }
