@@ -23,7 +23,9 @@ from scipy.signal import resample_poly
 RATE = 48000
 CHUNK = 3.0
 MIN_CHUNK = 1.0
-BATCH = 16  # chunks per inference call
+BATCH = 4  # chunks per inference call. The model's working memory grows with the batch: on the laptop
+           # 16 peaked at 913 MB, 4 at 449 MB (and ran faster); the Pi 3B+ has 905 MB in all. Always
+           # this many (the last batch is zero-padded), so the tensors are allocated only once.
 LOCATION_THRESHOLD = 0.03
 MODEL = "BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite"
 META_MODEL = "BirdNET_GLOBAL_6K_V2.4_MData_Model_V2_FP16.tflite"
@@ -65,13 +67,16 @@ class BirdNET:
         return self.allowed[key]
 
     def scores(self, chunks: np.ndarray) -> np.ndarray:
-        if self.batch != len(chunks):
-            self.model.resize_tensor_input(self.input, [len(chunks), chunks.shape[1]])
+        n = len(chunks)
+        if n < BATCH:
+            chunks = np.concatenate([chunks, np.zeros((BATCH - n, chunks.shape[1]), np.float32)])
+        if self.batch is None:
+            self.model.resize_tensor_input(self.input, [BATCH, chunks.shape[1]])
             self.model.allocate_tensors()
-            self.batch = len(chunks)
+            self.batch = BATCH
         self.model.set_tensor(self.input, chunks)
         self.model.invoke()
-        logits = self.model.get_tensor(self.output)
+        logits = self.model.get_tensor(self.output)[:n]
         return 1 / (1 + np.exp(-np.clip(logits, -20, 20)))
 
     def analyze(self, audio: Path, out_dir: Path, lat: float, lon: float, week: int, min_conf: float) -> Path:
