@@ -126,7 +126,8 @@ const icon = `<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www
 const menuPages = [
   ["Overview", "./"],
   ["Species", "./species"],
-  ["Detections", "./detections"]
+  ["Detections", "./detections"],
+  ["Display", "./display"]
 ];
 
 const menuScript = `<script>
@@ -180,7 +181,8 @@ export default {
   pages: [
     {name: "Overview", path: "/"},
     {name: "Species", path: "/species"},
-    {name: "Detections", path: "/detections"}
+    {name: "Detections", path: "/detections"},
+    {name: "Display", path: "/display"}
   ],
   sidebar: false,
   pager: false, // no "Next page" link at the bottom of each page
