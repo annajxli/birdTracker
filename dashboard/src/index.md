@@ -473,7 +473,7 @@ const weekSun = weeks.map((w, row) => {
       const cellInset = byMonth ? 1 : 0.5;
       const plot = untabbable(Plot.plot({
       width,
-      height: rowsOrder.length * 18 + 70,
+      height: rowsOrder.length * (width < 480 ? 23 : 18) + 70, // taller rows on phones fit two-line names
       marginLeft: nameMargin(width),
       marginRight: 12,
       padding: 0,

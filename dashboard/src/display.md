@@ -5,9 +5,13 @@ header: false
 footer: false
 ---
 
+<link rel="stylesheet" href="./components/birds.css">
+
 <!-- A slideshow of the overview's charts for a screen on the wall: full width, one at a time,
      advancing every SLIDE_SECONDS. Arrow keys or a tap step through; F or the button goes
      fullscreen. Reloads every RELOAD_MINUTES to pick up new detections. -->
+
+<div class="display-skeleton" aria-hidden="true"><div class="skeleton" data-skeleton="cards" style="height: 70vh"><observablehq-loading></observablehq-loading></div></div>
 
 ```js
 import {loadDetections, loadPhotos, loadSun, loadCategories, recentSpecies, dayTimeline, minutesHeard, birdsongMinutes, seriesColor, sequential, nameMargin, nameAxis, dateSpan, dateRange, formatDate, addDays} from "./components/birds.js";
@@ -151,6 +155,8 @@ display(stage);
 ```
 
 <style>
+.display-skeleton { padding: 7rem 0 0; }
+body:has(.display) .display-skeleton { display: none; }
 #observablehq-center { margin: 0 !important; max-width: none !important; }
 #observablehq-main { max-width: none; padding: 0 2rem; }
 .display { min-height: 100vh; display: flex; flex-direction: column; padding: 1.5rem 0; box-sizing: border-box; }
