@@ -117,8 +117,15 @@ export function untabbable(plot) {
   return plot;
 }
 
+/** On phones, names longer than this many characters wrap onto a second line instead of being cut. */
+const WRAP_CHARS = 18;
+export const nameWraps = (width, name) => width < 480 && name.length > WRAP_CHARS;
+
 export function nameAxis(width, options = {}, ticks) {
-  const axisOptions = {tickSize: 0, label: null, textOverflow: "ellipsis", lineWidth: width < 480 ? 10 : 16, ...options};
+  // Phones wrap long names (at word breaks) onto two lines; wider screens have room for them.
+  const axisOptions = width < 480
+    ? {tickSize: 0, label: null, lineWidth: 10, lineHeight: 1.05, textOverflow: null, ...options}
+    : {tickSize: 0, label: null, textOverflow: "ellipsis", lineWidth: 16, ...options};
   return ticks ? Plot.axisY(ticks, axisOptions) : Plot.axisY(axisOptions);
 }
 
@@ -475,7 +482,7 @@ export function dayTimeline(rows, sun, dates, {
   for (const key of order) {
     const header = key.startsWith(HEADER);
     if (header && pos > 0) pos += GROUP_GAP;
-    const h = header ? HEADER_ROWS : 1;
+    const h = header ? HEADER_ROWS : nameWraps(width, rowKeyOf(key) === key ? key : "") ? 1.7 : 1; // room for a wrapped name
     rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2});
     pos += h;
   }

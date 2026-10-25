@@ -125,3 +125,8 @@ With the PPK2 and the microSD breakout: continuous recording to SD in 1–5
 minute files, batch uploads, and a power profile per state (recording,
 SD write, wifi connect, upload, deep sleep) using the marker pins, then the
 XIAO ESP32S3 Sense, and BLE to the nRF52840 dongle.
+
+The Pico 2 W stays in the running: its problems in this test came from
+recording to its own flash, which SD avoids. Bench test 2 retests it
+recording continuously to SD (full 10 s or longer files, mic streaming the
+whole time) and checks whether the isolated full-scale samples recur.

@@ -34,11 +34,9 @@ export function periodLabel(scale, date) {
   const {start, end} = periodBounds(scale, date);
   const format = (d) => new Date(d).toLocaleDateString("en-US", {...options, month: "short", day: "numeric", year: "numeric"});
   if (scale === "D") return format(date);
-  const from = new Date(start).toLocaleDateString("en-US", {...options, month: "short", day: "numeric", ...(start.slice(0, 4) !== end.slice(0, 4) ? {year: "numeric"} : {})});
-  const to = start.slice(0, 7) === end.slice(0, 7)
-    ? `${Number(end.slice(8, 10))}, ${end.slice(0, 4)}`
-    : format(end);
-  return `${from} – ${to}`;
+  // Weeks are compact, with no year: "Oct 18 – 24", "Sep 28 – Oct 4", "Dec 28 – Jan 3".
+  const short = (d) => new Date(d).toLocaleDateString("en-US", {...options, month: "short", day: "numeric"});
+  return start.slice(0, 7) === end.slice(0, 7) ? `${short(start)} – ${Number(end.slice(8, 10))}` : `${short(start)} – ${short(end)}`;
 }
 
 export function calendarDays(month, scale, selectedDate) {

@@ -10,7 +10,7 @@ Parts for the recorder prototype. Options and reasoning are in
 - [ ] 1× [400-point breadboard](https://vetco.net/products/vupn6669_400-point_breadboard), ~$5: boards swap on and off it
 - [ ] [M-M jumper wires (D77)](https://vetco.net/products/tea-a-2377_12_male-male_rainbow_breadboard_jumper_wire_for_arduino_-_10_pack_d77) and [M-F jumper wires (D78)](https://vetco.net/products/vupn6982_12_male-female_rainbow_breadboard_jumper_wire_for_arduino_-_10_pack_d78), a pack of each
 - [ ] [40-pin male header strips](https://vetco.net/products/40-pin-breakable-male-single-row-header-connector-pc-mount-0-1-spacing), a couple (for the Pico 2 W, if it has no headers)
-- [ ] 1× [32 GB microSD card](https://vetco.net/products/vetsd32_micro_sd_card_32_gb_with_adapter_32gb): moves between the breakout and the XIAO ESP32S3's own slot (fine for the bench; high-endurance cards for outdoors later)
+- [ ] 1× [32 GB microSD card](https://vetco.net/products/vetsd32_micro_sd_card_32_gb_with_adapter_32gb): lives in the microSD breakout, which moves between the boards (fine for the bench; high-endurance cards for outdoors later)
 - [ ] USB-C / micro-USB cables for flashing, if needed
 
 ## Online: benchtop test 1
@@ -20,8 +20,8 @@ resellers with muddled descriptions; buy from an authorized distributor)
 - [ ] [Nordic Power Profiler Kit II](https://www.nordicsemi.com/ppk2) (part nRF-PPK2), ~$100
 
 **Amazon**
-- [ ] [Seeed Studio XIAO ESP32S3 Sense](https://www.amazon.com/Seeed-Studio-XIAO-ESP32-Sense/dp/B0C69FFVHH), ~$14–20 (also direct from [Seeed](https://www.seeedstudio.com/XIAO-ESP32S3-Sense-p-5639.html))
-- [ ] 1× [Adafruit 4682 microSD breakout, 3 V](https://www.amazon.com/Micro-SDIO-Card-Breakout-Board/dp/B09K6XVS9R): pick the listing branded Adafruit; several look-alike listings use the same name. Moves between the Pico 2 W, the FireBeetle and the XIAO nRF52840 (the XIAO ESP32S3 Sense has its own slot). Also at [Adafruit](https://www.adafruit.com/product/4682), ~$3.50
+- [ ] [Seeed Studio XIAO ESP32S3](https://www.seeedstudio.com/XIAO-ESP32S3-p-5627.html) (regular), ~$7–10. Bought instead of the Sense, which was out of stock: same 8 MB PSRAM, but no mic or microSD slot, so it uses an INMP441 and the microSD breakout like the other boards
+- [ ] 1× [Adafruit 4682 microSD breakout, 3 V](https://www.amazon.com/Micro-SDIO-Card-Breakout-Board/dp/B09K6XVS9R): pick the listing branded Adafruit; several look-alike listings use the same name. Moves between the Pico 2 W, the FireBeetle, the XIAO ESP32S3 and the XIAO nRF52840. Also at [Adafruit](https://www.adafruit.com/product/4682), ~$3.50
 - [ ] JST-PH 2.0 2-pin pigtails, a small pack of male/female pairs (e.g. [this 20-pair kit](https://www.amazon.com/XUGERIP-JST-2-0mm-Pin-Connector/dp/B0D9R33S9T)), to connect the PPK2 to the battery inputs. Any brand is fine; check it has wires on both genders
 - [ ] *Optional:* Seeed Studio XIAO nRF52840 Sense, ~$16 (search Amazon for the Seeed-branded listing, or [Seeed direct](https://www.seeedstudio.com/Seeed-XIAO-BLE-Sense-nRF52840-p-5253.html)), for the BLE comparison
 - [ ] *Optional:* inline USB-C power meter (e.g. FNIRSI FNB58), ~$20–40
@@ -61,11 +61,11 @@ dipping during wifi bursts (a cause of random resets).
 | | Items | Est. |
 | --- | --- | --- |
 | Vetco | FireBeetle $15, 2× INMP441 ~$10, breadboard $5, jumpers $9, headers ~$2, microSD card ~$9 | **~$50** |
-| Online, required | PPK2 ~$100 + shipping (Digi-Key/Mouser), XIAO ESP32S3 Sense ~$14–20, microSD breakout ~$5–10, JST-PH pigtail pack ~$8 (Amazon) | **~$135–150** |
+| Online, required | PPK2 ~$100 + shipping (Digi-Key/Mouser), XIAO ESP32S3 ~$7–10, microSD breakout ~$5–10, JST-PH pigtail pack ~$8 (Amazon) | **~$125–140** |
 | Bench tools (optional) | Serial adapter or Debug Probe ~$10 | ~$0–10 |
-| **Total, required** | | **~$185–200** |
+| **Total, required** | | **~$175–190** |
 | Online, optional | XIAO nRF52840 Sense $16, USB-C meter ~$30, windscreens ~$8 | ~$55 |
-| **Total with everything** | | **~$250–265** |
+| **Total with everything** | | **~$240–255** |
 
 The PPK2 is almost half the cost; it's also reusable for every board after this one. INMP441 and microSD card prices at Vetco are guesses; the rest are from the linked pages.
 
@@ -89,7 +89,7 @@ solar yet: boards run from a bench supply that also measures current.
 | --- | --- | --- | --- |
 | Raspberry Pi Pico 2 W | RP2350 + CYW43439 | have | Baseline; no PSRAM |
 | FireBeetle 2 ESP32-E | ESP32 | buy | Low-power board design; no PSRAM |
-| Seeed XIAO ESP32S3 Sense | ESP32-S3, 8 MB PSRAM | buy | The current pick; has microSD slot and a PDM mic on its add-on board |
+| Seeed XIAO ESP32S3 (regular) | ESP32-S3, 8 MB PSRAM | bought | The Sense was out of stock; this one has no mic or SD slot, so it uses an INMP441 and the microSD breakout |
 | Seeed XIAO nRF52840 Sense | nRF52840 | buy (optional) | Lowest-power class; BLE uplink to the nRF52840 dongle |
 | nRF52840 USB dongle | nRF52840 | have | BLE receiver on the indoor computer |
 
@@ -113,7 +113,7 @@ solar yet: boards run from a bench supply that also measures current.
 ### Data acquisition
 
 - [ ] **FireBeetle 2 ESP32-E** (~$15; item D74 at your store).
-- [ ] **Seeed XIAO ESP32S3 Sense** (~$14).
+- [ ] **Seeed XIAO ESP32S3** (regular, ~$7; the Sense was out of stock).
 - [ ] *Optional:* **Seeed XIAO nRF52840 Sense** (~$16), for the BLE
       comparison.
 - [ ] **2× INMP441 I²S MEMS mic modules** (local store, ~$3–5 each): one
@@ -126,8 +126,7 @@ solar yet: boards run from a bench supply that also measures current.
       built-in mics are worth recording too, as a comparison.)
 - [ ] *Later:* ICS-43434 breakouts (online) for the audio-quality test.
 - [ ] **1× microSD breakout (SPI, 3.3 V)** (~$3.50). Moves between the
-      Pico 2 W, the FireBeetle and the XIAO nRF52840; the XIAO ESP32S3 Sense
-      has its own slot. All the boards use 3.3 V logic, so the cheaper
+      Pico 2 W, the FireBeetle, the XIAO ESP32S3 and the XIAO nRF52840. All the boards use 3.3 V logic, so the cheaper
       3 V-only breakout is fine.
 - [ ] **1× 32 GB microSD card** (~$8–10), moved between boards.
 - [ ] **1× half-size breadboard, M-M and M-F jumper wires, header pins**
