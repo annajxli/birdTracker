@@ -1,13 +1,16 @@
 # Build the dashboard and deploy it to Cloudflare as the password Worker's
 # static assets (deploy/wrangler.toml), so the site is only reachable through
-# the password. Runs on every push to main, daily (so "today" and the weather
-# stay current), and on demand from the Actions tab.
+# the password. Runs on every push to main, every 3 hours (new detections,
+# "today" and the weather), and on demand from the Actions tab. About 3 minutes
+# a run, so ~720 of the free plan's 2,000 private-repo minutes a month.
 #
 # Needs two repository secrets: CLOUDFLARE_API_TOKEN (a token with the
 # "Edit Cloudflare Workers" template) and CLOUDFLARE_ACCOUNT_ID.
 #
-# Until the recorder is running, the detections are simulated here on each
-# build; the database isn't in the repo.
+# Detections come from the recorder: pipeline/publish.py uploads a database
+# snapshot to the R2 bucket (and starts this workflow). Until a snapshot
+# exists, the build simulates a year instead. The API token needs R2 read
+# access as well as Workers (docs/deploy.md).
 
 name: Deploy dashboard
 
@@ -15,7 +18,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "0 13 * * *" # 6am Pacific (daylight time)
+    - cron: "10 */3 * * *" # every 3 hours, to pick up the recorder's latest snapshot
   workflow_dispatch:
 
 permissions:
@@ -53,8 +56,19 @@ jobs:
         continue-on-error: true
         run: .venv/bin/python pipeline/weather.py
 
-      - name: Simulate detections
-        run: .venv/bin/python pipeline/simulate.py
+      - name: Detections
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if npx --yes wrangler@4.152.0 r2 object get birdtracker-media/data/detections.sqlite \
+              --file data/detections.sqlite --remote; then
+            echo "Using the recorder's detections"
+          else
+            echo "No snapshot in R2 yet: simulating"
+            rm -f data/detections.sqlite
+            .venv/bin/python pipeline/simulate.py
+          fi
 
       - name: Simulate recorder telemetry
         run: .venv/bin/python pipeline/simulate_recordings.py

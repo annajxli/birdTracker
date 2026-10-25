@@ -75,6 +75,41 @@ a single device, visit `/__signout`. The Worker's code is
 `deploy/password-worker.js`; run its checks with
 `node deploy/password-worker.test.mjs`.
 
+## 5. Recorder data: the R2 bucket
+
+The indoor computer publishes to an R2 bucket, `birdtracker-media`
+(`pipeline/publish.py`): the near-live spectrogram strips (`live/`), the
+detection clips (`clips/`) and a database snapshot every 3 hours. The Worker
+serves `live/` and `clips/` to signed-in visitors; the build downloads the
+snapshot. One step at a time:
+
+1. **Create the bucket.** Cloudflare → **R2 Object Storage → Create bucket**,
+   name **`birdtracker-media`**, location Automatic. (R2 needs a payment
+   method on file even on the free tier: 10 GB stored and millions of reads a
+   month are free; this uses well under 1 GB.)
+2. **Check the deploy token can reach it.** The "Edit Cloudflare Workers"
+   template from step 1 includes *Workers R2 Storage: Edit*; if yours was
+   made differently, add that permission. The build uses it to download the
+   snapshot and the deploy to bind the bucket.
+3. **A token for the indoor computer.** R2 → **Manage API tokens → Create API
+   token**: permission **Object Read & Write**, applied to **birdtracker-media**
+   only. Copy the Access Key ID and Secret Access Key (shown once).
+4. **Put them on the indoor computer** in `publish.env` at the repo root
+   (gitignored):
+   ```
+   R2_ACCOUNT_ID=<account ID from step 1>
+   R2_ACCESS_KEY_ID=<access key ID>
+   R2_SECRET_ACCESS_KEY=<secret access key>
+   ```
+5. **Run it** beside the analyzer:
+   ```
+   set -a; . ./publish.env; set +a
+   .venv/bin/python pipeline/publish.py --watch --db data/recorder.sqlite
+   ```
+
+The site picks up new detections at its next build (every 3 hours); the
+near-live strips and clips appear within about a minute.
+
 ## Status
 
 Set up for `birds.annajxli.com` on 2026-10-23/24: the Worker serves the site,
@@ -104,5 +139,5 @@ route in front):
 - **The repo stays private,** and the built site exists only inside Cloudflare.
 - **If a build fails**, the Actions tab shows which step. A failed weather
   fetch doesn't stop the build; it falls back to `data/weather.csv`.
-- **Real data:** when the recorder is running, the "Simulate detections" step
-  gets replaced by pulling real detections. That isn't built yet.
+- **Real data** comes from the R2 bucket (below); without a snapshot there,
+  the build simulates a year of detections.

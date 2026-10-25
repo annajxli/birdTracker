@@ -21,6 +21,13 @@ binding = "ASSETS"
 run_worker_first = true
 not_found_handling = "none"
 
+# The recorder's media (clips, spectrograms, the near-live view), uploaded by
+# pipeline/publish.py and served to signed-in visitors under /api/. Create the
+# bucket before the first deploy that includes this (docs/deploy.md).
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "birdtracker-media"
+
 # At most 5 sign-in attempts per minute from one IP address (Workers' built-in
 # rate limiter; works on the free plan). namespace_id is any number unique to
 # this account.

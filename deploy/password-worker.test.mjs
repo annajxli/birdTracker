@@ -77,6 +77,30 @@ check(r.status === 429 && body.includes("Too many attempts") && !r.headers.get("
 r = await worker.fetch(from("5.6.7.8", "robin-song"), limited);
 check(r.status === 303, "other addresses unaffected");
 
+// Media from R2 (MEDIA binding): a stand-in bucket with one clip and live.json.
+const files = {"clips/2026-10-25/Poecile_atricapillus_171918.ogg": "0123456789", "live/live.json": "{}"};
+const MEDIA = {get: async (key, opts) => {
+  if (!(key in files)) return null;
+  const data = files[key];
+  const m = /bytes=(\d+)-(\d*)/.exec(opts?.range?.get?.("Range") ?? "");
+  const range = m ? {offset: +m[1], length: (m[2] ? +m[2] + 1 : data.length) - +m[1]} : undefined;
+  return {size: data.length, range, httpEtag: '"e"', body: range ? data.slice(range.offset, range.offset + range.length) : data,
+          writeHttpMetadata: (h) => h.set("Content-Type", key.endsWith(".json") ? "application/json" : "audio/ogg")};
+}};
+const menv = {...env, MEDIA};
+r = await worker.fetch(new Request(base + "/api/clips/clips/2026-10-25/Poecile_atricapillus_171918.ogg"), menv);
+check(r.status === 401, "media needs a session too");
+r = await worker.fetch(new Request(base + "/api/clips/clips/2026-10-25/Poecile_atricapillus_171918.ogg", {headers: {Cookie: value}}), menv);
+check(r.status === 200 && (await r.text()) === "0123456789" && r.headers.get("Content-Type") === "audio/ogg" && /private/.test(r.headers.get("Cache-Control")), "clip served from R2");
+r = await worker.fetch(new Request(base + "/api/clips/clips/2026-10-25/Poecile_atricapillus_171918.ogg", {headers: {Cookie: value, Range: "bytes=2-5"}}), menv);
+check(r.status === 206 && (await r.text()) === "2345" && r.headers.get("Content-Range") === "bytes 2-5/10", "range request -> 206");
+r = await worker.fetch(new Request(base + "/api/live/live.json", {headers: {Cookie: value}}), menv);
+check(r.status === 200 && r.headers.get("Cache-Control") === "no-store", "live.json not cached");
+r = await worker.fetch(new Request(base + "/api/clips/data/detections.sqlite", {headers: {Cookie: value}}), menv);
+check(r.status === 404, "only clips/ and live/ are served, not the database");
+r = await worker.fetch(new Request(base + "/api/live/missing.webp", {headers: {Cookie: value}}), menv);
+check(r.status === 404, "missing media -> 404");
+
 r = await worker.fetch(new Request(base + "/"), {ASSETS});
 check(r.status === 500, "missing secret fails closed");
 console.log(fails ? `${fails} FAILED` : "all passed");

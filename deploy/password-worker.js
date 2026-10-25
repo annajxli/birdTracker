@@ -12,6 +12,10 @@
 // cookie says nothing about the password. Without SESSION_KEY the password
 // itself is the key, which still expires sessions but lets a stolen cookie be
 // used to guess the password offline, so set SESSION_KEY.
+//
+// Signed-in visitors also get the recorder's media from the R2 bucket bound as
+// MEDIA (pipeline/publish.py uploads it): /api/clips/<key> serves <key> (keys
+// start with clips/) and /api/live/<name> serves live/<name>.
 
 const COOKIE = "bt_session";
 const SESSION_DAYS = 30;
@@ -50,6 +54,10 @@ export default {
       return signInPage(url.pathname + url.search, false);
     }
 
+    if (url.pathname.startsWith("/api/clips/") || url.pathname.startsWith("/api/live/")) {
+      return media(request, env, url.pathname);
+    }
+
     // The session cookie stays here; the static files don't need it.
     const inner = new Request(request);
     inner.headers.delete("Cookie");
@@ -63,6 +71,33 @@ export default {
     return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
   }
 };
+
+// A file from the MEDIA bucket. Supports Range requests: Safari won't play audio without them.
+async function media(request, env, path) {
+  const key = path.startsWith("/api/live/") ? "live/" + path.slice("/api/live/".length) : path.slice("/api/clips/".length);
+  const valid = /^(clips|live)\/[\w\-./]+$/.test(key) && !key.includes("..");
+  if (!env.MEDIA || !valid) return new Response("not found", {status: 404});
+  const object = await env.MEDIA.get(key, {range: request.headers});
+  if (!object) return new Response("not found", {status: 404});
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("ETag", object.httpEtag);
+  headers.set("Accept-Ranges", "bytes");
+  // live.json changes every minute; strips and clips never change once written.
+  headers.set("Cache-Control", key.endsWith(".json") ? "no-store" : "private, max-age=86400");
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
+  let status = 200;
+  if (object.range && request.headers.has("Range")) {
+    const offset = object.range.offset ?? object.size - object.range.suffix;
+    const length = object.range.length ?? object.size - offset;
+    headers.set("Content-Range", `bytes ${offset}-${offset + length - 1}/${object.size}`);
+    headers.set("Content-Length", String(length));
+    status = 206;
+  } else {
+    headers.set("Content-Length", String(object.size));
+  }
+  return new Response(object.body, {status, headers});
+}
 
 // Sent with every page: no framing by other sites, no MIME sniffing, no referrer to
 // the places the dashboard links out to (Wikimedia, BirdNET), HTTPS only from now on.
