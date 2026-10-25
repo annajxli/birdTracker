@@ -1372,3 +1372,9 @@ g[aria-label="y-axis tick label"] text { cursor: pointer; }
 .species-pop-rows > div > span:first-child { color: var(--theme-foreground-muted); white-space: nowrap; }
 .species-pop-rows > div > span:last-child { text-align: right; }
 .species-pop-more { font-weight: 600; }
+
+/* Overview charts: tick labels a little larger than Plot's 10px default. Marks that set their
+   own font size (category headers, value labels) keep it. */
+html:has(.overview-navigation) main svg[class^="plot"] { font-size: 11.5px; }
+/* Phones: a smaller step, so species names in the narrow name column still fit. */
+@media (max-width: 519px) { html:has(.overview-navigation) main svg[class^="plot"] { font-size: 10.5px; } }
