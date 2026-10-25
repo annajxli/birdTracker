@@ -29,6 +29,7 @@ const uint32_t SAMPLE_RATE = 32000;    // covers BirdNET's 0-15 kHz
 const uint32_t RECORD_SECONDS = 10;    // ~640 KB of WAV; flash holds one at a time
 const uint32_t REPEAT_SECONDS = 0;     // >0: record + upload automatically this often
 const int SAMPLE_SHIFT = 14;           // 24-bit mic sample -> 16-bit; 16 = no gain, 14 = +12 dB
+const float HIGHPASS_HZ = 200;         // cut wind and traffic rumble (and the mic's DC offset) below birdsong
 const uint32_t SETTLE_SAMPLES = 8192;  // discard the mic's first ~0.25 s after start-up
 const char *RECORDING = "/rec.wav";
 const bool STREAM_ON_BOOT = true;            // FireBeetle: start streaming without a serial command
@@ -102,9 +103,27 @@ void micRead(int32_t *out, size_t n) {
 #endif
 }
 
+// A 2nd-order Butterworth high-pass (RBJ biquad, transposed direct form II) at HIGHPASS_HZ.
+// One filter for the mic: only one of streaming, recording and the level meter runs at a time.
+struct Highpass {
+  float b0, b1, b2, a1, a2, z1 = 0, z2 = 0;
+  Highpass(float hz, float rate) {
+    float w = 2 * PI * hz / rate, c = cosf(w), alpha = sinf(w) / (2 * 0.70710678f), a0 = 1 + alpha;
+    b0 = (1 + c) / 2 / a0; b1 = -(1 + c) / a0; b2 = b0; a1 = -2 * c / a0; a2 = (1 - alpha) / a0;
+  }
+  float step(float x) {
+    float y = b0 * x + z1;
+    z1 = b1 * x - a1 * y + z2;
+    z2 = b2 * x - a2 * y;
+    return y;
+  }
+};
+Highpass highpass(HIGHPASS_HZ, SAMPLE_RATE);
+
+// Raw 32-bit mic sample -> high-passed 16-bit PCM, with SAMPLE_SHIFT's gain.
 inline int16_t toPcm16(int32_t raw) {
-  int32_t v = raw >> SAMPLE_SHIFT;
-  return v > 32767 ? 32767 : v < -32768 ? -32768 : (int16_t)v;
+  float v = highpass.step((float)raw / (1 << SAMPLE_SHIFT));
+  return v > 32767 ? 32767 : v < -32768 ? -32768 : (int16_t)lrintf(v);
 }
 
 void micDiscard(uint32_t samples) {
@@ -435,10 +454,10 @@ bool streamConnect() {
   for (uint32_t t = millis(); !stampReady && millis() - t < 500;) delay(2);
   if (!stampReady) { streamClient.stop(); return false; }
   streamClient.printf("POST /stream HTTP/1.1\r\nHost: %s\r\nX-Token: %s\r\nX-Sample-Rate: %lu\r\n"
-                      "X-Index: %llu\r\nX-Epoch-Ms: %llu\r\nContent-Type: application/octet-stream\r\n"
+                      "X-Index: %llu\r\nX-Epoch-Ms: %llu\r\nX-RSSI: %d\r\nContent-Type: application/octet-stream\r\n"
                       "Connection: close\r\n\r\n",
                       hostPort.c_str(), RECEIVER_TOKEN, (unsigned long)SAMPLE_RATE,
-                      (unsigned long long)stampIndex, (unsigned long long)stampMs);
+                      (unsigned long long)stampIndex, (unsigned long long)stampMs, (int)WiFi.RSSI());
   streamConnectedAt = millis();
   streamConnects++;
   digitalWrite(PIN_MARK_UP, HIGH);
