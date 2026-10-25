@@ -14,6 +14,9 @@ with the data folder:
             dashboard/src/data/detections.parquet.py), every --detections-minutes
             when the database has changed; pages load it when they open, so the
             Overview is that fresh without a rebuild
+  data/recordings.parquet
+            the recorder's telemetry (a row per minute of audio), the same way,
+            for the Hardware analytics page
   data/detections.sqlite
             a snapshot of the database, every --snapshot-hours; the site's
             build (every 3 hours) downloads it for the copy built into the site
@@ -60,8 +63,7 @@ ROOT = Path(__file__).resolve().parent.parent
 REPO = "annajxli/birdTracker"
 WORKFLOW = "pages.yml"
 SNAPSHOT_KEY = "data/detections.sqlite"
-DETECTIONS_KEY = "data/detections.parquet"
-EXPORT = ROOT / "dashboard" / "src" / "data" / "detections.parquet.py"
+EXPORTS = {name: ROOT / "dashboard" / "src" / "data" / f"{name}.parquet.py" for name in ("detections", "recordings")}
 FULL_SYNC_SECONDS = 3600  # re-list the bucket now and then, in case something changed it behind our back
 
 mimetypes.add_type("image/webp", ".webp")
@@ -162,11 +164,13 @@ def snapshot(s3, bucket: str, db_path: Path) -> None:
 
 
 def upload_detections(s3, bucket: str, db_path: Path) -> None:
-    """Run the dashboard's export on the database and upload the Parquet it writes."""
-    out = subprocess.run([sys.executable, str(EXPORT)], env={**os.environ, "BIRDTRACKER_DB": str(db_path)},
-                         capture_output=True, check=True, timeout=300).stdout
-    s3.put_object(Bucket=bucket, Key=DETECTIONS_KEY, Body=out, ContentType="application/vnd.apache.parquet")
-    log.info("uploaded detections.parquet (%.1f KB)", len(out) / 1024)
+    """Run the dashboard's exports (detections and recordings) on the database and upload the
+    Parquet they write."""
+    for name, export in EXPORTS.items():
+        out = subprocess.run([sys.executable, str(export)], env={**os.environ, "BIRDTRACKER_DB": str(db_path)},
+                             capture_output=True, check=True, timeout=300).stdout
+        s3.put_object(Bucket=bucket, Key=f"data/{name}.parquet", Body=out, ContentType="application/vnd.apache.parquet")
+        log.info("uploaded %s.parquet (%.1f KB)", name, len(out) / 1024)
 
 
 def rebuild() -> None:

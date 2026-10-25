@@ -210,6 +210,7 @@ def process(audio: Path, args, conn) -> int:
             log.exception("couldn't render a spectrogram for %s", written.name)
 
     inserted = db.insert_detections(conn, rows, commit=False)  # one transaction with the clip updates
+    record_telemetry(audio, start, args, conn)
     for row_id, _, _ in replaced:
         conn.execute("UPDATE detections SET clip_path = NULL WHERE id = ?", (row_id,))
     # A re-run may find rows that already exist; still attach any new clips to them.
@@ -231,6 +232,37 @@ def process(audio: Path, args, conn) -> int:
         except Exception:  # the near-live view is a nicety; the detections are already stored
             log.exception("couldn't add %s to the live view", audio.name)
     return inserted
+
+
+def background_dbfs(data, rate: int) -> float | None:
+    """The background level: RMS of the quietest 10% of 1 s windows, in dBFS. Windows of exact
+    zeros (silence the receiver filled in) don't count."""
+    n = len(data) // rate
+    if not n:
+        return None
+    rms = np.sqrt(np.mean(np.square(data[:n * rate].reshape(n, rate), dtype=np.float64), axis=1))
+    rms = np.sort(rms[rms > 0])
+    if not len(rms):
+        return None
+    return round(20 * math.log10(float(rms[: max(1, len(rms) // 10)].mean())), 1)
+
+
+def record_telemetry(audio: Path, start: datetime, args, conn) -> None:
+    """The recording's row in the recordings table (Hardware analytics): its length less any
+    filled-in silence, background level, and the receiver's notes in <name>.json, when there."""
+    try:
+        notes = json.loads(audio.with_suffix(".json").read_text())
+    except (FileNotFoundError, ValueError):
+        notes = {}
+    data, rate = sf.read(audio, always_2d=False, dtype="float32")
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    conn.execute(
+        "INSERT OR REPLACE INTO recordings (station_id, started_at, seconds, rms_dbfs, rssi_dbm, upload_s, received_at, analyzed_at, source)"
+        " VALUES (?,?,?,?,?,?,?,?,?)",
+        (args.station, start.strftime("%Y-%m-%dT%H:%M:%SZ"), round(len(data) / rate - notes.get("gap_seconds", 0), 2),
+         background_dbfs(data, rate), notes.get("rssi_dbm"), None, notes.get("received_at"),
+         datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "recorder"))
 
 
 def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float]]:
@@ -317,6 +349,7 @@ def run_once(args, conn, state: dict) -> int:
         except ValueError:
             log.warning("skipping %s: name has no YYYYMMDDTHHMMSSZ start time", audio.name)
             move(audio, failed)
+            audio.with_suffix(".json").unlink(missing_ok=True)
             continue
         try:
             n = process(audio, args, conn)
@@ -328,10 +361,12 @@ def run_once(args, conn, state: dict) -> int:
             log.exception("analysis failed for %s (attempt %d of %d)", audio.name, attempts[audio.name], MAX_ATTEMPTS)
             if attempts[audio.name] >= MAX_ATTEMPTS:
                 move(audio, failed)
+                audio.with_suffix(".json").unlink(missing_ok=True)
                 del attempts[audio.name]
             continue
         attempts.pop(audio.name, None)
         log.info("%s: %d new detections", audio.name, n)
+        audio.with_suffix(".json").unlink(missing_ok=True)
         if args.keep_days <= 0:  # the clips are all we keep
             audio.unlink(missing_ok=True)
             continue

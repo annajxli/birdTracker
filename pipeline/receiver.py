@@ -19,7 +19,7 @@ A recorder can instead stream continuously, on one long connection:
   X-Sample-Rate: 32000
   X-Index: <sample index>   the sample being recorded at X-Epoch-Ms
   X-Epoch-Ms: <UTC ms>
-  X-RSSI: <dBm>             optional: the recorder's wifi signal, logged
+  X-RSSI: <dBm>             optional: the recorder's wifi signal when it connected
   X-AP: <BSSID>             optional: which access point it joined, logged
   <frames until the connection closes>
 
@@ -30,6 +30,9 @@ indexes is a gap in the audio. The stream is cut into one WAV per UTC minute,
 named by its first sample's time; short gaps are filled with silence so the
 timing stays right, and a longer gap or a disconnect ends the file. The
 recorder reconnects now and then, which re-anchors the index to the clock.
+Next to each minute's WAV goes <name>.json, written just before the WAV appears:
+the wifi signal, when the minute was finished, and how much of it was silence
+filling gaps. analyzer.py stores it as that minute's row in the recordings table.
 
 With --live-port, the stream is also forwarded to pipeline/live.py on
 localhost: a `BIRDSTREAM 1 rate=... format=s16le channels=1 station=...` line,
@@ -47,6 +50,7 @@ indoor computer:
 
 import argparse
 import hmac
+import json
 import logging
 import os
 import queue
@@ -133,8 +137,9 @@ class LiveFeed:
 class MinuteFiles:
     """Writes a stream of indexed samples into one WAV per UTC minute in incoming/."""
 
-    def __init__(self, incoming: Path, rate: int, index: int, epoch_ms: int, source: str, live: LiveFeed | None):
-        self.incoming, self.rate, self.source, self.live = incoming, rate, source, live
+    def __init__(self, incoming: Path, rate: int, index: int, epoch_ms: int, source: str, live: LiveFeed | None,
+                 rssi: int | None = None):
+        self.incoming, self.rate, self.source, self.live, self.rssi = incoming, rate, source, live, rssi
         self.anchor_index, self.anchor_time = index, epoch_ms / 1000
         self.wav = None  # the open file: a wave writer on <name>.part
         self.next_index = None  # index of the next sample the open file expects
@@ -171,6 +176,9 @@ class MinuteFiles:
             log.warning("stream from %s: %s already exists; dropping %.1f s", self.source, self.name, seconds)
             self.part.unlink(missing_ok=True)
             return
+        received = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        (self.incoming / (final.stem + ".json")).write_text(json.dumps(
+            {"rssi_dbm": self.rssi, "received_at": received, "gap_seconds": round(self.gap_samples / self.rate, 2)}))
         os.replace(self.part, final)
         gap = f", {self.gap_samples / self.rate:.2f} s of it silence filling gaps" if self.gap_samples else ""
         log.info("stream from %s: %s, %.1f s%s", self.source, self.name, seconds, gap)
@@ -288,7 +296,11 @@ class Handler(BaseHTTPRequestHandler):
         log.info("stream from %s started: %d Hz%s%s", source, rate, f", RSSI {rssi} dBm" if rssi else "", f" via {ap}" if ap else "")
         self.connection.settimeout(STREAM_TIMEOUT)
         live = LiveFeed(self.live_port, rate, self.station) if self.live_port else None
-        files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live)
+        try:
+            dbm = int(rssi) if rssi else None
+        except ValueError:
+            dbm = None
+        files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live, dbm)
         received = 0
         try:
             while True:

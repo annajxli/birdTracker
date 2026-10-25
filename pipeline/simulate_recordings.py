@@ -95,7 +95,8 @@ if __name__ == "__main__":
     conn = db.connect(args.db)
     real = conn.execute("SELECT count(*) FROM recordings WHERE station_id = ? AND source IS NOT ?", (args.station, SOURCE)).fetchone()[0]
     if real:
-        raise SystemExit(f"{args.db} already has {real} real recordings for {args.station!r}; not simulating over them")
+        print(f"{args.db} already has {real} real recordings for {args.station!r}; not simulating over them")
+        raise SystemExit(0)  # not an error: the site shows the real ones
     # Days the simulated station recorded: the days it has detections (outage days have none).
     utc_days = [r[0] for r in conn.execute("SELECT DISTINCT substr(detected_at, 1, 10) FROM detections WHERE station_id = ?", (args.station,))]
     days = sorted({date.fromisoformat(x) for x in utc_days})

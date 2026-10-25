@@ -5,27 +5,33 @@ import * as htl from "npm:htl";
 import * as Plot from "npm:@observablehq/plot";
 
 /**
- * The detections table. Fetched fresh from the recorder's bucket each time a page opens
- * (pipeline/publish.py uploads it every few minutes; the password Worker serves it), so the
- * pages stay current without a rebuild. Falls back to the copy built into the site when that
- * isn't reachable (the local preview, or before the recorder has published).
+ * A table the recorder publishes (data/<name>.parquet). Fetched fresh from its bucket each time a
+ * page opens (pipeline/publish.py uploads it every few minutes; the password Worker serves it), so
+ * the pages stay current without a rebuild. Falls back to the copy built into the site when that
+ * isn't reachable or is still empty (the local preview, or before the recorder has published).
  */
-async function detectionsTable() {
+async function latestTable(name, builtIn) {
   try {
-    const response = await fetch("/api/data/detections.parquet", {cache: "no-store"});
+    const response = await fetch(`/api/data/${name}.parquet`, {cache: "no-store"});
     if (response.ok) {
       const [Arrow, Parquet, buffer] = await Promise.all([
         import("npm:apache-arrow"),
         import("npm:parquet-wasm").then(async (P) => (await P.default(import.meta.resolve("npm:parquet-wasm/esm/parquet_wasm_bg.wasm")), P)),
         response.arrayBuffer()
       ]);
-      return Arrow.tableFromIPC(Parquet.readParquet(new Uint8Array(buffer)).intoIPCStream());
+      const table = Arrow.tableFromIPC(Parquet.readParquet(new Uint8Array(buffer)).intoIPCStream());
+      if (table.numRows) return table;
     }
   } catch (error) {
-    console.warn("Latest detections unavailable; using the built copy.", error);
+    console.warn(`Latest ${name} unavailable; using the built copy.`, error);
   }
-  return FileAttachment("../data/detections.parquet").parquet();
+  return builtIn();
 }
+
+const detectionsTable = () => latestTable("detections", () => FileAttachment("../data/detections.parquet").parquet());
+
+/** The recorder's telemetry, one row per recording (Hardware analytics), fresh like the detections. */
+export const recordingsTable = () => latestTable("recordings", () => FileAttachment("../data/recordings.parquet").parquet());
 
 /** When the newest recorded audio ends (the Live view's feed), or null if it can't be reached. */
 export async function loadRecordedUntil() {
