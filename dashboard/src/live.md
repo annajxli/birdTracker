@@ -72,7 +72,7 @@ let following = true, lag = null, playhead = null;
 // tap (Safari) keep allowing it from one minute to the next.
 let listening = false, player = null, current = null, waitingFor = null;
 
-const LANE = 20, LANES = 3, SPEC_TOP = LANE * LANES + 6, SPEC_H = 128, AXIS_H = 22;
+const LANE = 20, LANES = 4, SPEC_TOP = LANE * LANES + 6, SPEC_H = 128, AXIS_H = 22;
 const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
 
 // Frequency labels, fixed over the left edge while the strips scroll under them.
@@ -110,11 +110,11 @@ function setSpan(seconds) {
   draw();
 }
 
-// Detections at the dashboard's threshold, joined into runs: one per species per stretch of song.
-function runs(list) {
+// Detections at least `minConf` sure, joined into runs: one per species per stretch of song.
+function runs(list, minConf = MIN_CONF) {
   const out = [];
   const open = new Map();
-  for (const d of list.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF).sort((a, b) => a.at.localeCompare(b.at))) {
+  for (const d of list.flatMap((s) => s.detections).filter((d) => d.confidence >= minConf).sort((a, b) => a.at.localeCompare(b.at))) {
     const t = Date.parse(d.at);
     const run = open.get(d.common_name);
     if (run && t - run.end <= RUN_GAP) { run.end = t + 3e3; run.best = Math.max(run.best, d.confidence); continue; }
@@ -159,21 +159,25 @@ function draw() {
     tick.textContent = time(new Date(t), step < 60e3);
     track.append(tick);
   }
-  // Names above the strips, in up to three lanes so they don't overlap; a run that finds no
-  // free lane is left out (the list below still counts it).
-  // Most confident first, so a crowded stretch keeps its surest names.
+  // Names above the strips, in lanes so they don't overlap; a run that finds no free lane is
+  // left out. Every BirdNET detection is shown with its score as a percentage: ones at the
+  // dashboard's threshold in bold, weaker ones faint with a question mark, so where BirdNET is torn between
+  // species, the candidates show side by side. Confident runs are placed first, then the rest by
+  // score, so a crowded stretch keeps its surest names.
   const lanes = Array.from({length: LANES}, () => []);
-  for (const r of runs(shown).sort((a, b) => b.best - a.best)) {
-    const left = x(r.start), labelWidth = r.name.length * 7 + 12;
+  const sure = (r) => r.best >= MIN_CONF;
+  for (const r of runs(shown, 0).sort((a, b) => sure(b) - sure(a) || b.best - a.best)) {
+    const label = `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
+    const left = x(r.start), labelWidth = label.length * 7 + 12;
     const right = Math.max(left + labelWidth, x(r.end));
     const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
     if (lane < 0) continue;
     lanes[lane].push([left, right]);
     const a = document.createElement("a");
-    a.className = "live-name";
+    a.className = sure(r) ? "live-name" : "live-name is-unsure";
     a.href = speciesHref(r.name);
-    a.textContent = r.name;
-    a.title = `${r.name}: ${time(new Date(r.start))}, confidence ${r.best.toFixed(2)}`;
+    a.textContent = label;
+    a.title = `${r.name}: ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%`;
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
@@ -286,6 +290,10 @@ function showStatus() {
     ? `No audio from the recorder since ${time(end)}.`
     : listening && waitingFor !== null
     ? "Waiting for the next minute of audio…"
+    : following && playhead !== null
+    ? `Showing ${time(new Date(playhead), true)}`
+    : geo
+    ? `Showing ${time(new Date(Math.min(tAt(scroller.scrollLeft + scroller.clientWidth), end)), true)}`
     : `Latest audio ${time(end)}`;
   status.classList.toggle("is-quiet", quiet);
 }
@@ -323,7 +331,8 @@ earlier.onclick = () => {
 
 poll();
 const timer = setInterval(poll, POLL_SECONDS * 1e3);
+const clock = setInterval(showStatus, 1000); // the playing time
 const resize = new ResizeObserver(() => draw());
 resize.observe(scroller);
-invalidation.then(() => { clearInterval(timer); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
+invalidation.then(() => { clearInterval(timer); clearInterval(clock); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
 ```

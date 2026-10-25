@@ -1513,6 +1513,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   gap: 0.5rem;
 }
 .live-button {
+  white-space: nowrap;
   min-height: 32px;
   padding: 0.2rem 0.75rem;
   border: 1px solid var(--rule);
@@ -1601,6 +1602,11 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   background: var(--theme-foreground-focus);
 }
 .live-name:hover { text-decoration: underline; }
+.live-name.is-unsure { /* below the dashboard's threshold: a candidate, not a sighting */
+  font-weight: 400;
+  color: var(--theme-foreground-muted);
+}
+.live-name.is-unsure::after { background: var(--theme-foreground-faint); }
 .live-earlier { margin: 0.5rem 0 1.5rem; }
 .live-earlier button {
   padding: 0.3rem 0.75rem;
