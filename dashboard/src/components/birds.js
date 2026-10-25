@@ -29,6 +29,9 @@ export async function loadDetections() {
   return rows;
 }
 
+/** Crop a photo around its bird (focal point from pipeline/photo_focus.py) when it's cropped to fit. */
+export const focusStyle = (photo) => (photo?.focus ? `object-position: ${photo.focus.x * 100}% ${photo.focus.y * 100}%` : "");
+
 export function loadPhotos() {
   return FileAttachment("../data/species-images.json").json();
 }
@@ -233,7 +236,7 @@ export function birdPhoto(species, photo, href) {
     }
   };
   const img = photo
-    ? htl.html`<img src=${photo.image} alt=${`Photo of a ${species}`} title=${`Photo: ${photo.artist}, ${photo.license}`} loading="lazy" width=${photo.width} height=${photo.height} onload=${() => settle(true)} onerror=${() => settle(false)}>`
+    ? htl.html`<img src=${photo.image} style=${focusStyle(photo)} alt=${`Photo of a ${species}`} title=${`Photo: ${photo.artist}, ${photo.license}`} loading="lazy" width=${photo.width} height=${photo.height} onload=${() => settle(true)} onerror=${() => settle(false)}>`
     : htl.html`<span class="bird-photo-missing">No photo</span>`;
   const wrap = htl.html`<div class="photo-wrap">
     ${href ? htl.html`<a class="bird-photo" href=${href}>${img}${status}</a>` : htl.html`<div class="bird-photo">${img}${status}</div>`}
@@ -306,7 +309,7 @@ function sunMarkers(sunrise, sunset, top) {
     const g = htl.svg`<g fill="currentColor" font-size="10" aria-label="sunrise and sunset">`;
     for (const [[t, last], kind] of [[sunrise, "Sunrise"], [sunset, "Sunset"]]) {
       const px = x(t);
-      const range = +last - +t >= SUN_BAND_MS;
+      const range = +last - +t >= 6e4;
       if (px < marginLeft || px > width - marginRight) continue;
       const icon = kind === "Sunrise"
         ? htl.svg`<path d=${SUN_ICON}></path><path d=${SUN_RAYS} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>`
@@ -373,6 +376,7 @@ const SUN_BAND_MS = 10 * 6e4;
 export function dayTimeline(rows, sun, dates, {
   spanDays = dates.length, categories, sort = "category", width, dark, daylightOnly = true,
   maxRows = Infinity, // with a sort other than category, a collapsed list shows this many rows
+  rowPx = ROW_PX, // height of one species row; a full-screen display passes more
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
@@ -401,7 +405,9 @@ export function dayTimeline(rows, sun, dates, {
   const sunRange = (key) => d3.extent(dates, (date) => +onRef(date, new Date(sun[date][key]))).map((t) => new Date(t));
   const sunriseRange = sunRange("sunrise");
   const sunsetRange = sunRange("sunset");
-  const isBand = ([a, b]) => +b - +a >= SUN_BAND_MS;
+  // Both become bands once either moves enough, so sunrise and sunset are drawn the same way.
+  const banded = [sunriseRange, sunsetRange].some(([a, b]) => +b - +a >= SUN_BAND_MS);
+  const isBand = () => banded;
   // Over many days, each band shades how often sunrise (or sunset) falls at that time: a
   // histogram of the days' times, lightly smoothed (Gaussian, 8 minutes), as a gradient.
   const sunBands = [];
@@ -551,7 +557,7 @@ export function dayTimeline(rows, sun, dates, {
   const gridHours = d3.timeHour.every(hourStep).range(domain[0], new Date(+domain[1] + 1));
   const plot = Plot.plot({
     width,
-    height: Math.round(total * ROW_PX) + 50,
+    height: Math.round(total * rowPx) + 50,
     marginLeft: nameMargin(width),
     marginRight: width < 520 ? 30 : 16, // room for the sunset time on phones
     marginTop: 18,
@@ -1028,7 +1034,7 @@ export function speciesCards(info) {
     anchor = el;
     card = htl.html`<div class="species-pop" role="dialog" aria-label=${species}>
       <div class="species-pop-head">
-        ${data.photo ? htl.html`<img src=${data.photo.image} alt="" loading="lazy">` : ""}
+        ${data.photo ? htl.html`<img src=${data.photo.image} style=${focusStyle(data.photo)} alt="" loading="lazy">` : ""}
         <div>
           <div class="species-pop-name">${species}</div>
           ${data.scientific ? htl.html`<div class="species-pop-sci">${data.scientific}</div>` : ""}
@@ -1054,7 +1060,9 @@ export function speciesCards(info) {
 
   const over = (e) => {
     const el = e.target.closest?.(TARGETS);
-    if (!el || e.pointerType !== "mouse" || el.closest("svg a")) return; // chart marks keep their tooltips
+    // Chart marks keep their tooltips; the card's own "More details" link is a species link too,
+    // but hovering it must not reopen the card (it would be re-anchored to a detached link).
+    if (!el || e.pointerType !== "mouse" || el.closest("svg a") || card?.contains(el)) return;
     nameOf(el);
     clearTimeout(hideTimer);
     if (el === anchor) return;
@@ -1063,7 +1071,7 @@ export function speciesCards(info) {
   };
   const out = (e) => {
     const el = e.target.closest?.(TARGETS);
-    if (!el || e.pointerType !== "mouse") return;
+    if (!el || e.pointerType !== "mouse" || card?.contains(el)) return;
     clearTimeout(showTimer);
     if (card && !card.contains(e.relatedTarget)) hideTimer = setTimeout(hide, 200);
   };

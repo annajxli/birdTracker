@@ -1344,6 +1344,9 @@ html:has(.overview-navigation) main .section-top { scroll-snap-align: start; scr
 /* Charts under the sticky ribbon settle just below it; later ones only below the page header. */
 html:has(.overview-navigation) main .period-scope .section-top { scroll-margin-top: 112px; }
 html:has(.overview-navigation) main .pair-grid > section + section .section-top { scroll-snap-align: none; }
+/* The very top of the page is a snap point too, so stopping near it doesn't pull you down to the
+   first chart (the huge margin just pins this point to scroll position 0). */
+html:has(.overview-navigation) main { scroll-snap-align: start; scroll-margin-top: 100vh; }
 
 
 /* Mini species card (speciesCards in birds.js). */
