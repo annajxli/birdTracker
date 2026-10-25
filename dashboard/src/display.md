@@ -29,14 +29,41 @@ setTimeout(() => location.reload(), RELOAD_MINUTES * 60e3);
 ```
 
 ```js
-const W = width;
-const H = Math.max(360, innerHeight - 150); // room under the title bar
+// The window's height, live: entering fullscreen or resizing re-fits the slides in place
+// (reloading here would drop out of fullscreen).
+const screenSize = Generators.observe((notify) => {
+  // Window resize events alone can fire before fullscreen has settled, so also watch the
+  // page's own box and the fullscreen change, and report the size once it stops changing.
+  let last = "", frame;
+  const update = () => {
+    clearTimeout(frame);
+    frame = setTimeout(() => {
+      const size = {width: document.documentElement.clientWidth, height: innerHeight};
+      const key = `${size.width}x${size.height}`;
+      if (key !== last) { last = key; notify(size); }
+    }, 60);
+  };
+  update();
+  const observer = new ResizeObserver(update);
+  observer.observe(document.documentElement);
+  addEventListener("resize", update);
+  document.addEventListener("fullscreenchange", update);
+  // Some changes (a viewport resize without a resize event) report no event at all; a cheap
+  // check twice a second catches them.
+  const poll = setInterval(update, 500);
+  return () => { observer.disconnect(); clearInterval(poll); removeEventListener("resize", update); document.removeEventListener("fullscreenchange", update); };
+});
+```
+
+```js
+const W = screenSize.width - 64; // the whole screen, less the page's side padding
+const H = Math.max(360, screenSize.height - 150); // room under the title bar
 const inSpan = (dates) => { const s = new Set(dates); return confident.filter((d) => s.has(d.date)); };
 
 // Most heard this week, by minutes heard: as many bars as fit.
 const weekRows = minutesHeard(inSpan(week));
 const weekMinutes = d3.rollups(weekRows, (v) => v.length, (d) => d.species)
-  .sort((a, b) => b[1] - a[1]).slice(0, Math.max(5, Math.floor((H - 50) / 34))).map(([species, count]) => ({species, count}));
+  .sort((a, b) => b[1] - a[1]).slice(0, Math.max(5, Math.floor((H - 80) / 34))).map(([species, count]) => ({species, count}));
 const perDay = d3.rollup(weekRows, (v) => v.length, (d) => d.species, (d) => d.date);
 
 // When the yard is loud across the year (as on the overview): minutes of birdsong per day by week and hour.
@@ -65,20 +92,23 @@ const timeline = (dates, spanDays) => {
 
 // Recently heard: photo cards (fixed 4:3 crop) with a few numbers and this week's minutes per day.
 const clock = (t) => t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"});
-const cols = Math.max(2, Math.floor(W / 250));
-const cardW = (W - (cols - 1) * 20) / cols;
-const perCol = Math.max(1, Math.floor((H + 20) / (cardW * 0.75 + 120)));
-// Minutes heard per day this week, labelled by day. No y axis: every card shares one scale (the
-// tallest bar on screen is the busiest bird-day), so the bars compare across cards.
+// Recently heard is laid out by CSS, not measured: a 5 × 2 grid that fills the screen below
+// the title (one row on very short screens), each card a column of photo, text and a
+// histogram that split the card's height about 60/40. So entering fullscreen or resizing
+// re-fits it instantly, with no JavaScript involved.
+const MAX_CARDS = 10;
+const shown = recentSpecies(confident, {limit: MAX_CARDS});
 const dayLetter = (d) => new Date(d).toLocaleDateString("en-US", {timeZone: "UTC", weekday: "narrow"});
-const shownSpecies = recentSpecies(confident, {limit: cols * perCol}).map((r) => r.species);
-const dailyMax = d3.max(shownSpecies, (sp) => d3.max(week, (d) => perDay.get(sp)?.get(d) ?? 0)) || 1;
-const spark = (species) => Plot.plot({
-  width: cardW, height: 62, marginTop: 4, marginLeft: 0, marginRight: 0, marginBottom: 18, style: {fontSize: "11px"},
-  x: {type: "band", domain: week, tickFormat: dayLetter, tickSize: 0, label: null, padding: 0.25},
-  y: {domain: [0, dailyMax], axis: null},
-  marks: [Plot.barY(week, {x: (d) => d, y: (d) => perDay.get(species)?.get(d) ?? 0, fill: seriesColor(dark), rx2: 2}), Plot.ruleY([0], {strokeOpacity: 0.3})]
-});
+// Minutes heard per day this week. Every card shares one scale (the busiest bird-day on screen);
+// the first card in each row shows it: a 0 tick and the top value.
+const dailyMax = d3.max(shown, ({species}) => d3.max(week, (d) => perDay.get(species)?.get(d) ?? 0)) || 1;
+const spark = (species) => html`<div class="display-hist">
+  <div class="display-hist-axis"><span>${d3.format(",.0f")(dailyMax)} min</span><span></span></div>
+  <div class="display-hist-bars">${week.map((d) => {
+    const v = perDay.get(species)?.get(d) ?? 0;
+    return html`<div class="display-hist-day" title=${`${v} min`}><div class="display-hist-track"><div class="display-hist-bar" style=${`height: ${100 * v / dailyMax}%`}></div></div><span>${dayLetter(d)}</span></div>`;
+  })}</div>
+</div>`;
 const card = ({species, times}) => {
   const p = photos[species], mins = d3.sum(week, (d) => perDay.get(species)?.get(d) ?? 0);
   return html`<div class="display-card">
@@ -90,12 +120,12 @@ const card = ({species, times}) => {
 };
 
 const slides = [
-  {title: "Recently heard", body: () => html`<div class="display-cards" style=${`grid-template-columns: repeat(${cols}, 1fr)`}>${recentSpecies(confident, {limit: cols * perCol}).map(card)}</div>`},
+  {title: "Recently heard", body: () => html`<div class="display-cards">${shown.map(card)}</div>`},
   {title: `Today · ${formatDate(latest)}`, body: () => timeline([latest], 1)},
   {title: `This week · ${dateRange(week[0], latest)}`, body: () => timeline(week, 7)},
   {title: "Most heard this week", body: () => Plot.plot({
-    width: W, height: Math.min(H, weekMinutes.length * 34 + 50), marginLeft: nameMargin(W) + 60, marginRight: 60, style: {fontSize: "16px"},
-    x: {label: "Minutes heard", labelAnchor: "center", labelArrow: "none"}, y: {label: null, domain: weekMinutes.map((d) => d.species)},
+    width: W, height: Math.min(H, weekMinutes.length * 34 + 70), marginLeft: nameMargin(W) + 60, marginRight: 60, marginBottom: 64, style: {fontSize: "16px"},
+    x: {label: "Minutes heard", labelAnchor: "center", labelArrow: "none", labelOffset: 52}, y: {label: null, domain: weekMinutes.map((d) => d.species)},
     marks: [
       Plot.barX(weekMinutes, {x: "count", y: "species", fill: seriesColor(dark), insetTop: 7, insetBottom: 7, rx2: 4}),
       Plot.text(weekMinutes, {x: "count", y: "species", text: (d) => d3.format(",")(d.count), dx: 8, textAnchor: "start", fill: "currentColor"}),
@@ -121,57 +151,92 @@ const slides = [
 const stage = html`<div class="display">
   <div class="display-top"><h1 class="display-title"></h1><span class="display-dots"></span>
     <svg class="display-timer" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="track"></circle><circle cx="12" cy="12" r="9" class="ring" pathLength="100"></circle></svg>
-    <button class="display-full" type="button" title="Fullscreen (F)">⛶</button></div>
+    <button class="display-pause" type="button" title="Pause (P)" aria-label="Pause" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="icon-pause" d="M8 5v14M16 5v14"/><path class="icon-play" d="M8 5l11 7-11 7z"/></svg></button>
+    <button class="display-full" type="button" title="Fullscreen (F)">⛶</button>
+    <a class="display-home" href="./" title="Back to the overview" aria-label="Back to the overview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg></a></div>
   <div class="display-slide"></div>
 </div>`;
-let i = 0, timer;
+// Re-fitting rebuilds this cell; carry on from the same slide and pause state.
+let i = window.__displaySlide ?? 0;
 const titleEl = stage.querySelector(".display-title"), slideEl = stage.querySelector(".display-slide"), dots = stage.querySelector(".display-dots"), ring = stage.querySelector(".display-timer .ring");
 const go = (n) => {
-  i = (n + slides.length) % slides.length;
+  i = window.__displaySlide = (n + slides.length) % slides.length;
   titleEl.textContent = slides[i].title;
   slideEl.replaceChildren(slides[i].body());
   slideEl.animate([{opacity: 0}, {opacity: 1}], {duration: 600});
   dots.textContent = slides.map((_, k) => (k === i ? "●" : "○")).join(" ");
   ring.getAnimations().forEach((a) => a.cancel());
-  ring.animate([{strokeDashoffset: 0}, {strokeDashoffset: 100}], {duration: SLIDE_SECONDS * 1e3, easing: "linear", fill: "forwards"});
-  clearTimeout(timer);
-  timer = setTimeout(() => go(i + 1), SLIDE_SECONDS * 1e3);
+  const ringAnim = ring.animate([{strokeDashoffset: 0}, {strokeDashoffset: 100}], {duration: SLIDE_SECONDS * 1e3, easing: "linear", fill: "forwards"});
+  ringAnim.onfinish = () => go(i + 1); // the ring is the clock, so pausing it pauses the slideshow
+  if (paused) ringAnim.pause();
 };
 const full = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.());
+// Pause/play: freezes the ring (and with it the next-slide clock) where it is.
+let paused = window.__displayPaused ?? false;
+const pauseBtn = stage.querySelector(".display-pause");
+const setPaused = (p) => {
+  paused = window.__displayPaused = p;
+  ring.getAnimations().forEach((a) => (p ? a.pause() : a.play()));
+  pauseBtn.setAttribute("aria-pressed", String(p));
+  pauseBtn.setAttribute("aria-label", p ? "Play" : "Pause");
+  pauseBtn.title = p ? "Play (P)" : "Pause (P)";
+  stage.classList.toggle("paused", p);
+};
+pauseBtn.onclick = (e) => { e.stopPropagation(); setPaused(!paused); };
 stage.querySelector(".display-full").onclick = (e) => { e.stopPropagation(); full(); };
 slideEl.onclick = () => go(i + 1);
 const keys = (e) => {
   if (e.key === "ArrowRight" || e.key === " ") go(i + 1);
   else if (e.key === "ArrowLeft") go(i - 1);
   else if (e.key === "f" || e.key === "F") full();
+  else if (e.key === "p" || e.key === "P") setPaused(!paused);
 };
 addEventListener("keydown", keys);
-let resized;
-const onResize = () => { clearTimeout(resized); resized = setTimeout(() => location.reload(), 500); }; // re-fit to the new size
-addEventListener("resize", onResize);
-invalidation.then(() => { clearTimeout(timer); removeEventListener("keydown", keys); removeEventListener("resize", onResize); });
-go(0);
+
+invalidation.then(() => { ring.getAnimations().forEach((a) => a.cancel()); removeEventListener("keydown", keys); });
+setPaused(paused);
+go(i);
 display(stage);
 ```
 
 <style>
 .display-skeleton { padding: 7rem 0 0; }
 body:has(.display) .display-skeleton { display: none; }
-#observablehq-center { margin: 0 !important; max-width: none !important; }
-#observablehq-main { max-width: none; padding: 0 2rem; }
+body { max-width: none !important; margin: 0 !important; }
+#observablehq-center { margin: 0 !important; max-width: none !important; padding: 0 !important; }
+#observablehq-main { max-width: none !important; width: 100%; padding: 0 32px; box-sizing: border-box; margin: 0 !important; }
 .display { min-height: 100vh; display: flex; flex-direction: column; padding: 1.5rem 0; box-sizing: border-box; }
-.display-top { display: flex; align-items: baseline; gap: 1.5rem; margin-bottom: 1.25rem; }
+.display-top { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.25rem; }
 .display-title { font-size: 2.2rem; margin: 0; flex: 1; }
 .display-dots { color: var(--theme-foreground-muted); letter-spacing: 0.2em; }
 .display-full { background: none; border: 1px solid var(--theme-foreground-faintest); color: inherit; border-radius: 6px; font-size: 1.2rem; padding: 0.1rem 0.6rem; cursor: pointer; }
 .display-slide { flex: 1; cursor: pointer; }
-.display-cards { display: grid; gap: 20px; }
-.display-card { min-width: 0; }
-.display-photo { aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: var(--theme-background-alt); }
+.display-cards { display: grid; gap: 20px; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); height: calc(100vh - 150px); }
+@media (max-height: 480px) { .display-cards { grid-template-rows: minmax(0, 1fr); grid-auto-rows: 0; overflow: hidden; } }
+@media (max-width: 900px) { .display-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); } .display-card:nth-child(n+7) { display: none; } }
+.display-card { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.display-photo { flex: 62 1 0; min-height: 60px; border-radius: 8px; overflow: hidden; background: var(--theme-background-alt); }
 .display-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.display-name { font-size: 1.25rem; font-weight: 600; margin-top: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.display-meta { color: var(--theme-foreground-muted); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.display-name { flex: none; font-size: 1.25rem; font-weight: 600; margin-top: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.display-meta { flex: none; color: var(--theme-foreground-muted); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.display-hist { flex: 38 1 0; min-height: 50px; display: flex; gap: 6px; margin-top: 0.6rem; font-size: 11px; color: var(--theme-foreground-muted); }
+.display-hist-axis { display: none; flex-direction: column; justify-content: space-between; padding-bottom: 18px; text-align: right; white-space: nowrap; }
+.display-card:nth-child(5n + 1) .display-hist-axis { display: flex; }
+@media (max-width: 900px) { .display-card:nth-child(5n + 1) .display-hist-axis { display: none; } .display-card:nth-child(3n + 1) .display-hist-axis { display: flex; } }
+.display-hist-axis span:last-child { border-top: 1px solid currentColor; width: 4px; align-self: flex-end; }
+.display-hist-bars { flex: 1; display: flex; gap: 6%; align-items: stretch; border-bottom: 0; }
+.display-hist-day { flex: 1; display: grid; grid-template-rows: minmax(0, 1fr) 18px; text-align: center; }
+.display-hist-track { display: flex; align-items: flex-end; border-bottom: 1px solid color-mix(in srgb, currentColor 35%, transparent); }
+.display-hist-bar { width: 100%; background: #8aa83a; border-radius: 2px 2px 0 0; min-height: 1px; }
+.display-hist-day span { height: 18px; line-height: 18px; }
 .display-meta b { color: var(--theme-foreground); font-weight: 600; }
+.display-home { border: 1px solid var(--theme-foreground-faintest); color: inherit; border-radius: 6px; width: 34px; height: 30px; display: grid; place-items: center; }
+.display-home svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.display-pause { background: none; border: 1px solid var(--theme-foreground-faintest); color: inherit; border-radius: 6px; width: 34px; height: 30px; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.display-pause svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.display-pause .icon-play { display: none; fill: currentColor; stroke-width: 1.5; }
+.display.paused .display-pause .icon-play { display: inline; }
+.display.paused .display-pause .icon-pause { display: none; }
 .display-timer { width: 26px; height: 26px; transform: rotate(-90deg); }
 .display-timer circle { fill: none; stroke-width: 3; }
 .display-timer .track { stroke: var(--theme-foreground-faintest); }
