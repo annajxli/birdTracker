@@ -15,7 +15,7 @@ MODELS=$(.venv/bin/python -c 'import sys; sys.path.insert(0, "pipeline"); import
 ssh "$HOST" "mkdir -p $DEST/models $DEST/pipeline $DEST/deploy/pi $DEST/dashboard/src/data"
 rsync -az --delete --exclude __pycache__ pipeline/ "$HOST:$DEST/pipeline/"
 rsync -az deploy/pi/ "$HOST:$DEST/deploy/pi/"
-rsync -az dashboard/src/data/detections.parquet.py "$HOST:$DEST/dashboard/src/data/"
+rsync -az dashboard/src/data/detections.parquet.py dashboard/src/data/recordings.parquet.py "$HOST:$DEST/dashboard/src/data/"
 rsync -az "$MODELS/BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite" "$MODELS/BirdNET_GLOBAL_6K_V2.4_MData_Model_V2_FP16.tflite" \
   "$MODELS/BirdNET_GLOBAL_6K_V2.4_Labels.txt" "$HOST:$DEST/models/"
 
