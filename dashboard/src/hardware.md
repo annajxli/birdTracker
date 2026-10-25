@@ -7,7 +7,9 @@ toc: false
 
 <!-- How well the recorder is doing its job: whether audio arrived (coverage), what it sounded
      like (background level), how it got here (wifi), and how fast it became detections
-     (pipeline delay). One row per uploaded recording, from the recordings table. -->
+     (pipeline delay). One row per uploaded recording, from the recordings table. Above them, the
+     indoor computer's health, from the status.json pipeline/publish.py writes there each minute
+     (read when the page opens, so it's current without a rebuild). -->
 
 ```js
 import {loadSun, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
@@ -24,6 +26,8 @@ const sun = await loadSun();
 // Share of BirdNET's detections below the dashboard's 0.6 confidence threshold.
 const detections = await FileAttachment("data/detections.parquet").parquet();
 const simulated = table.numRows > 0 && col("simulated").get(0);
+// The indoor computer's health, as of its last report (null if it hasn't reported).
+const pi = await fetch("/api/live/status.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).catch(() => null);
 ```
 
 ```js
@@ -37,7 +41,9 @@ const from = addDays(latest, -(DAYS - 1));
 const span = dateSpan(from, latest);
 const recent = recs.filter((d) => d.date >= from);
 const byDate = d3.group(recent, (d) => d.date);
-const daysUp = span.filter((d) => byDate.has(d)).length;
+// Uptime: the share of the time since recording began (within the window) that audio arrived.
+const upFrom = d3.min(recent, (d) => +d.time), upTo = d3.max(recent, (d) => +d.time + d.seconds * 1e3);
+const uptime = upTo > upFrom ? d3.sum(recent, (d) => d.seconds) * 1e3 / (upTo - upFrom) : 0;
 const daily = span.filter((d) => byDate.has(d)).map((date) => {
   const v = byDate.get(date);
   return {date: new Date(date), day: date,
@@ -54,8 +60,42 @@ const sunLines = span.filter((d) => sun[d]).map((d) => ({date: new Date(d), sunr
 const fmtDay = (d) => formatDate(d.toISOString().slice(0, 10));
 const last = recs.at(-1);
 const detDate = detections.getChild("date"), detConf = detections.getChild("confidence");
+const clock = (iso) => new Date(iso).toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
 let detTotal = 0, detLow = 0;
 for (let i = 0; i < detections.numRows; ++i) if (detDate.get(i) >= from) { ++detTotal; if (detConf.get(i) < 0.6) ++detLow; }
+```
+
+```js
+// The indoor computer: its latest numbers as cards, and the last day of temperature and CPU use.
+const piFresh = pi && Date.now() - Date.parse(pi.updated) < 5 * 60e3;
+const duration = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
+const warnings = pi?.throttled ? [
+  pi.throttled.under_voltage ? "under-voltage now" : pi.throttled.under_voltage_since_boot ? "under-voltage since boot" : null,
+  pi.throttled.throttled ? "slowed down now" : pi.throttled.throttled_since_boot ? "slowed down since boot" : null
+].filter(Boolean) : [];
+const piHistory = (pi?.history ?? []).map((h) => ({...h, at: new Date(h.at)}));
+const piChart = (key, label, domain, rule) => resize((width) => Plot.plot({
+  width, height: 160, marginLeft: 44,
+  x: {type: "time", label: null, tickFormat: (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric"})},
+  y: {label, grid: true, domain},
+  marks: [
+    rule ? Plot.ruleY([rule[0]], {stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "4,3"}) : null,
+    rule ? Plot.text([rule[0]], {y: (d) => d, frameAnchor: "left", dx: 4, dy: -6, text: () => rule[1], fill: "currentColor", fillOpacity: 0.7, fontSize: 10, textAnchor: "start"}) : null,
+    Plot.lineY(piHistory.filter((h) => h[key] != null), {x: "at", y: key, stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
+    Plot.tip(piHistory.filter((h) => h[key] != null), Plot.pointerX({x: "at", y: key, title: (h) => `${clock(h.at)}\n${label}: ${h[key]}`}))
+  ]
+}));
+const piSection = pi && html`<div class="grid stats" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+  ${pi.temp_c != null ? html`<div class="card"><h2>Temperature</h2><div class="big">${d3.format(".0f")(pi.temp_c)} °C</div><div class="sub">the Pi slows itself down near 80 °C</div></div>` : ""}
+  ${pi.cpu_percent != null ? html`<div class="card"><h2>CPU</h2><div class="big">${d3.format(".0f")(pi.cpu_percent)}%</div><div class="sub">busy over the last minute; load ${pi.load?.[0] ?? "–"}</div></div>` : ""}
+  ${pi.memory_mb ? html`<div class="card"><h2>Memory</h2><div class="big">${d3.format(".0f")(pi.memory_mb.used)} MB</div><div class="sub">in use of ${d3.format(".0f")(pi.memory_mb.total)} MB</div></div>` : ""}
+  ${pi.disk_gb ? html`<div class="card"><h2>Storage</h2><div class="big">${d3.format(".1f")(pi.disk_gb.free)} GB</div><div class="sub">free of ${d3.format(".0f")(pi.disk_gb.total)} GB</div></div>` : ""}
+  ${pi.uptime_s != null ? html`<div class="card"><h2>Running for</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">since it last started${warnings.length ? html`; <strong>${warnings.join(", ")}</strong>: check its power supply` : ""}</div></div>` : ""}
+</div>
+${piHistory.length > 1 ? html`<div class="grid grid-cols-2">
+  <div class="card"><div class="chart-slot" style="--chart-height: 160px">${piChart("temp_c", "Temperature (°C)", [30, 85], [80, "slows down from here"])}</div></div>
+  <div class="card"><div class="chart-slot" style="--chart-height: 160px">${piChart("cpu_percent", "CPU busy (%)", [0, 100])}</div></div>
+</div>` : ""}`;
 ```
 
 # Hardware analytics
@@ -64,11 +104,14 @@ for (let i = 0; i < detections.numRows; ++i) if (detDate.get(i) >= from) { ++det
 
 <div class="grid stats" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
   <div class="card"><h2>Low-confidence fraction</h2><div class="big">${d3.format(".0%")(detTotal ? detLow / detTotal : 0)}</div><div class="sub">of BirdNET detections are below the 0.6 threshold</div></div>
-  <div class="card"><h2>Days recorded</h2><div class="big">${daysUp} of ${DAYS}</div><div class="sub">${DAYS - daysUp ? `${DAYS - daysUp} days with no audio` : "No missing days"}</div></div>
+  <div class="card"><h2>Uptime</h2><div class="big">${d3.format(".1%")(Math.min(1, uptime))}</div><div class="sub">of the time since ${formatDate(new Date(upFrom).toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}))} had audio</div></div>
   <div class="card"><h2>Audio per day</h2><div class="big">${d3.format(".1f")(d3.mean(daily, (d) => d.hours))} h</div><div class="sub">average on days recorded</div></div>
   <div class="card"><h2>Wifi signal</h2><div class="big">${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm</div><div class="sub">median; −70 or better is solid</div></div>
   <div class="card"><h2>Recording → dashboard delay</h2><div class="big">${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min</div><div class="sub">median; latest recording ${last.time.toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})}</div></div>
 </div>
+
+<div class="section-top"><p class="eyebrow">Indoor computer</p>${pi ? html`<p class="sub section-sub">${pi.host} · ${piFresh ? "reported" : "no report since"} ${clock(pi.updated)}</p>` : ""}</div>
+${pi ? piSection : html`<div class="card"><p class="sub">The indoor computer hasn't reported yet. Its health shows here once publish.py is running on it.</p></div>`}
 
 <div class="section-top"><p class="eyebrow">Coverage</p></div>
 <div class="card"><div class="chart-slot" data-skeleton="grid" style="--chart-height: 330px">${resize((width) => Plot.plot({

@@ -4,7 +4,10 @@ Runs beside analyzer.py on the indoor computer and keeps one R2 bucket in step
 with the data folder:
 
   live/     the near-live view's spectrogram strips and live.json, every
-            --interval seconds (the analyzer writes one strip per minute)
+            --interval seconds (the analyzer writes one strip per minute), and
+            status.json: the indoor computer's health (temperature, CPU,
+            memory, storage, uptime, and a day of it every 5 minutes), written
+            here once a minute for the Hardware analytics page
   clips/    detection clips and their spectrograms, every --interval seconds
   data/detections.parquet
             the detections as the dashboard reads them (the site's own export,
@@ -38,12 +41,14 @@ import json
 import logging
 import mimetypes
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import time
 import urllib.request
+from datetime import UTC, datetime
 from pathlib import Path
 
 import boto3
@@ -178,6 +183,81 @@ def rebuild() -> None:
         log.info("asked GitHub to rebuild the site (HTTP %d)", r.status)
 
 
+class Health:
+    """The indoor computer's health, written to live/status.json for the Hardware analytics page.
+    Reads Linux's /proc and /sys (and the Pi's vcgencmd); anything missing is left out, so it
+    runs, with less to say, on a laptop too."""
+
+    EVERY = 60  # seconds between writes
+    SAMPLE_EVERY = 300  # seconds between history samples
+    HISTORY = 86400  # seconds of history kept
+
+    def __init__(self, data: Path):
+        self.data, self.path = data, data / "live" / "status.json"
+        self.cpu = None  # last /proc/stat (busy, total), for the CPU use between writes
+        self.written = self.sampled = 0.0
+        try:
+            self.history = json.loads(self.path.read_text()).get("history", [])
+        except (OSError, ValueError):
+            self.history = []
+
+    @staticmethod
+    def read(path: str) -> str | None:
+        try:
+            return Path(path).read_text()
+        except OSError:
+            return None
+
+    def cpu_percent(self) -> float | None:
+        stat = self.read("/proc/stat")
+        if not stat:
+            return None
+        fields = [int(v) for v in stat.split("\n", 1)[0].split()[1:]]
+        total, busy = sum(fields), sum(fields) - fields[3] - fields[4]  # minus idle and iowait
+        prev, self.cpu = self.cpu, (busy, total)
+        return round(100 * (busy - prev[0]) / max(1, total - prev[1]), 1) if prev else None
+
+    def snapshot(self) -> dict:
+        now = time.time()
+        out = {"updated": datetime.fromtimestamp(now, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "host": os.uname().nodename}
+        if (t := self.read("/sys/class/thermal/thermal_zone0/temp")):
+            out["temp_c"] = round(int(t) / 1000, 1)
+        if (c := self.cpu_percent()) is not None:
+            out["cpu_percent"] = c
+        out["load"] = [round(v, 2) for v in os.getloadavg()]
+        if (m := self.read("/proc/meminfo")):
+            kb = {line.split(":")[0]: int(line.split()[1]) for line in m.splitlines() if line.split()[1:2]}
+            if "MemTotal" in kb and "MemAvailable" in kb:
+                out["memory_mb"] = {"total": kb["MemTotal"] // 1024, "used": (kb["MemTotal"] - kb["MemAvailable"]) // 1024}
+        disk = shutil.disk_usage(self.data)
+        out["disk_gb"] = {"total": round(disk.total / 1e9, 1), "free": round(disk.free / 1e9, 1)}
+        if (u := self.read("/proc/uptime")):
+            out["uptime_s"] = int(float(u.split()[0]))
+        try:  # the Pi's power and heat warnings: under-voltage, throttled, now and since boot
+            flags = int(subprocess.run(["vcgencmd", "get_throttled"], capture_output=True, text=True, timeout=5).stdout.split("=")[1], 16)
+            out["throttled"] = {"under_voltage": bool(flags & 0x1), "throttled": bool(flags & 0x4),
+                                "under_voltage_since_boot": bool(flags & 0x10000), "throttled_since_boot": bool(flags & 0x40000)}
+        except (OSError, IndexError, ValueError, subprocess.SubprocessError):
+            pass
+        return out
+
+    def maybe_write(self) -> None:
+        now = time.time()
+        if now - self.written < self.EVERY:
+            return
+        snap = self.snapshot()
+        if now - self.sampled >= self.SAMPLE_EVERY and "cpu_percent" in snap:
+            self.history.append({"at": snap["updated"], **{k: snap[k] for k in ("temp_c", "cpu_percent") if k in snap}})
+            cutoff = datetime.fromtimestamp(now - self.HISTORY, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+            self.history = [h for h in self.history if h["at"] >= cutoff]
+            self.sampled = now
+        part = self.path.with_suffix(".json.part")  # the mirror skips .part files
+        part.parent.mkdir(exist_ok=True)
+        part.write_text(json.dumps({**snap, "history": self.history}))
+        os.replace(part, self.path)
+        self.written = now
+
+
 def db_changed_since(db_path: Path, when: float) -> bool:
     return any(p.exists() and p.stat().st_mtime > when for p in (db_path, Path(str(db_path) + "-wal")))
 
@@ -201,8 +281,10 @@ if __name__ == "__main__":
     mirrors = [Mirror(s3, bucket, args.data / "live", "live/"), Mirror(s3, bucket, args.data / "clips", "clips/")]
     last_snapshot = 0.0  # wall-clock time of the last snapshot taken
     last_detections = 0.0  # ...and of the last detections.parquet upload
+    health = Health(args.data)
     while True:
         try:
+            health.maybe_write()
             for m in mirrors:
                 sent, deleted = m.sync()
                 if sent or deleted:
