@@ -15,7 +15,8 @@
 //
 // Signed-in visitors also get the recorder's media from the R2 bucket bound as
 // MEDIA (pipeline/publish.py uploads it): /api/clips/<key> serves <key> (keys
-// start with clips/) and /api/live/<name> serves live/<name>.
+// start with clips/), /api/live/<name> serves live/<name>, and /api/data/detections.parquet
+// serves the latest detections, which the pages load when they open.
 
 const COOKIE = "bt_session";
 const SESSION_DAYS = 30;
@@ -54,7 +55,7 @@ export default {
       return signInPage(url.pathname + url.search, false);
     }
 
-    if (url.pathname.startsWith("/api/clips/") || url.pathname.startsWith("/api/live/")) {
+    if (url.pathname.startsWith("/api/clips/") || url.pathname.startsWith("/api/live/") || url.pathname === "/api/data/detections.parquet") {
       return media(request, env, url.pathname);
     }
 
@@ -74,8 +75,9 @@ export default {
 
 // A file from the MEDIA bucket. Supports Range requests: Safari won't play audio without them.
 async function media(request, env, path) {
-  const key = path.startsWith("/api/live/") ? "live/" + path.slice("/api/live/".length) : path.slice("/api/clips/".length);
-  const valid = /^(clips|live)\/[\w\-./]+$/.test(key) && !key.includes("..");
+  const key = path === "/api/data/detections.parquet" ? "data/detections.parquet"
+    : path.startsWith("/api/live/") ? "live/" + path.slice("/api/live/".length) : path.slice("/api/clips/".length);
+  const valid = key === "data/detections.parquet" || (/^(clips|live)\/[\w\-./]+$/.test(key) && !key.includes(".."));
   if (!env.MEDIA || !valid) return new Response("not found", {status: 404});
   const object = await env.MEDIA.get(key, {range: request.headers});
   if (!object) return new Response("not found", {status: 404});
@@ -83,8 +85,8 @@ async function media(request, env, path) {
   object.writeHttpMetadata(headers);
   headers.set("ETag", object.httpEtag);
   headers.set("Accept-Ranges", "bytes");
-  // live.json changes every minute; strips and clips never change once written.
-  headers.set("Cache-Control", key.endsWith(".json") ? "no-store" : "private, max-age=86400");
+  // live.json and the detections change all the time; strips and clips never change once written.
+  headers.set("Cache-Control", key.endsWith(".json") || key.startsWith("data/") ? "no-store" : "private, max-age=86400");
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);
   let status = 200;
   if (object.range && request.headers.has("Range")) {

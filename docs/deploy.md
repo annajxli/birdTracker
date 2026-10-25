@@ -107,8 +107,10 @@ snapshot. One step at a time:
    .venv/bin/python pipeline/publish.py --watch --db data/recorder.sqlite
    ```
 
-The site picks up new detections at its next build (every 3 hours); the
-near-live strips and clips appear within about a minute.
+The pages load the latest detections from the bucket when they open (within
+about 10 minutes of being heard, or press the refresh button); the near-live
+strips and clips appear within about a minute. No rebuild is needed for new
+data.
 
 ## Status
 

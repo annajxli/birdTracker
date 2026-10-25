@@ -4,8 +4,31 @@ import * as Inputs from "npm:@observablehq/inputs";
 import * as htl from "npm:htl";
 import * as Plot from "npm:@observablehq/plot";
 
+/**
+ * The detections table. Fetched fresh from the recorder's bucket each time a page opens
+ * (pipeline/publish.py uploads it every few minutes; the password Worker serves it), so the
+ * pages stay current without a rebuild. Falls back to the copy built into the site when that
+ * isn't reachable (the local preview, or before the recorder has published).
+ */
+async function detectionsTable() {
+  try {
+    const response = await fetch("/api/data/detections.parquet", {cache: "no-store"});
+    if (response.ok) {
+      const [Arrow, Parquet, buffer] = await Promise.all([
+        import("npm:apache-arrow"),
+        import("npm:parquet-wasm").then(async (P) => (await P.default(import.meta.resolve("npm:parquet-wasm/esm/parquet_wasm_bg.wasm")), P)),
+        response.arrayBuffer()
+      ]);
+      return Arrow.tableFromIPC(Parquet.readParquet(new Uint8Array(buffer)).intoIPCStream());
+    }
+  } catch (error) {
+    console.warn("Latest detections unavailable; using the built copy.", error);
+  }
+  return FileAttachment("../data/detections.parquet").parquet();
+}
+
 export async function loadDetections() {
-  const table = await FileAttachment("../data/detections.parquet").parquet();
+  const table = await detectionsTable();
   // Read columns directly: Arrow's row iterator creates a proxy for every detection.
   const time = table.getChild("time");
   const date = table.getChild("date");
@@ -720,12 +743,48 @@ export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
   return picked.map((i) => toDate(dates[i]));
 }
 
-export function loadWeatherHourly() {
-  return FileAttachment("../data/weather-hourly.json").json();
+/**
+ * Weather: the copy built into the site (pipeline/weather.py, from Open-Meteo), with the last
+ * month fetched fresh from Open-Meteo's forecast API when a page opens, so recent days don't
+ * wait for a rebuild. Like the build, it stops at yesterday: today's numbers are still mostly
+ * forecast.
+ */
+let recentWeather = null;
+function fetchRecentWeather() {
+  recentWeather ??= (async () => {
+    const params = new URLSearchParams({
+      latitude: 47.61, longitude: -122.33, timezone: "America/Los_Angeles", past_days: 31, forecast_days: 1,
+      daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code", hourly: "temperature_2m",
+      temperature_unit: "fahrenheit", precipitation_unit: "inch"
+    });
+    const body = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+    const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+    const daily = {}, hourly = {};
+    body.daily.time.forEach((d, i) => {
+      const v = {high: body.daily.temperature_2m_max[i], low: body.daily.temperature_2m_min[i],
+        precip: body.daily.precipitation_sum[i], code: body.daily.weather_code[i]};
+      if (d < today && Object.values(v).every((x) => x != null)) daily[d] = v;
+    });
+    body.hourly.time.forEach((t, i) => {
+      const d = t.slice(0, 10), temp = body.hourly.temperature_2m[i];
+      if (d < today && temp != null) (hourly[d] ??= Array(24).fill(null))[+t.slice(11, 13)] = Math.round(temp * 10) / 10;
+    });
+    return {daily, hourly};
+  })().catch((error) => {
+    console.warn("Recent weather unavailable; using the built copy.", error);
+    return {daily: {}, hourly: {}};
+  });
+  return recentWeather;
 }
 
-export function loadWeather() {
-  return FileAttachment("../data/weather.json").json();
+export async function loadWeatherHourly() {
+  const [built, recent] = await Promise.all([FileAttachment("../data/weather-hourly.json").json(), fetchRecentWeather()]);
+  return {...built, ...recent.hourly};
+}
+
+export async function loadWeather() {
+  const [built, recent] = await Promise.all([FileAttachment("../data/weather.json").json(), fetchRecentWeather()]);
+  return {...built, ...recent.daily};
 }
 
 // More activity uses warm rust; less activity uses cool teal.

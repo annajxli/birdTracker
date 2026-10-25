@@ -176,7 +176,8 @@ table {
 }
 
 .theme-toggle,
-.phone-toggle {
+.phone-toggle,
+.refresh-button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -191,7 +192,8 @@ table {
 }
 
 .theme-toggle:hover,
-.phone-toggle:hover {
+.phone-toggle:hover,
+.refresh-button:hover {
   border-color: var(--theme-foreground-muted);
 }
 
@@ -201,7 +203,8 @@ table {
 }
 
 .theme-toggle svg,
-.phone-toggle svg {
+.phone-toggle svg,
+.refresh-button svg {
   width: 15px;
   height: 15px;
 }

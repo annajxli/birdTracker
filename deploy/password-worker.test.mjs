@@ -78,7 +78,7 @@ r = await worker.fetch(from("5.6.7.8", "robin-song"), limited);
 check(r.status === 303, "other addresses unaffected");
 
 // Media from R2 (MEDIA binding): a stand-in bucket with one clip and live.json.
-const files = {"clips/2026-10-25/Poecile_atricapillus_171918.ogg": "0123456789", "live/live.json": "{}"};
+const files = {"clips/2026-10-25/Poecile_atricapillus_171918.ogg": "0123456789", "live/live.json": "{}", "data/detections.parquet": "PAR1", "data/detections.sqlite": "db"};
 const MEDIA = {get: async (key, opts) => {
   if (!(key in files)) return null;
   const data = files[key];
@@ -96,6 +96,10 @@ r = await worker.fetch(new Request(base + "/api/clips/clips/2026-10-25/Poecile_a
 check(r.status === 206 && (await r.text()) === "2345" && r.headers.get("Content-Range") === "bytes 2-5/10", "range request -> 206");
 r = await worker.fetch(new Request(base + "/api/live/live.json", {headers: {Cookie: value}}), menv);
 check(r.status === 200 && r.headers.get("Cache-Control") === "no-store", "live.json not cached");
+r = await worker.fetch(new Request(base + "/api/data/detections.parquet", {headers: {Cookie: value}}), menv);
+check(r.status === 200 && (await r.text()) === "PAR1" && r.headers.get("Cache-Control") === "no-store", "latest detections served, not cached");
+r = await worker.fetch(new Request(base + "/api/data/detections.sqlite", {headers: {Cookie: value}}), menv);
+check((await r.text()) !== "db", "the database snapshot isn't served");
 r = await worker.fetch(new Request(base + "/api/clips/data/detections.sqlite", {headers: {Cookie: value}}), menv);
 check(r.status === 404, "only clips/ and live/ are served, not the database");
 r = await worker.fetch(new Request(base + "/api/live/missing.webp", {headers: {Cookie: value}}), menv);

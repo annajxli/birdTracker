@@ -1,8 +1,10 @@
 # Build the dashboard and deploy it to Cloudflare as the password Worker's
 # static assets (deploy/wrangler.toml), so the site is only reachable through
-# the password. Runs on every push to main, every 3 hours (new detections,
-# "today" and the weather), and on demand from the Actions tab. About 3 minutes
-# a run, so ~720 of the free plan's 2,000 private-repo minutes a month.
+# the password. Runs on every push to main, weekly, and on demand from the
+# Actions tab. The pages load the latest detections from the recorder's R2
+# bucket and the last month of weather from Open-Meteo when they open, so new
+# data never waits for a build; the weekly run only refreshes the copies built
+# into the site (the fallbacks, and weather older than a month).
 #
 # Needs two repository secrets: CLOUDFLARE_API_TOKEN (a token with the
 # "Edit Cloudflare Workers" template) and CLOUDFLARE_ACCOUNT_ID.
@@ -18,7 +20,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: "10 */3 * * *" # every 3 hours, to pick up the recorder's latest snapshot
+    - cron: "10 13 * * 1" # Mondays, 6am Pacific (daylight time)
   workflow_dispatch:
 
 permissions:

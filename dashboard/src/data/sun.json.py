@@ -1,7 +1,9 @@
 """Sunrise, sunset and local-midnight bounds for each day at the station, as UTC ISO strings.
 
 Covers every day with detections (plus the year before today, so a fresh
-station still has a calendar) through tomorrow, keyed by Pacific-time date.
+station still has a calendar) through a year ahead, keyed by Pacific-time date.
+The pages load detections fresh from the recorder's bucket, so they can be
+newer than this build by a long way.
 """
 
 import json
@@ -26,7 +28,7 @@ def iso(t: datetime) -> str:
 
 
 today = datetime.now(TZ).date()
-first, last = today - timedelta(days=400), today + timedelta(days=1)
+first, last = today - timedelta(days=400), today + timedelta(days=366)
 if DB.exists():
     # Read-only, so a missing table doesn't leave an empty database file behind.
     with sqlite3.connect(f"file:{DB}?mode=ro", uri=True) as conn:

@@ -6,9 +6,14 @@ with the data folder:
   live/     the near-live view's spectrogram strips and live.json, every
             --interval seconds (the analyzer writes one strip per minute)
   clips/    detection clips and their spectrograms, every --interval seconds
+  data/detections.parquet
+            the detections as the dashboard reads them (the site's own export,
+            dashboard/src/data/detections.parquet.py), every --detections-minutes
+            when the database has changed; pages load it when they open, so the
+            Overview is that fresh without a rebuild
   data/detections.sqlite
             a snapshot of the database, every --snapshot-hours; the site's
-            build (every 3 hours) downloads it
+            build (every 3 hours) downloads it for the copy built into the site
 
 Files are mirrored: new or changed ones are uploaded, and ones the analyzer
 deleted (old strips, replaced clips) are deleted from R2 too. The password
@@ -34,6 +39,7 @@ import logging
 import mimetypes
 import os
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -49,6 +55,8 @@ ROOT = Path(__file__).resolve().parent.parent
 REPO = "annajxli/birdTracker"
 WORKFLOW = "pages.yml"
 SNAPSHOT_KEY = "data/detections.sqlite"
+DETECTIONS_KEY = "data/detections.parquet"
+EXPORT = ROOT / "dashboard" / "src" / "data" / "detections.parquet.py"
 FULL_SYNC_SECONDS = 3600  # re-list the bucket now and then, in case something changed it behind our back
 
 mimetypes.add_type("image/webp", ".webp")
@@ -143,6 +151,14 @@ def snapshot(s3, bucket: str, db_path: Path) -> None:
         log.info("uploaded a snapshot of %s (%.1f MB)", db_path.name, copy.stat().st_size / 1e6)
 
 
+def upload_detections(s3, bucket: str, db_path: Path) -> None:
+    """Run the dashboard's export on the database and upload the Parquet it writes."""
+    out = subprocess.run([sys.executable, str(EXPORT)], env={**os.environ, "BIRDTRACKER_DB": str(db_path)},
+                         capture_output=True, check=True, timeout=300).stdout
+    s3.put_object(Bucket=bucket, Key=DETECTIONS_KEY, Body=out, ContentType="application/vnd.apache.parquet")
+    log.info("uploaded detections.parquet (%.1f KB)", len(out) / 1024)
+
+
 def rebuild() -> None:
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
@@ -169,6 +185,7 @@ if __name__ == "__main__":
     p.add_argument("--data", type=Path, default=ROOT / "data", help="holds live/ and clips/")
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
     p.add_argument("--interval", type=float, default=15, help="seconds between passes over live/ and clips/")
+    p.add_argument("--detections-minutes", type=float, default=10, help="minutes between detections.parquet uploads")
     p.add_argument("--snapshot-hours", type=float, default=3, help="hours between database snapshots and rebuilds")
     args = p.parse_args()
 
@@ -178,12 +195,18 @@ if __name__ == "__main__":
     bucket = os.environ.get("R2_BUCKET", "birdtracker-media")
     mirrors = [Mirror(s3, bucket, args.data / "live", "live/"), Mirror(s3, bucket, args.data / "clips", "clips/")]
     last_snapshot = 0.0  # wall-clock time of the last snapshot taken
+    last_detections = 0.0  # ...and of the last detections.parquet upload
     while True:
         try:
             for m in mirrors:
                 sent, deleted = m.sync()
                 if sent or deleted:
                     log.info("%s: %d uploaded, %d deleted", m.prefix, sent, deleted)
+            if args.db.exists() and (args.once or (time.time() - last_detections > args.detections_minutes * 60
+                                                   and db_changed_since(args.db, last_detections))):
+                started = time.time()
+                upload_detections(s3, bucket, args.db)
+                last_detections = started
             due = time.time() - last_snapshot > args.snapshot_hours * 3600
             if args.db.exists() and (args.once or (due and db_changed_since(args.db, last_snapshot))):
                 started = time.time()
