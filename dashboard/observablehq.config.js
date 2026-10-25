@@ -120,9 +120,8 @@ const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400&family=Public+Sans:ital,wght@0,400..900;1,400..700&display=swap">`;
 
-// Favicon: a perched songbird with song waves, in the dashboard's olive and cream.
-const iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#5a6b1f"/><g transform="translate(-2 -2)"><path d="M6 38 L20 33 C22 25 30 19 38 18 C45 17 50 21 50 27 L57 29 L50 31 C50 40 42 46 32 46 C26 46 22 44 20 42 Z" fill="#f3ede2"/><circle cx="43" cy="25" r="2" fill="#5a6b1f"/><path d="M30 46 v6 M38 45 v7" stroke="#f3ede2" stroke-width="3" stroke-linecap="round"/></g><path d="M10 51 H52" stroke="#c2cf7a" stroke-width="3" stroke-linecap="round"/><path d="M57 16 q4 6 0 12 M61 11 q7 11 0 22" stroke="#c2cf7a" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
-const icon = `<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,${encodeURIComponent(iconSvg)}">`;
+// Favicon (src/favicon.svg): a perched songbird with song waves, in the dashboard's olive and cream.
+const icon = `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
 
 // Page menu: a hamburger button that opens a small panel (replaces Framework's sidebar).
 const menuPages = [
