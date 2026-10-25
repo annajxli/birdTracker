@@ -43,6 +43,7 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
     <div class="live-transport" id="live-audio" hidden>
       <button type="button" class="live-button live-icon live-sound" id="live-sound" title="Unmute (space)" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="icon-off" d="M16 9.5l5 5M21 9.5l-5 5"/><path class="icon-on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="live-sound-label"><span class="when-off">Unmute</span><span class="when-on">Mute</span></span></button>
       <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: quieter rumble, brighter birdsong (B)" aria-pressed="false">Bird boost</button>
+      <button type="button" class="live-button live-boost" id="live-hiss" title="Less hiss: turns the treble down between calls (H)" aria-pressed="false">Less hiss</button>
     </div>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
     <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
@@ -350,15 +351,118 @@ const GATE = `class Gate extends AudioWorkletProcessor {
   }
 }
 registerProcessor("gate", Gate);`;
-const BOOST_KEY = "birdtracker-live-boost";
-let boost = false, audio = null; // audio: {context, source, chain, out}
+// Less hiss: the mic's hiss is steady and spread over the treble, where birds sing in short
+// bursts. Above 2 kHz the sound is split into five bands (each split adds back exactly), and each
+// band keeps a slow estimate of its own background. A band near its background is turned down by
+// up to HISS_CUT_DB; one HISS_OPEN_DB above it passes untouched, with a linear knee in between.
+// Gains open in 3 ms but close over 250 ms, so the hiss sits at a steady level instead of
+// warbling, and the sound is delayed 16 ms so a call's first note finds its band already open.
+// The node is always in place (switched by message), so turning it on or off never shifts timing.
+const HISS_EDGES = [2000, 2800, 4000, 5600, 8000], HISS_CUT_DB = 10, HISS_KNEE_DB = 6, HISS_OPEN_DB = 12;
+const HISS = `class Hiss extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.on = false;
+    this.port.onmessage = (e) => { this.on = !!e.data; };
+    // Second-order Butterworth low-passes, one per edge (the same as scipy's butter(2, f)).
+    this.lp = ${JSON.stringify(HISS_EDGES)}.filter((f) => f < 0.45 * sampleRate).map((f) => {
+      const w = 2 * Math.PI * f / sampleRate, a = Math.sin(w) / Math.SQRT2, c = Math.cos(w), a0 = 1 + a;
+      return {b0: (1 - c) / 2 / a0, b1: (1 - c) / a0, b2: (1 - c) / 2 / a0, a1: -2 * c / a0, a2: (1 - a) / a0, z1: 0, z2: 0};
+    });
+    const n = this.lp.length + 1;
+    this.look = Math.max(1, Math.round(0.016 * sampleRate / 128)); // blocks of delay
+    this.ring = Array.from({length: this.look + 1}, () => Array.from({length: n}, () => new Float32Array(128)));
+    this.head = 0;
+    this.bands = Array.from({length: n}, () => new Float32Array(128));
+    this.env = new Float64Array(n); this.floor = new Float64Array(n).fill(NaN);
+    this.gdb = new Float64Array(n); this.hist = Array.from({length: this.look + 1}, () => new Float64Array(n));
+    this.applied = new Float64Array(n).fill(1);
+    this.time = 0;
+  }
+  process(inputs, outputs) {
+    const x = inputs[0][0], o = outputs[0][0];
+    if (!x || !o) return true;
+    const len = x.length, dt = len / sampleRate, k = (ms) => Math.exp(-dt * 1000 / ms);
+    const lp = this.lp, nb = lp.length + 1, bands = this.bands;
+    let power = 0;
+    for (let i = 0; i < len; i++) {
+      let rest = x[i];
+      power += rest * rest;
+      for (let j = 0; j < lp.length; j++) {
+        const f = lp[j], low = f.b0 * rest + f.z1;
+        f.z1 = f.b1 * rest - f.a1 * low + f.z2;
+        f.z2 = f.b2 * rest - f.a2 * low;
+        bands[j][i] = low;
+        rest -= low;
+      }
+      bands[nb - 1][i] = rest;
+    }
+    // Muted, paused or a dropout comes through as exact zeros: hold everything rather than let
+    // the silence drag the background estimate down.
+    const live = power / len > 1e-14;
+    if (live) this.time += dt;
+    const hist = this.hist[this.head];
+    for (let j = 0; j < nb; j++) {
+      if (live && j > 0) { // band 0 (below 2 kHz) is left alone
+        let p = 0;
+        for (let i = 0; i < len; i++) p += bands[j][i] * bands[j][i];
+        p = p / len + 1e-20;
+        const c = p > this.env[j] ? k(3) : k(80);
+        this.env[j] = this.env[j] ? c * this.env[j] + (1 - c) * p : p;
+        const level = 10 * Math.log10(this.env[j]);
+        if (Number.isNaN(this.floor[j])) this.floor[j] = level;
+        const fast = this.time < 2; // settle quickly at the start
+        this.floor[j] += level > this.floor[j] ? (fast ? 20 : 2) * dt : -(fast ? 20 : 6) * dt;
+      }
+      const over = (10 * Math.log10(this.env[j] || 1e-20)) - this.floor[j];
+      const target = this.on && j > 0 && !Number.isNaN(over)
+        ? -${HISS_CUT_DB} * Math.min(1, Math.max(0, (${HISS_OPEN_DB} - over) / (${HISS_OPEN_DB - HISS_KNEE_DB}))) : 0;
+      const c = target > this.gdb[j] ? k(3) : k(250);
+      this.gdb[j] = c * this.gdb[j] + (1 - c) * target;
+      hist[j] = this.gdb[j];
+    }
+    // Write this block into the delay ring and play out the one from \`look\` blocks ago, with each
+    // band's gain the most open of the last \`look\` blocks (so it has opened before a call starts),
+    // ramped across the block so it never clicks.
+    const slot = this.ring[this.head];
+    for (let j = 0; j < nb; j++) slot[j].set(bands[j].subarray(0, len));
+    this.head = (this.head + 1) % this.ring.length;
+    const old = this.ring[this.head];
+    o.fill(0);
+    for (let j = 0; j < nb; j++) {
+      let g = -Infinity;
+      for (const h of this.hist) g = Math.max(g, h[j]);
+      const to = 10 ** (g / 20), from = this.applied[j], band = old[j];
+      for (let i = 0; i < len; i++) o[i] += band[i] * (from + (to - from) * (i + 1) / len);
+      this.applied[j] = to;
+    }
+    return true;
+  }
+}
+registerProcessor("hiss", Hiss);`;
+const BOOST_KEY = "birdtracker-live-boost", HISS_KEY = "birdtracker-live-hiss";
+let boost = false, hiss = false, audio = null; // audio: {context, source, chain, out, hiss}
 try { boost = localStorage.getItem(BOOST_KEY) === "1"; } catch {}
+try { hiss = localStorage.getItem(HISS_KEY) === "1"; } catch {}
 const boostButton = document.getElementById("live-boost");
+const hissButton = document.getElementById("live-hiss");
 function route() {
   if (!audio) return;
+  const into = boost ? audio.chain : audio.out;
   audio.source.disconnect();
-  audio.source.connect(boost ? audio.chain : audio.out);
+  if (audio.hiss) {
+    audio.hiss.disconnect();
+    audio.source.connect(audio.hiss).connect(into);
+  } else audio.source.connect(into);
 }
+function setHiss(on) {
+  hiss = on;
+  try { localStorage.setItem(HISS_KEY, on ? "1" : "0"); } catch {}
+  hissButton.setAttribute("aria-pressed", String(on));
+  audio?.hiss?.port.postMessage(on);
+}
+hissButton.setAttribute("aria-pressed", String(hiss));
+hissButton.onclick = () => setHiss(!hiss);
 function setBoost(on) {
   boost = on;
   try { localStorage.setItem(BOOST_KEY, on ? "1" : "0"); } catch {}
@@ -401,11 +505,15 @@ const newPlayer = () => {
       return a <= 0.7 ? v : Math.sign(v) * (0.7 + 0.25 * Math.tanh((a - 0.7) / 0.25));
     });
     makeup.connect(compressor).connect(limiter).connect(clipper).connect(context.destination);
-    // The gate goes in between makeup and compressor once its code has loaded (a moment later).
-    context.audioWorklet?.addModule(URL.createObjectURL(new Blob([GATE], {type: "text/javascript"}))).then(() => {
+    // The gate goes in between makeup and compressor, and Less hiss right after the source, once
+    // their code has loaded (a moment later).
+    context.audioWorklet?.addModule(URL.createObjectURL(new Blob([GATE, "\n", HISS], {type: "text/javascript"}))).then(() => {
       makeup.disconnect();
       makeup.connect(new AudioWorkletNode(context, "gate")).connect(compressor);
-    }).catch(() => {}); // without it, the sound just keeps its hiss
+      audio.hiss = new AudioWorkletNode(context, "hiss", {channelCount: 1, channelCountMode: "explicit", outputChannelCount: [1]});
+      audio.hiss.port.postMessage(hiss);
+      route();
+    }).catch(() => {}); // without them, the sound just keeps its hiss
     highpass.connect(lift).connect(makeup);
     audio = {context, source, chain: highpass, out: makeup};
     route();
@@ -496,7 +604,7 @@ soundButton.onclick = toggleSound;
 document.getElementById("live-back").onclick = () => step(-STEP);
 fwdButton.onclick = () => step(STEP);
 // Clicking these shouldn't leave them focused, where space would press them again.
-for (const b of [followButton, soundButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
+for (const b of [followButton, soundButton, boostButton, hissButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
 
 // Clicking the spectrogram moves the playhead there (the names above it are links to the species).
 track.addEventListener("click", (event) => {
@@ -681,7 +789,7 @@ const markFull = () => {
 };
 fullButton.hidden = !document.documentElement.requestFullscreen;
 fullButton.onclick = toggleFull;
-// Keys: space (or M) mutes and unmutes, arrows step 10 s, L goes back to live, F toggles fullscreen.
+// Keys: space (or M) mutes and unmutes, arrows step 10 s, L goes back to live, B and H switch Bird boost and Less hiss, F toggles fullscreen.
 const keys = (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, textarea, select")) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -690,6 +798,7 @@ const keys = (e) => {
   else if (k === "ArrowRight") step(STEP);
   else if (k === "l") goLive();
   else if (k === "b") setBoost(!boost);
+  else if (k === "h") setHiss(!hiss);
   else if (k === "f") toggleFull();
   else return;
   e.preventDefault();
