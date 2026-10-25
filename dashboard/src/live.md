@@ -39,10 +39,10 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 </div>
 
 <div class="live-frame">
+  <div class="live-freq" id="live-freq" aria-hidden="true"></div>
   <div class="live-scroller" id="live-scroller" tabindex="0" aria-label="Spectrogram of the recorder's recent audio, newest at the right">
     <div class="live-track" id="live-track"></div>
   </div>
-  <div class="live-freq" id="live-freq" aria-hidden="true"></div>
 </div>
 <div class="live-earlier"><button type="button" id="live-earlier" hidden>Show an earlier hour</button></div>
 
@@ -75,13 +75,16 @@ let listening = false, player = null, current = null, waitingFor = null;
 const LANE = 20, LANES = 4, SPEC_TOP = LANE * LANES + 6, SPEC_H = 160, AXIS_H = 22;
 const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
 
-// Frequency labels, fixed over the left edge while the strips scroll under them.
-document.getElementById("live-freq").replaceChildren(...[12, 8, 4, 0].map((khz) => {
-  const label = document.createElement("span");
-  label.textContent = khz === MAX_KHZ ? `${khz} kHz` : String(khz);
-  label.style.top = SPEC_TOP + SPEC_H * (1 - khz / MAX_KHZ) + "px";
-  return label;
-}));
+// Frequency labels, in their own column left of the strips (which scroll past them).
+document.getElementById("live-freq").replaceChildren(
+  ...[12, 8, 4, 0].map((khz) => {
+    const label = document.createElement("span");
+    label.textContent = String(khz);
+    label.style.top = SPEC_TOP + SPEC_H * (1 - khz / MAX_KHZ) + "px";
+    return label;
+  }),
+  Object.assign(document.createElement("span"), {className: "live-freq-unit", textContent: "kHz", style: `top: ${SPEC_TOP - 16}px`})
+);
 
 let span = 300;
 try { span = SPANS.find(([s]) => s === Number(localStorage.getItem(SPAN_KEY)))?.[0] ?? span; } catch {}
@@ -231,6 +234,7 @@ function frame() {
       scroller.scrollLeft = x(playhead) - scroller.clientWidth;
     }
   }
+  showView();
   raf = requestAnimationFrame(frame);
 }
 let raf = requestAnimationFrame(frame);
@@ -242,6 +246,7 @@ function markLive() {
   followButton.setAttribute("aria-pressed", String(following));
   listenButton.setAttribute("aria-pressed", String(listening));
   listenButton.textContent = listening ? "Stop" : "Listen";
+  summarize(); // its hour ends at the playhead only while following
 }
 
 // Scrolling by hand (wheel, touch, scrollbar, keys) stops following, and pauses the sound.
@@ -300,20 +305,114 @@ listenButton.onclick = () => {
   showStatus();
 };
 
+// The last hour as a chart: a row per species, in the order they were first heard (so a new bird
+// is added at the bottom), with a cell for each clock minute it was heard in (the site's
+// "minutes heard"); neighbouring minutes join into one bar, the latest drawn darker. On the
+// right: the minutes in total and when it was last heard. The stretch the spectrogram shows is
+// shaded; clicking the chart takes the spectrogram (and the sound, if on) to that moment.
+let hourView = null; // {w0, w1}: the chart's time range
+const ganttTip = Object.assign(document.createElement("div"), {className: "live-gantt-tip", hidden: true});
+
 function summarize() {
-  const since = Date.now() - HOUR;
-  const recent = strips.filter((s) => Date.parse(s.start) + s.seconds * 1e3 >= since);
-  // Minutes heard: clock minutes in the hour with a confident detection, as elsewhere on the site.
-  const minutes = d3.rollup(recent.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= since),
-    (v) => new Set(v.map((d) => d.at.slice(0, 16))).size, (d) => d.common_name);
-  const bySpecies = d3.rollups(runs(recent), (v) => ({last: d3.max(v, (r) => r.end)}), (r) => r.name)
-    .filter(([name]) => minutes.has(name))
-    .sort((a, b) => b[1].last - a[1].last);
-  heard.replaceChildren(bySpecies.length
-    ? html`<div class="live-heard"><p class="eyebrow">Heard in the last hour</p><ul>${bySpecies.map(([name, v]) =>
-        html`<li><a href=${speciesHref(name)}>${name}</a><span class="sub">heard for ${minutes.get(name)} min</span><span class="sub">last heard ${time(new Date(v.last))}</span></li>`)}</ul></div>`
-    : html`<p class="sub">No birds named in the last hour.</p>`);
+  // The hour ends at the moment shown while following (so the chart never gets ahead of the
+  // spectrogram), else at the newest audio.
+  const newest = strips.length ? endOf(strips.at(-1)) : Date.now();
+  const w1 = following && playhead !== null ? Math.min(playhead, newest) : newest, w0 = w1 - HOUR;
+  hourView = {w0, w1};
+  const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
+  const confident = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
+  const rows = d3.groups(confident, (d) => d.common_name).map(([name, v]) => {
+    const byMinute = d3.rollup(v, (w) => ({best: d3.max(w, (d) => d.confidence), first: d3.min(w, (d) => Date.parse(d.at))}),
+      (d) => Math.floor(Date.parse(d.at) / 60e3) * 60e3);
+    const bars = [];
+    for (const m of [...byMinute.keys()].sort((a, b) => a - b)) {
+      const bar = bars.at(-1), {best, first} = byMinute.get(m);
+      if (bar && bar.end === m) { bar.end = m + 60e3; bar.minutes++; bar.best = Math.max(bar.best, best); }
+      else bars.push({start: m, end: m + 60e3, minutes: 1, best, first}); // first: its first detection, where a click goes
+    }
+    return {name, bars, minutes: byMinute.size, first: d3.min(v, (d) => Date.parse(d.at)), last: d3.max(v, (d) => Date.parse(d.at))};
+  }).sort((a, b) => a.first - b.first);
+
+  if (!rows.length) {
+    heard.replaceChildren(html`<p class="sub">No birds named in the last hour.</p>`);
+  } else {
+    const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
+    const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 1}`}>${r.bars.map((b, j) =>
+        html`<span class=${j === r.bars.length - 1 ? "live-gantt-bar is-last" : "live-gantt-bar"} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · best ${Math.round(b.best * 100)}%`}
+          style=${{left: pct(Math.max(b.start, w0)), width: `calc(${pct(Math.min(b.end, w1))} - ${pct(Math.max(b.start, w0))})`}}></span>`)}</div>`);
+    heard.replaceChildren(html`<div class="live-gantt">
+      <p class="eyebrow">Heard in the last hour</p>
+      <div class="live-gantt-grid">
+        ${rows.flatMap((r, i) => [
+          html`<a class="live-gantt-name" href=${speciesHref(r.name)} title=${r.name} style=${`grid-row: ${i + 1}`}>${r.name}</a>`,
+          lanes[i],
+          html`<span class="sub live-gantt-total" style=${`grid-row: ${i + 1}`}><span>total ${r.minutes} min</span><span>last ${time(new Date(r.last))}</span></span>`
+        ])}
+        <div class="live-gantt-overlay" aria-hidden="true" style=${`grid-row: 1 / span ${rows.length}`}>
+          ${ticks.map((t) => html`<span class="live-gantt-grid-line" style=${{left: pct(t)}}></span>`)}
+          <span class="live-gantt-view" id="live-gantt-view" hidden></span>
+        </div>
+        <div class="live-gantt-axis" aria-hidden="true" style=${`grid-row: ${rows.length + 1}`}>${ticks.map((t) => html`<span class=${new Date(t).getMinutes() % 30 ? "is-minor" : ""} style=${{left: pct(t)}}>${time(new Date(t))}</span>`)}</div>
+      </div>
+      ${ganttTip}
+    </div>`);
+    const grid = heard.querySelector(".live-gantt-grid");
+    grid.onclick = (event) => {
+      const lane = event.target.closest(".live-gantt-lane");
+      if (!lane) return;
+      const bar = event.target.closest(".live-gantt-bar");
+      const box = lane.getBoundingClientRect();
+      jumpTo(bar ? Number(bar.dataset.first) : w0 + ((event.clientX - box.left) / box.width) * HOUR);
+    };
+    grid.onpointermove = (event) => {
+      const bar = event.target.closest(".live-gantt-bar");
+      ganttTip.hidden = !bar;
+      if (!bar) return;
+      ganttTip.textContent = bar.dataset.tip;
+      const host = heard.querySelector(".live-gantt").getBoundingClientRect();
+      const b = bar.getBoundingClientRect();
+      ganttTip.style.left = Math.min(event.clientX - host.left, host.width - 200) + "px";
+      ganttTip.style.top = b.bottom - host.top + 6 + "px";
+    };
+    grid.onpointerleave = () => { ganttTip.hidden = true; };
+    showView();
+  }
   earlier.hidden = !strips.length || Date.parse(strips[0].start) >= shownFrom;
+}
+
+// Shade, on the hour chart, the stretch the spectrogram shows now (called every frame).
+function showView() {
+  const view = document.getElementById("live-gantt-view");
+  if (!view || !geo || !hourView) return;
+  const {w0, w1} = hourView;
+  const a = Math.max(w0, tAt(scroller.scrollLeft)), b = Math.min(w1, tAt(scroller.scrollLeft + scroller.clientWidth));
+  view.hidden = b <= a;
+  if (b <= a) return;
+  view.style.left = ((a - w0) / (w1 - w0)) * 100 + "%";
+  view.style.width = `max(2px, ${((b - a) / (w1 - w0)) * 100}%)`;
+}
+
+// From the hour chart: show the spectrogram at `t`. With the sound on, play from there and
+// follow; otherwise stop following and put `t` a quarter of the way into the view.
+function jumpTo(t) {
+  if (!strips.length) return;
+  if (t < shownFrom) { shownFrom = t - 60e3; draw(); }
+  const newest = endOf(strips.at(-1));
+  if (listening) {
+    following = true;
+    playhead = Math.min(t, newest);
+    lag = Date.now() - playhead;
+    playFrom(playhead);
+  } else {
+    following = false;
+    player?.pause();
+    waitingFor = null;
+    scroller.scrollLeft = x(t + span * 750) - scroller.clientWidth;
+  }
+  markLive();
+  showStatus();
+  showView();
+  document.querySelector(".live-head").scrollIntoView({block: "nearest", behavior: "smooth"});
 }
 
 function showStatus() {
@@ -367,7 +466,8 @@ earlier.onclick = () => {
 poll();
 const timer = setInterval(poll, POLL_SECONDS * 1e3);
 const clock = setInterval(showStatus, 1000); // the playing time
+const hourTimer = setInterval(summarize, 5e3); // slide the hour chart along with the playhead
 const resize = new ResizeObserver(() => draw());
 resize.observe(scroller);
-invalidation.then(() => { clearInterval(timer); clearInterval(clock); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
+invalidation.then(() => { clearInterval(timer); clearInterval(clock); clearInterval(hourTimer); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
 ```

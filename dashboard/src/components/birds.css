@@ -1535,25 +1535,24 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   background: currentColor;
   vertical-align: 1px;
 }
-.live-frame { position: relative; }
-.live-freq {
-  position: absolute;
-  top: calc(0.75rem + 1px); /* the scroller's top border and padding */
-  left: 0;
-  pointer-events: none;
+.live-frame {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+}
+.live-freq { /* the frequency axis: a column of its own, beside the scrolling strips */
+  position: relative;
+  margin-top: calc(0.75rem + 1px); /* the scroller's top border and padding */
 }
 .live-freq span {
   position: absolute;
-  left: 0;
+  right: 6px;
   transform: translateY(-50%);
-  padding: 0 4px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--theme-background) 80%, transparent);
-  font: 10px var(--sans-serif);
+  font: 11px var(--sans-serif);
   font-variant-numeric: tabular-nums;
   color: var(--theme-foreground-muted);
   white-space: nowrap;
 }
+.live-freq .live-freq-unit { transform: none; font-size: 10px; letter-spacing: 0.04em; }
 .live-button:hover { color: var(--theme-foreground-focus); }
 .live-span button { white-space: nowrap; }
 .live-status.is-quiet { color: var(--theme-foreground); }
@@ -1612,23 +1611,80 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   font: 13px var(--sans-serif);
   cursor: pointer;
 }
-.live-heard ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-width: 36rem;
-}
-.live-heard li {
+.live-gantt { position: relative; }
+.live-gantt-grid { /* name | the hour | minutes and last heard */
   display: grid;
-  grid-template-columns: 1fr auto auto;
-  align-items: baseline;
-  gap: 1rem;
-  padding: 0.35rem 0;
-  border-bottom: 1px solid var(--rule);
+  grid-template-columns: minmax(5rem, 11rem) minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 0.75rem;
 }
-.live-heard li .sub { text-align: right; font-variant-numeric: tabular-nums; }
-@media (max-width: 480px) { /* name on its own line, the two details under it */
-  .live-heard li { grid-template-columns: auto 1fr; gap: 0.1rem 1rem; }
-  .live-heard li a { grid-column: 1 / -1; }
-  .live-heard li .sub { text-align: left; }
+.live-gantt-name {
+  grid-column: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-size: 13px;
+}
+.live-gantt-lane {
+  grid-column: 2;
+  position: relative;
+  height: 22px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+.live-gantt-bar {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  min-width: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--theme-foreground-focus) 45%, var(--theme-background));
+}
+.live-gantt-bar:hover { filter: brightness(1.25); }
+.live-gantt-bar.is-last { background: var(--theme-foreground-focus); } /* the latest: when it was last heard */
+.live-gantt-total { /* total and last heard, in two aligned columns */
+  grid-column: 3;
+  display: grid;
+  grid-template-columns: 5.5rem 6.5rem;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.live-gantt-overlay { grid-column: 2; position: relative; align-self: stretch; pointer-events: none; }
+.live-gantt-grid-line { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--rule); }
+.live-gantt-view { /* what the spectrogram shows */
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  background: color-mix(in srgb, var(--theme-foreground-focus) 14%, transparent);
+  border-right: 2px solid var(--theme-foreground-focus);
+}
+.live-gantt-axis { grid-column: 2; position: relative; height: 1.4rem; }
+.live-gantt-axis span {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--theme-foreground-muted);
+  white-space: nowrap;
+}
+.live-gantt-tip {
+  position: absolute;
+  z-index: 2;
+  max-width: 200px;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--theme-background);
+  font-size: 12px;
+  white-space: pre-line;
+  pointer-events: none;
+}
+@media (max-width: 480px) {
+  .live-gantt-grid { grid-template-columns: 5.5rem minmax(0, 1fr) auto; column-gap: 0.5rem; }
+  .live-gantt-name { font-size: 12px; }
+  .live-gantt-lane { height: 30px; }
+  .live-gantt-total { grid-template-columns: auto; font-size: 11px; line-height: 1.25; } /* stacked */
+  .live-gantt-axis .is-minor { display: none; }
 }
