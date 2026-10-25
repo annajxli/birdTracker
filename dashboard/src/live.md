@@ -6,7 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 <!-- The recorder, a minute or two behind: the analyzer draws a spectrogram strip of each minute
-     of audio, saves its sound as Opus and lists that minute's detections in live.json;
+     of audio, saves its sound as MP3 and lists that minute's detections in live.json;
      pipeline/publish.py uploads them to R2 and the password Worker serves them under /api/live/.
      This page polls live.json, lays the strips out by their start time and names the birds above
      them. A playhead follows the recording far enough behind that the next minute has arrived

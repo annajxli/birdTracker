@@ -1,0 +1,10 @@
+# The indoor pipeline on a Raspberry Pi (receiver, analyzer, publisher): no TensorFlow.
+# BirdNET runs on ai-edge-litert (pipeline/birdnet_lite.py) from model files copied by push.sh.
+ai-edge-litert
+numpy
+scipy
+soundfile
+pillow
+pandas
+pyarrow
+boto3

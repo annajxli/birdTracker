@@ -4,12 +4,14 @@ This is the indoor half of the setup in docs/hardware.md: the recorder drops
 short audio files (named by their UTC start time, e.g. 20260512T131500Z.flac)
 into the incoming folder, and for each one this:
 
-  1. runs BirdNET-Analyzer with the station's location and the week of year
+  1. runs BirdNET with the station's location and the week of year: by default
+     the model alone on the small TFLite runtime (birdnet_lite.py; what the
+     Raspberry Pi can run), or --engine analyzer for birdnet-analyzer itself
   2. adds the detections to the database (same rows as ingest.py)
   3. cuts a short Opus clip of the most confident detection per species per
      hour, records its path on that detection, and renders the clip's
      spectrogram beside it (same name, .webp; see spectrogram.py)
-  4. renders the whole recording's spectrogram into live/, with a 24 kHz Opus
+  4. renders the whole recording's spectrogram into live/, with a 24 kHz MP3
      copy of its audio, and lists both, with its detections, in
      live/live.json, for the site's near-live view; strips older than
      --live-hours are deleted (publish.py uploads them)
@@ -65,8 +67,10 @@ SETTLE_SECONDS = 5  # a file must be unchanged this long before we treat it as c
 MAX_ATTEMPTS = 3  # analysis failures before a recording is moved to failed/
 MAX_BACKOFF_SECONDS = 15 * 60
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # the station's time zone, for BirdNET's week
-LIVE_AUDIO_RATE = 24000  # Opus needs 8/12/16/24/48 kHz; 24 kHz keeps the spectrogram's 0-12 kHz
-LIVE_AUDIO_LEVEL = 0.9  # libsndfile's Opus compression level: ~30 kbit/s, ~225 KB a minute
+LIVE_AUDIO_RATE = 24000  # keeps the spectrogram's 0-12 kHz
+LIVE_AUDIO_LEVEL = 0.5  # libsndfile's MP3 compression level: ~35 kbit/s, ~260 KB a minute. MP3 rather
+                        # than Opus: ~35x faster to encode (a Pi 3B+ took 27 s a minute for Opus), and
+                        # every browser plays it
 
 log = logging.getLogger("analyzer")
 
@@ -115,12 +119,22 @@ def move(src: Path, dest_dir: Path) -> None:
         log.warning("%s disappeared before it could be moved to %s/", src.name, dest_dir.name)
 
 
-def run_birdnet(audio: Path, out_dir: Path, lat: float, lon: float, min_conf: float) -> Path:
-    """Analyze one file; returns the path of BirdNET's CSV results."""
-    from birdnet_analyzer.analyze.core import analyze  # slow import; only needed when there's work
+_lite = None  # the TFLite model, loaded on first use and kept while watching
 
+
+def run_birdnet(audio: Path, out_dir: Path, args) -> Path:
+    """Analyze one file; returns the path of BirdNET's CSV results."""
+    global _lite
     week = birdnet_week(recording_start(audio.name, None).astimezone(LOCAL_TZ))
-    analyze(str(audio), output=str(out_dir), lat=lat, lon=lon, week=week, min_conf=min_conf, rtype="csv", threads=4)
+    if args.engine == "lite":
+        if _lite is None:
+            from birdnet_lite import BirdNET
+            _lite = BirdNET(threads=args.threads)
+        return _lite.analyze(audio, out_dir, args.lat, args.lon, week, args.min_conf)
+    from birdnet_analyzer.analyze.core import analyze  # slow import (TensorFlow); only needed when there's work
+
+    analyze(str(audio), output=str(out_dir), lat=args.lat, lon=args.lon, week=week, min_conf=args.min_conf,
+            rtype="csv", threads=args.threads)
     results = list(out_dir.glob(f"{audio.stem}*.BirdNET.results.csv"))
     if not results:
         raise RuntimeError(f"BirdNET wrote no results for {audio.name}")
@@ -164,7 +178,7 @@ def current_clip(conn, station: str, scientific_name: str, hour: str):
 
 def process(audio: Path, args, conn) -> int:
     with tempfile.TemporaryDirectory() as tmp:
-        csv_path = run_birdnet(audio, Path(tmp), args.lat, args.lon, args.min_conf)
+        csv_path = run_birdnet(audio, Path(tmp), args)
         rows = list(read_results(csv_path, args.station, None))
 
     start = recording_start(audio.name, None)
@@ -224,14 +238,14 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
     live.mkdir(exist_ok=True)
     image = live / (audio.stem + ".webp")
     render_spectrogram(audio, image)
-    sound = live / (audio.stem + ".ogg")
+    sound = live / (audio.stem + ".mp3")
     data, rate = sf.read(audio, always_2d=False, dtype="float32")
     if data.ndim > 1:
         data = data.mean(axis=1)
     g = math.gcd(LIVE_AUDIO_RATE, rate)
-    part = sound.with_suffix(".ogg.part")  # publish.py skips .part files
+    part = sound.with_suffix(".mp3.part")  # publish.py skips .part files
     sf.write(part, resample_poly(data, LIVE_AUDIO_RATE // g, rate // g).astype("float32"), LIVE_AUDIO_RATE,
-             format="OGG", subtype="OPUS", compression_level=LIVE_AUDIO_LEVEL)
+             format="MP3", subtype="MPEG_LAYER_III", compression_level=LIVE_AUDIO_LEVEL)
     os.replace(part, sound)
     start = recording_start(audio.name, None)
     entry = {
@@ -340,6 +354,8 @@ if __name__ == "__main__":
     p.add_argument("--lat", type=float, default=47.61)
     p.add_argument("--lon", type=float, default=-122.33)
     p.add_argument("--min-conf", type=float, default=0.25, help="BirdNET's own cutoff; the dashboard filters further")
+    p.add_argument("--engine", choices=["lite", "analyzer"], default="lite", help="lite: BirdNET's model on the TFLite runtime; analyzer: birdnet-analyzer (needs TensorFlow)")
+    p.add_argument("--threads", type=int, default=2, help="threads for BirdNET (leave a core free on a Pi)")
     p.add_argument("--keep-days", type=float, default=0, help="keep recordings in processed/ this many days (default: delete right after analysis)")
     p.add_argument("--interval", type=float, default=30, help="seconds between checks when watching")
     p.add_argument("--live-hours", type=float, default=24, help="keep this many hours of spectrogram strips in live/ (0 = off)")

@@ -1,0 +1,15 @@
+[Unit]
+Description=Bird Tracker: receive the recorder's stream into data/incoming/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=%BIRD_USER%
+WorkingDirectory=%BIRD_HOME%
+EnvironmentFile=%BIRD_HOME%/birdtracker.env
+ExecStart=%BIRD_HOME%/.venv/bin/python pipeline/receiver.py --port 8765 --live-port 0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -86,7 +86,8 @@ solar and no wifi hop, and BirdNET can run right on that Pi.
 
 **Indoor analyzer:** a Raspberry Pi 5 (4 GB+) or any always-on computer. On
 this Mac, BirdNET analyzed 2 minutes of audio in about 3 s, so even a Pi
-keeps up with 24/7 recording easily.
+keeps up with 24/7 recording easily. For a Pi 3B+ (1 GB), see
+[raspberry-pi-3b.md](raspberry-pi-3b.md).
 
 ## Data transfer
 

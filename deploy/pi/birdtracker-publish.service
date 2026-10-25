@@ -1,0 +1,15 @@
+[Unit]
+Description=Bird Tracker: publish detections, clips and the live view to R2
+After=network-online.target birdtracker-analyzer.service
+Wants=network-online.target
+
+[Service]
+User=%BIRD_USER%
+WorkingDirectory=%BIRD_HOME%
+EnvironmentFile=%BIRD_HOME%/birdtracker.env
+ExecStart=%BIRD_HOME%/.venv/bin/python pipeline/publish.py --watch --db data/recorder.sqlite
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

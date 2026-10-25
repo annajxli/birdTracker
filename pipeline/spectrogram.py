@@ -53,7 +53,7 @@ def render(clip: Path, out: Path | None = None) -> Path:
     a = (alpha * 255).astype(np.uint8)
     img = Image.fromarray(np.dstack([np.full_like(a, 255)] * 3 + [a]), "RGBA")
     out = out or clip.with_suffix(".webp")
-    img.save(out, "WEBP", quality=80, method=6)
+    img.save(out, "WEBP", quality=80, method=4)  # method 6 is ~80x slower for ~4% smaller files: too slow for a Pi
     return out
 
 

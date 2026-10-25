@@ -1,0 +1,15 @@
+[Unit]
+Description=Bird Tracker: identify birds in new recordings
+After=birdtracker-receiver.service
+
+[Service]
+User=%BIRD_USER%
+WorkingDirectory=%BIRD_HOME%
+EnvironmentFile=%BIRD_HOME%/birdtracker.env
+ExecStart=%BIRD_HOME%/.venv/bin/python pipeline/analyzer.py --watch --db data/recorder.sqlite --threads 3 --interval 15
+Restart=always
+RestartSec=10
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

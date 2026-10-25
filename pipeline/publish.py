@@ -86,7 +86,7 @@ class Mirror:
     def __init__(self, s3, bucket: str, folder: Path, prefix: str):
         self.s3, self.bucket, self.folder, self.prefix = s3, bucket, folder, prefix
         self.uploaded: dict[str, tuple[int, float]] = {}
-        self.listed_at = 0.0
+        self.listed_at = None  # list the bucket on the first pass (monotonic time starts near 0 after a boot)
 
     def remote(self) -> dict[str, int]:
         sizes, token = {}, None
@@ -107,7 +107,7 @@ class Mirror:
                 if p.is_file() and not p.name.endswith(".part"):
                     st = p.stat()
                     local[self.prefix + p.relative_to(self.folder).as_posix()] = (p, st.st_size, st.st_mtime)
-        if time.monotonic() - self.listed_at > FULL_SYNC_SECONDS:
+        if self.listed_at is None or time.monotonic() - self.listed_at > FULL_SYNC_SECONDS:
             # What's really there; a file the same size is taken as already uploaded.
             remote = self.remote()
             self.uploaded = {k: (size, local[k][2]) for k, size in remote.items() if k in local and local[k][1] == size}
@@ -115,6 +115,11 @@ class Mirror:
             self.listed_at = time.monotonic()
         else:
             stale = [k for k in self.uploaded if k not in local]
+
+        if stale and not local:
+            # An empty or missing folder (a fresh install, data not moved over yet) must not wipe the bucket.
+            log.warning("%s: no local files; not deleting %d from the bucket", self.prefix, len(stale))
+            stale = []
 
         sent = 0
         # live.json last, so it never lists a strip that isn't uploaded yet.

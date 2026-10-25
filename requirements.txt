@@ -4,3 +4,4 @@ pyarrow
 astral
 boto3
 scipy
+ai-edge-litert

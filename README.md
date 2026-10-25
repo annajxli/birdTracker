@@ -25,7 +25,7 @@ data/
   weather.csv     output of weather.py; re-run when new detections arrive
   detections.sqlite  generated, not checked in
 docs/hardware.md  hardware and data transfer plan
-docs/raspberry-pi-3b.md  plan for running the analyzer on a Pi 3B+
+docs/raspberry-pi-3b.md  running the indoor pipeline on a Pi 3B+ (deploy/pi/)
 docs/palettes.html  theme palette options (Cedar & Olive was picked)
 ```
 
