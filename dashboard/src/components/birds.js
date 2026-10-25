@@ -309,7 +309,7 @@ function sunMarkers(sunrise, sunset, top) {
     const g = htl.svg`<g fill="currentColor" font-size="10" aria-label="sunrise and sunset">`;
     for (const [[t, last], kind] of [[sunrise, "Sunrise"], [sunset, "Sunset"]]) {
       const px = x(t);
-      const range = +last - +t >= SUN_BAND_MS;
+      const range = +last - +t >= 6e4;
       if (px < marginLeft || px > width - marginRight) continue;
       const icon = kind === "Sunrise"
         ? htl.svg`<path d=${SUN_ICON}></path><path d=${SUN_RAYS} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>`
@@ -376,6 +376,7 @@ const SUN_BAND_MS = 10 * 6e4;
 export function dayTimeline(rows, sun, dates, {
   spanDays = dates.length, categories, sort = "category", width, dark, daylightOnly = true,
   maxRows = Infinity, // with a sort other than category, a collapsed list shows this many rows
+  rowPx = ROW_PX, // height of one species row; a full-screen display passes more
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
@@ -404,7 +405,9 @@ export function dayTimeline(rows, sun, dates, {
   const sunRange = (key) => d3.extent(dates, (date) => +onRef(date, new Date(sun[date][key]))).map((t) => new Date(t));
   const sunriseRange = sunRange("sunrise");
   const sunsetRange = sunRange("sunset");
-  const isBand = ([a, b]) => +b - +a >= SUN_BAND_MS;
+  // Both become bands once either moves enough, so sunrise and sunset are drawn the same way.
+  const banded = [sunriseRange, sunsetRange].some(([a, b]) => +b - +a >= SUN_BAND_MS);
+  const isBand = () => banded;
   // Over many days, each band shades how often sunrise (or sunset) falls at that time: a
   // histogram of the days' times, lightly smoothed (Gaussian, 8 minutes), as a gradient.
   const sunBands = [];
@@ -554,7 +557,7 @@ export function dayTimeline(rows, sun, dates, {
   const gridHours = d3.timeHour.every(hourStep).range(domain[0], new Date(+domain[1] + 1));
   const plot = Plot.plot({
     width,
-    height: Math.round(total * ROW_PX) + 50,
+    height: Math.round(total * rowPx) + 50,
     marginLeft: nameMargin(width),
     marginRight: width < 520 ? 30 : 16, // room for the sunset time on phones
     marginTop: 18,

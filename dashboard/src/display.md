@@ -25,7 +25,7 @@ setTimeout(() => location.reload(), RELOAD_MINUTES * 60e3);
 ```
 
 ```js
-const W = Math.min(1600, width);
+const W = width;
 const H = Math.max(360, innerHeight - 150); // room under the title bar
 const inSpan = (dates) => { const s = new Set(dates); return confident.filter((d) => s.has(d.date)); };
 
@@ -43,14 +43,17 @@ const weeks = [...weekDays.keys()].sort(d3.ascending);
 const byWeekHour = d3.rollup(yearRows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => weekOf(d.date), (d) => d.hour);
 const grid = weeks.flatMap((w, row) => d3.range(24).map((hour) => ({row, hour, perDay: (byWeekHour.get(w)?.get(hour) ?? 0) / weekDays.get(w)})));
 
-// A daily-rhythm timeline that fits the screen: categories collapse when every species wouldn't fit.
+// A daily-rhythm timeline that fills the screen: open as many categories as fit (smallest first,
+// so the most categories show their species), then stretch the rows to use the height.
 const timeline = (dates, spanDays) => {
   const rows = inSpan(dates);
-  const species = new Set(rows.map((d) => d.species)).size;
-  const groups = new Set(rows.map((d) => categories.species[d.species] ?? "Other")).size;
-  const fits = (species + groups * 1.6) * 17 + 60 <= H;
-  const overrides = new Map((fits ? [] : categories.order.concat("Other")).map((c) => [c, true]));
-  return dayTimeline(rows, sun, dates, {spanDays, categories, width: W, dark, daylightOnly: true, overrides});
+  const sizes = d3.rollups(rows, (v) => new Set(v.map((d) => d.species)).size, (d) => categories.species[d.species] ?? "Other");
+  const budget = (H - 60) / 17;
+  let units = sizes.length * 1.6;
+  const open = new Set();
+  for (const [cat, n] of [...sizes].sort((a, b) => a[1] - b[1])) if (units + n <= budget) { open.add(cat); units += n; }
+  const overrides = new Map(categories.order.concat("Other").map((c) => [c, !open.has(c)]));
+  return dayTimeline(rows, sun, dates, {spanDays, categories, width: W, dark, daylightOnly: true, overrides, rowPx: Math.min(34, (H - 60) / units)});
 };
 
 // Recently heard: photo cards (fixed 4:3 crop) with a few numbers and this week's minutes per day.
@@ -58,23 +61,23 @@ const clock = (t) => t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angel
 const cols = Math.max(2, Math.floor(W / 250));
 const cardW = (W - (cols - 1) * 20) / cols;
 const perCol = Math.max(1, Math.floor((H + 20) / (cardW * 0.75 + 120)));
-// Minutes heard per day this week, with a day axis and a minutes-per-day scale.
+// Minutes heard per day this week, labelled by day. No y axis: every card shares one scale (the
+// tallest bar on screen is the busiest bird-day), so the bars compare across cards.
 const dayLetter = (d) => new Date(d).toLocaleDateString("en-US", {timeZone: "UTC", weekday: "narrow"});
-const spark = (species) => {
-  const v = week.map((date) => ({date, minutes: perDay.get(species)?.get(date) ?? 0}));
-  return Plot.plot({
-    width: cardW, height: 84, marginTop: 22, marginLeft: 30, marginRight: 4, marginBottom: 20, style: {fontSize: "11px"},
-    x: {type: "band", domain: week, tickFormat: dayLetter, tickSize: 0, label: null, padding: 0.25},
-    y: {ticks: 2, label: "min/day", labelAnchor: "top", labelArrow: "none", grid: true, nice: true},
-    marks: [Plot.barY(v, {x: "date", y: "minutes", fill: seriesColor(dark), rx2: 2}), Plot.ruleY([0], {strokeOpacity: 0.3})]
-  });
-};
+const shownSpecies = recentSpecies(confident, {limit: cols * perCol}).map((r) => r.species);
+const dailyMax = d3.max(shownSpecies, (sp) => d3.max(week, (d) => perDay.get(sp)?.get(d) ?? 0)) || 1;
+const spark = (species) => Plot.plot({
+  width: cardW, height: 62, marginTop: 4, marginLeft: 0, marginRight: 0, marginBottom: 18, style: {fontSize: "11px"},
+  x: {type: "band", domain: week, tickFormat: dayLetter, tickSize: 0, label: null, padding: 0.25},
+  y: {domain: [0, dailyMax], axis: null},
+  marks: [Plot.barY(week, {x: (d) => d, y: (d) => perDay.get(species)?.get(d) ?? 0, fill: seriesColor(dark), rx2: 2}), Plot.ruleY([0], {strokeOpacity: 0.3})]
+});
 const card = ({species, times}) => {
   const p = photos[species], mins = d3.sum(week, (d) => perDay.get(species)?.get(d) ?? 0);
   return html`<div class="display-card">
     <div class="display-photo">${p ? html`<img src=${p.image} alt="" style=${`object-position: ${p.focus.x * 100}% ${p.focus.y * 100}%`}>` : ""}</div>
     <div class="display-name">${species}</div>
-    <div class="display-meta"><b>${clock(times[0])}</b> · <b>${mins}</b> min this week</div>
+    <div class="display-meta"><b>${clock(times[0])}</b> · avg <b>${d3.format(".1f")(mins / week.length)}</b> min/day this week</div>
     ${spark(species)}
   </div>`;
 };
@@ -156,10 +159,10 @@ display(stage);
 .display-name { font-size: 1.25rem; font-weight: 600; margin-top: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .display-meta { color: var(--theme-foreground-muted); font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .display-meta b { color: var(--theme-foreground); font-weight: 600; }
-.display-spark { width: 100%; height: 24px; margin-top: 0.35rem; fill: var(--theme-foreground-focus, #8aa83a); opacity: 0.8; }
 .display-timer { width: 26px; height: 26px; transform: rotate(-90deg); }
 .display-timer circle { fill: none; stroke-width: 3; }
 .display-timer .track { stroke: var(--theme-foreground-faintest); }
 .display-timer .ring { stroke: var(--theme-foreground-muted); stroke-dasharray: 100; stroke-linecap: round; }
 .display .timeline-expand { display: none; }
+.display-slide g[aria-label="y-axis tick label"] text { font-size: 15px; }
 </style>
