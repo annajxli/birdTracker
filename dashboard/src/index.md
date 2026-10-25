@@ -7,15 +7,15 @@ toc: false
 
 
 ```js
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds} from "./components/period.js";
 import {biggestMonthlyChanges, windowChanges} from "./components/changes.js";
 ```
 
 ```js
-const [all, photos, sun, categories, weather, weatherHourly] = await Promise.all([
-  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly()
+const [all, photos, sun, categories, weather, weatherHourly, recordedUntil] = await Promise.all([
+  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadRecordedUntil()
 ]);
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
@@ -144,7 +144,7 @@ const timelineDates = selection.scale === "D" ? formatDate(selection.date)
   <div id="home-timeline" class="card layout-reserve timeline-card">
     <div class="filters timeline-sort">${sortIn}</div>
     ${spanDates.length
-      ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed}))
+      ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed, recordedUntil}))
       : html`<p class="sub">No recordings ${selection.scale === "D" ? "on this day" : "in this period"}; the recorder was offline.</p>`}
   </div>
   </div>

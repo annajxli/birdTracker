@@ -27,6 +27,18 @@ async function detectionsTable() {
   return FileAttachment("../data/detections.parquet").parquet();
 }
 
+/** When the newest recorded audio ends (the Live view's feed), or null if it can't be reached. */
+export async function loadRecordedUntil() {
+  try {
+    const response = await fetch("/api/live/live.json", {cache: "no-store"});
+    if (!response.ok) return null;
+    const last = (await response.json()).strips?.at(-1);
+    return last ? new Date(Date.parse(last.start) + last.seconds * 1e3) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadDetections() {
   const table = await detectionsTable();
   // Read columns directly: Arrow's row iterator creates a proxy for every detection.
@@ -448,6 +460,7 @@ export function dayTimeline(rows, sun, dates, {
   spanDays = dates.length, categories, sort = "category", width, dark, daylightOnly = true,
   maxRows = Infinity, // with a sort other than category, a collapsed list shows this many rows
   rowPx = ROW_PX, // height of one species row; a full-screen display passes more
+  recordedUntil = null, // end of the newest recorded audio; on that day alone, marked with a line
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
@@ -626,6 +639,15 @@ export function dayTimeline(rows, sun, dates, {
     ? rowsAt.get(firstHeader).y
     : 0;
   const gridHours = d3.timeHour.every(hourStep).range(domain[0], new Date(+domain[1] + 1));
+  // Today: a line where the recording so far ends, and the rest of the day faintly shaded, so
+  // time not recorded yet doesn't read as time without birds.
+  const pacificDate = (t) => t.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+  const recordedAt = recordedUntil && n === 1 && pacificDate(recordedUntil) === dates[0] ? onRef(dates[0], recordedUntil) : null;
+  const recordedMarks = recordedAt && recordedAt >= domain[0] && recordedAt <= domain[1] ? [
+    Plot.rectX([recordedAt], {x1: (t) => t, x2: () => domain[1], y1: gridTop, y2: total, fill: "currentColor", fillOpacity: 0.05}),
+    Plot.ruleX([recordedAt], {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.55}),
+    Plot.text([recordedAt], {x: (t) => t, y: gridTop, text: () => `Recorded to ${clock(recordedUntil)}`, textAnchor: "end", lineAnchor: "bottom", dx: -4, dy: -4, fontSize: 10, fill: "currentColor", fillOpacity: 0.75})
+  ] : [];
   const plot = Plot.plot({
     width,
     height: Math.round(total * rowPx) + 50,
@@ -642,6 +664,7 @@ export function dayTimeline(rows, sun, dates, {
       // For one day (or a short span), sunrise and sunset are dashed lines; longer spans get a band, drawn below.
       Plot.ruleX([sunriseRange, sunsetRange].filter((r) => !isBand(r)).map(([t]) => t), {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "3,3"}),
       sunMarkers(sunriseRange, sunsetRange, gridTop),
+      ...recordedMarks,
       // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
       Plot.text(headers, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
