@@ -1054,7 +1054,9 @@ export function speciesCards(info) {
 
   const over = (e) => {
     const el = e.target.closest?.(TARGETS);
-    if (!el || e.pointerType !== "mouse" || el.closest("svg a")) return; // chart marks keep their tooltips
+    // Chart marks keep their tooltips; the card's own "More details" link is a species link too,
+    // but hovering it must not reopen the card (it would be re-anchored to a detached link).
+    if (!el || e.pointerType !== "mouse" || el.closest("svg a") || card?.contains(el)) return;
     nameOf(el);
     clearTimeout(hideTimer);
     if (el === anchor) return;
@@ -1063,7 +1065,7 @@ export function speciesCards(info) {
   };
   const out = (e) => {
     const el = e.target.closest?.(TARGETS);
-    if (!el || e.pointerType !== "mouse") return;
+    if (!el || e.pointerType !== "mouse" || card?.contains(el)) return;
     clearTimeout(showTimer);
     if (card && !card.contains(e.relatedTarget)) hideTimer = setTimeout(hide, 200);
   };
