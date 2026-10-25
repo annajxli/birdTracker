@@ -265,6 +265,11 @@ bool record() {
 bool wifiUp() {
   if (WiFi.status() == WL_CONNECTED) return true;
   WiFi.mode(WIFI_STA);
+#if defined(ARDUINO_ARCH_ESP32)
+  // With more than one access point on the network, join the strongest, not the first one found.
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+#endif
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   uint32_t started = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - started < 20000) { delay(200); feed(); }
@@ -359,6 +364,7 @@ bool upload() {
 // ---- streaming (FireBeetle) -----------------------------------------------
 
 #if defined(ARDUINO_ARCH_ESP32)
+#include <ESPmDNS.h>
 #include <freertos/ringbuf.h>
 #include <sys/time.h>
 #include <atomic>
@@ -439,6 +445,22 @@ void streamStop() {
   Serial.printf("streaming stopped: %lu frames sent, %lu dropped\n", (unsigned long)framesSent, (unsigned long)framesDropped);
 }
 
+// The receiver's address. A RECEIVER_URL host ending in .local (e.g. the Pi, pio.local) is found
+// with mDNS, so the router needs no reservation; the last address found is tried first, and looked
+// up again only when it stops answering.
+IPAddress receiverIp;
+bool resolveReceiver(const String &host, bool fresh) {
+  if (receiverIp != IPAddress() && !fresh) return true;
+  if (!host.endsWith(".local")) return receiverIp.fromString(host) || WiFi.hostByName(host.c_str(), receiverIp);
+  static bool mdnsUp = false;
+  if (!mdnsUp) mdnsUp = MDNS.begin("birdtracker-recorder");
+  IPAddress ip = MDNS.queryHost(host.substring(0, host.length() - 6), 2000);
+  if (ip == IPAddress()) { Serial.printf("! %s not found (mDNS)\n", host.c_str()); return false; }
+  if (ip != receiverIp) Serial.printf("%s is %s\n", host.c_str(), ip.toString().c_str());
+  receiverIp = ip;
+  return true;
+}
+
 bool streamConnect() {
   if (millis() - lastConnectTry < 2000) return false;  // don't hammer a receiver that's down
   lastConnectTry = millis();
@@ -447,17 +469,23 @@ bool streamConnect() {
   String host, hostPort;
   uint16_t port;
   receiverHost(host, port, hostPort);
-  if (!streamClient.connect(host.c_str(), port, 3000)) { Serial.println("! receiver not reachable"); return false; }
+  if (!resolveReceiver(host, false)) return false;
+  if (!streamClient.connect(receiverIp, port, 3000)) {
+    if (!resolveReceiver(host, true) || !streamClient.connect(receiverIp, port, 3000)) {  // moved? look it up again
+      Serial.println("! receiver not reachable");
+      return false;
+    }
+  }
   streamClient.setNoDelay(true);  // send each 16 ms frame now: the live view wants low latency
   stampReady = false;
   stampWanted = true;
   for (uint32_t t = millis(); !stampReady && millis() - t < 500;) delay(2);
   if (!stampReady) { streamClient.stop(); return false; }
   streamClient.printf("POST /stream HTTP/1.1\r\nHost: %s\r\nX-Token: %s\r\nX-Sample-Rate: %lu\r\n"
-                      "X-Index: %llu\r\nX-Epoch-Ms: %llu\r\nX-RSSI: %d\r\nContent-Type: application/octet-stream\r\n"
+                      "X-Index: %llu\r\nX-Epoch-Ms: %llu\r\nX-RSSI: %d\r\nX-AP: %s\r\nContent-Type: application/octet-stream\r\n"
                       "Connection: close\r\n\r\n",
                       hostPort.c_str(), RECEIVER_TOKEN, (unsigned long)SAMPLE_RATE,
-                      (unsigned long long)stampIndex, (unsigned long long)stampMs, (int)WiFi.RSSI());
+                      (unsigned long long)stampIndex, (unsigned long long)stampMs, (int)WiFi.RSSI(), WiFi.BSSIDstr().c_str());
   streamConnectedAt = millis();
   streamConnects++;
   digitalWrite(PIN_MARK_UP, HIGH);

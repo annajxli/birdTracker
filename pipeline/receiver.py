@@ -20,6 +20,7 @@ A recorder can instead stream continuously, on one long connection:
   X-Index: <sample index>   the sample being recorded at X-Epoch-Ms
   X-Epoch-Ms: <UTC ms>
   X-RSSI: <dBm>             optional: the recorder's wifi signal, logged
+  X-AP: <BSSID>             optional: which access point it joined, logged
   <frames until the connection closes>
 
 Each frame is a little-endian uint64 sample index, a uint32 sample count, then
@@ -283,8 +284,8 @@ class Handler(BaseHTTPRequestHandler):
         if not 8000 <= rate <= 96000:
             return self.reply(400, "unsupported sample rate")
         source = self.client_address[0]
-        rssi = self.headers.get("X-RSSI")  # the recorder's wifi signal when it connected
-        log.info("stream from %s started: %d Hz%s", source, rate, f", RSSI {rssi} dBm" if rssi else "")
+        rssi, ap = self.headers.get("X-RSSI"), self.headers.get("X-AP")  # the recorder's wifi when it connected
+        log.info("stream from %s started: %d Hz%s%s", source, rate, f", RSSI {rssi} dBm" if rssi else "", f" via {ap}" if ap else "")
         self.connection.settimeout(STREAM_TIMEOUT)
         live = LiveFeed(self.live_port, rate, self.station) if self.live_port else None
         files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live)
