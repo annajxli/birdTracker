@@ -8,6 +8,11 @@
 //   r  record RECORD_SECONDS and upload
 //   u  upload the last recording again
 //   i  info: wifi, time, free flash
+//   c  stream continuously to the receiver (FireBeetle only); c again stops
+//
+// With STREAM_ON_BOOT the FireBeetle streams as soon as it has wifi and the time, so it
+// records unattended: a mic task fills a RAM ring buffer (a couple of seconds, to ride out
+// wifi hiccups) and loop() sends it to the receiver, which cuts it into 1-minute WAVs.
 //
 // Two "marker" pins go high while recording / uploading, for the scope now and
 // the PPK2's logic inputs later.
@@ -26,6 +31,8 @@ const uint32_t REPEAT_SECONDS = 0;     // >0: record + upload automatically this
 const int SAMPLE_SHIFT = 14;           // 24-bit mic sample -> 16-bit; 16 = no gain, 14 = +12 dB
 const uint32_t SETTLE_SAMPLES = 8192;  // discard the mic's first ~0.25 s after start-up
 const char *RECORDING = "/rec.wav";
+const bool STREAM_ON_BOOT = true;            // FireBeetle: start streaming without a serial command
+const uint32_t STREAM_RECONNECT_SECONDS = 3600;  // reconnect hourly to re-anchor the sample clock to NTP
 
 // ---- pins (GPIO numbers; change to match your wiring) ---------------------
 #if defined(ARDUINO_ARCH_ESP32)  // FireBeetle 2 ESP32-E
@@ -73,7 +80,8 @@ inline void feed() {
 #endif
 }
 
-bool micStalled = false;  // set when samples stop arriving; see record()
+bool micStalled = false;
+bool streaming = false;  // set when samples stop arriving; see record()
 
 // Fill `out` with n raw 32-bit left-channel samples. Blocks until they arrive (on the Pico,
 // gives up after half a second and sets micStalled, rather than hanging the board).
@@ -258,15 +266,23 @@ void syncClock() {
   Serial.println(time(nullptr) < 1700000000 ? "! clock not set (NTP)" : "clock set from NTP");
 }
 
+// RECEIVER_URL is "http://host:port"
+void receiverHost(String &host, uint16_t &port, String &hostPort) {
+  hostPort = String(RECEIVER_URL).substring(7);  // after "http://"
+  int colon = hostPort.indexOf(':');
+  host = hostPort.substring(0, colon);
+  port = hostPort.substring(colon + 1).toInt();
+}
+
 #if defined(ARDUINO_ARCH_RP2040)
 // arduino-pico's HTTPClient gave up a few KB into the file (HTTP -3) whenever the TCP send
 // buffer filled, so on the Pico write the request by hand and wait out short writes.
 int postFile(File &f, size_t bytes) {
-  String hostPort = String(RECEIVER_URL).substring(7);  // after "http://"
-  int colon = hostPort.indexOf(':');
-  String host = hostPort.substring(0, colon);
+  String host, hostPort;
+  uint16_t port;
+  receiverHost(host, port, hostPort);
   WiFiClient c;
-  if (!c.connect(host.c_str(), hostPort.substring(colon + 1).toInt())) return -1;
+  if (!c.connect(host.c_str(), port)) return -1;
   c.printf("POST /upload?name=%s HTTP/1.1\r\nHost: %s\r\nX-Token: %s\r\n"
            "Content-Type: application/octet-stream\r\nContent-Length: %u\r\nConnection: close\r\n\r\n",
            lastName, hostPort.c_str(), RECEIVER_TOKEN, (unsigned)bytes);
@@ -320,6 +336,157 @@ bool upload() {
                 (unsigned long)ms, bytes * 8.0 / max<uint32_t>(ms, 1));
   return code == 201;
 }
+
+// ---- streaming (FireBeetle) -----------------------------------------------
+
+#if defined(ARDUINO_ARCH_ESP32)
+#include <freertos/ringbuf.h>
+#include <sys/time.h>
+#include <atomic>
+
+// One ring-buffer item; the first 12 bytes plus the samples are sent as-is (little-endian):
+// the receiver reads a uint64 index, a uint32 count, then the samples.
+const size_t FRAME_SAMPLES = 512;  // 16 ms at 32 kHz
+struct Frame {
+  uint64_t index;  // samples since streaming started, dropped ones included
+  uint32_t count;
+  int16_t pcm[FRAME_SAMPLES];
+};
+const size_t FRAME_HEADER_BYTES = 12;
+
+RingbufHandle_t streamBuf = nullptr;
+size_t streamBufBytes = 0;
+TaskHandle_t micTask = nullptr;
+std::atomic<bool> stampWanted{false}, stampReady{false};
+uint64_t stampIndex = 0, stampMs = 0;  // a sample index and the UTC ms it was recorded
+uint32_t framesDropped = 0, framesSent = 0, streamConnects = 0;
+WiFiClient streamClient;
+uint32_t streamConnectedAt = 0, lastStatus = 0, lastConnectTry = 0;
+
+uint64_t epochMs() {
+  struct timeval tv;
+  gettimeofday(&tv, nullptr);
+  return (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+}
+
+// Runs at a higher priority than loop(), so the mic keeps being read while loop() waits on wifi.
+// When the buffer is full, frames are dropped (their indexes still count, so the receiver sees the gap).
+void micTaskLoop(void *) {
+  static int32_t raw[FRAME_SAMPLES];
+  static Frame fr;
+  uint64_t index = 0;
+  while (streaming) {
+    micRead(raw, FRAME_SAMPLES);
+    for (size_t k = 0; k < FRAME_SAMPLES; k++) fr.pcm[k] = toPcm16(raw[k]);
+    fr.index = index;
+    fr.count = FRAME_SAMPLES;
+    index += FRAME_SAMPLES;
+    if (stampWanted) {  // the frame just finished, so the next sample is being recorded now
+      stampIndex = index;
+      stampMs = epochMs();
+      stampWanted = false;
+      stampReady = true;
+    }
+    if (xRingbufferSend(streamBuf, &fr, FRAME_HEADER_BYTES + FRAME_SAMPLES * 2, 0) != pdTRUE) framesDropped++;
+  }
+  micTask = nullptr;
+  vTaskDelete(nullptr);
+}
+
+bool streamStart() {
+  if (!streamBuf) {  // the biggest contiguous block that's free; ~2 s at 128 KB
+    for (size_t kb : {128, 96, 64, 32}) {
+      if ((streamBuf = xRingbufferCreate(kb * 1024, RINGBUF_TYPE_NOSPLIT))) { streamBufBytes = kb * 1024; break; }
+    }
+    if (!streamBuf) { Serial.println("! no memory for the stream buffer"); return false; }
+  }
+  micDiscard(SETTLE_SAMPLES);
+  WiFi.setSleep(false);  // modem sleep delays sends until the next beacon; streaming can't afford it
+  framesDropped = framesSent = streamConnects = 0;
+  streaming = true;
+  xTaskCreatePinnedToCore(micTaskLoop, "mic", 4096, nullptr, 5, &micTask, 1);
+  Serial.printf("streaming to %s (%u KB buffer, %.1f s); c stops\n", RECEIVER_URL, (unsigned)(streamBufBytes / 1024),
+                streamBufBytes / (SAMPLE_RATE * 2.0));
+  return true;
+}
+
+void streamStop() {
+  streaming = false;
+  while (micTask) delay(10);
+  streamClient.stop();
+  digitalWrite(PIN_MARK_UP, LOW);
+  size_t size;  // empty the buffer
+  while (void *item = xRingbufferReceive(streamBuf, &size, 0)) vRingbufferReturnItem(streamBuf, item);
+  Serial.printf("streaming stopped: %lu frames sent, %lu dropped\n", (unsigned long)framesSent, (unsigned long)framesDropped);
+}
+
+bool streamConnect() {
+  if (millis() - lastConnectTry < 2000) return false;  // don't hammer a receiver that's down
+  lastConnectTry = millis();
+  if (time(nullptr) < 1700000000) { syncClock(); return false; }  // file names need the time
+  if (!wifiUp()) return false;
+  String host, hostPort;
+  uint16_t port;
+  receiverHost(host, port, hostPort);
+  if (!streamClient.connect(host.c_str(), port, 3000)) { Serial.println("! receiver not reachable"); return false; }
+  streamClient.setNoDelay(true);  // send each 16 ms frame now: the live view wants low latency
+  stampReady = false;
+  stampWanted = true;
+  for (uint32_t t = millis(); !stampReady && millis() - t < 500;) delay(2);
+  if (!stampReady) { streamClient.stop(); return false; }
+  streamClient.printf("POST /stream HTTP/1.1\r\nHost: %s\r\nX-Token: %s\r\nX-Sample-Rate: %lu\r\n"
+                      "X-Index: %llu\r\nX-Epoch-Ms: %llu\r\nContent-Type: application/octet-stream\r\n"
+                      "Connection: close\r\n\r\n",
+                      hostPort.c_str(), RECEIVER_TOKEN, (unsigned long)SAMPLE_RATE,
+                      (unsigned long long)stampIndex, (unsigned long long)stampMs);
+  streamConnectedAt = millis();
+  streamConnects++;
+  digitalWrite(PIN_MARK_UP, HIGH);
+  Serial.printf("stream connected (#%lu), RSSI %d dBm\n", (unsigned long)streamConnects, (int)WiFi.RSSI());
+  return true;
+}
+
+// Called from loop(): keep the connection up and move buffered frames onto it.
+void streamPump() {
+  if (streamClient.connected() && millis() - streamConnectedAt > STREAM_RECONNECT_SECONDS * 1000UL) {
+    streamClient.stop();  // the buffer holds the audio while we reconnect
+  }
+  if (!streamClient.connected()) {
+    digitalWrite(PIN_MARK_UP, LOW);
+    if (!streamConnect()) { delay(20); return; }
+  }
+  // Send whatever is buffered, up to 8 frames per write: one small packet per frame couldn't
+  // drain the buffer after a hiccup (it sat 80-90% full and dropped audio).
+  static uint8_t batch[8 * (FRAME_HEADER_BYTES + FRAME_SAMPLES * 2)];
+  size_t used = 0, size;
+  int frames = 0;
+  while (frames < 8) {
+    void *fr = xRingbufferReceive(streamBuf, &size, frames ? 0 : pdMS_TO_TICKS(50));
+    if (!fr) break;
+    memcpy(batch + used, fr, size);
+    vRingbufferReturnItem(streamBuf, fr);
+    used += size;
+    frames++;
+  }
+  uint32_t lastProgress = millis();
+  for (size_t off = 0; off < used;) {
+    size_t w = streamClient.write(batch + off, used - off);
+    if (w) { off += w; lastProgress = millis(); }
+    else if (!streamClient.connected() || millis() - lastProgress > 5000) {
+      Serial.println("! stream write failed; reconnecting");
+      streamClient.stop();
+      break;
+    } else delay(2);
+  }
+  framesSent += frames;
+  if (millis() - lastStatus > 60000) {
+    lastStatus = millis();
+    Serial.printf("stream: %lu frames sent, %lu dropped, buffer %u%% full, RSSI %d dBm\n",
+                  (unsigned long)framesSent, (unsigned long)framesDropped,
+                  (unsigned)(100 - 100 * xRingbufferGetCurFreeSize(streamBuf) / streamBufBytes), (int)WiFi.RSSI());
+  }
+}
+#endif
 
 // ---- commands -------------------------------------------------------------
 
@@ -376,10 +543,14 @@ void setup() {
   if (!micBegin()) Serial.println("! mic (I2S) failed to start");
   if (wifiUp()) syncClock();
   Serial.println("commands: l = level meter, r = record + upload, u = upload again, i = info, f = format flash,");
+  Serial.println("          c = stream continuously (FireBeetle),");
   Serial.println("          s = stop mic, m = start mic, w = wifi off (to test what a flash write conflicts with)");
 #if defined(ARDUINO_ARCH_RP2040)
   if (rp2040.getResetReason() == RP2040::WDT_RESET) Serial.println("! rebooted by the watchdog: the last command hung");
   rp2040.wdt_begin(15000);
+#endif
+#if defined(ARDUINO_ARCH_ESP32)
+  if (STREAM_ON_BOOT) streamStart();
 #endif
 }
 
@@ -390,12 +561,26 @@ void loop() {
     lastAuto = millis();
     if (record()) upload();
   }
+#if defined(ARDUINO_ARCH_ESP32)
+  if (streaming) {
+    streamPump();
+    if (!Serial.available()) return;
+    char ch = Serial.read();
+    if (ch == 'c') streamStop();
+    else if (ch == 'i') info();
+    else if (ch > ' ') Serial.println("streaming: only c (stop) and i work until it stops");
+    return;
+  }
+#endif
   if (!Serial.available()) { delay(20); return; }
   switch (Serial.read()) {
     case 'l': levelMeter(); break;
     case 'r': if (record()) upload(); break;
     case 'u': upload(); break;
     case 'i': info(); break;
+#if defined(ARDUINO_ARCH_ESP32)
+    case 'c': streamStart(); break;
+#endif
     case 'f':  // erase the filesystem, so the next recording writes to pre-erased flash
       Serial.println("formatting flash fs..."); Serial.flush();
       Serial.println(LittleFS.format() && LittleFS.begin() ? "flash fs formatted" : "! format failed");
