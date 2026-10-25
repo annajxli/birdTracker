@@ -63,11 +63,11 @@ for (let i = 0; i < detections.numRows; ++i) if (detDate.get(i) >= from) { ++det
 <p class="sub">${dateRange(from, latest)}${simulated ? " · simulated until the recorder is running" : ""}</p>
 
 <div class="grid stats" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
-  <div class="card"><h2>Low-confidence share</h2><div class="big">${d3.format(".0%")(detTotal ? detLow / detTotal : 0)}</div><div class="sub">of BirdNET detections are below the 0.6 threshold</div></div>
+  <div class="card"><h2>Low-confidence fraction</h2><div class="big">${d3.format(".0%")(detTotal ? detLow / detTotal : 0)}</div><div class="sub">of BirdNET detections are below the 0.6 threshold</div></div>
   <div class="card"><h2>Days recorded</h2><div class="big">${daysUp} of ${DAYS}</div><div class="sub">${DAYS - daysUp ? `${DAYS - daysUp} days with no audio` : "No missing days"}</div></div>
   <div class="card"><h2>Audio per day</h2><div class="big">${d3.format(".1f")(d3.mean(daily, (d) => d.hours))} h</div><div class="sub">average on days recorded</div></div>
   <div class="card"><h2>Wifi signal</h2><div class="big">${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm</div><div class="sub">median; −70 or better is solid</div></div>
-  <div class="card"><h2>Recording → dashboard</h2><div class="big">${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min</div><div class="sub">median delay; latest recording ${last.time.toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})}</div></div>
+  <div class="card"><h2>Recording → dashboard delay</h2><div class="big">${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min</div><div class="sub">median; latest recording ${last.time.toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})}</div></div>
 </div>
 
 <div class="section-top"><p class="eyebrow">Coverage</p></div>
