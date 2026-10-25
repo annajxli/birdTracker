@@ -11,7 +11,7 @@ toc: false
      This page polls live.json, lays the strips out by their start time and names the birds above
      them. A playhead follows the recording far enough behind that the next minute has arrived
      before it gets there, so the view scrolls smoothly; Listen plays the sound, which then drives
-     the playhead. Scrolling by hand stops following until Follow is pressed. -->
+     the playhead. Scrolling by hand stops following until Back to live is pressed. -->
 
 ```js
 import {speciesHref} from "./components/birds.js";
@@ -32,14 +32,17 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
   <div class="live-controls">
-    <button type="button" class="live-button" id="live-follow" hidden>Follow</button>
+    <button type="button" class="live-button live-follow" id="live-follow" hidden>Back to live</button>
     <button type="button" class="live-button" id="live-listen" aria-pressed="false" hidden>Listen</button>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
   </div>
 </div>
 
-<div class="live-scroller" id="live-scroller" tabindex="0" aria-label="Spectrogram of the recorder's recent audio, newest at the right">
-  <div class="live-track" id="live-track"></div>
+<div class="live-frame">
+  <div class="live-scroller" id="live-scroller" tabindex="0" aria-label="Spectrogram of the recorder's recent audio, newest at the right">
+    <div class="live-track" id="live-track"></div>
+  </div>
+  <div class="live-freq" id="live-freq" aria-hidden="true"></div>
 </div>
 <div class="live-earlier"><button type="button" id="live-earlier" hidden>Show an earlier hour</button></div>
 
@@ -65,9 +68,20 @@ const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
 // The playhead: where the right edge of the view sits while following. Wall clock minus `lag`,
 // held at the newest audio if the next strip is late; while listening, the audio's own position.
 let following = true, lag = null, playhead = null;
-let sound = null; // {audio, strip} while listening
+// Listening: one audio element for the whole session, so browsers that only allow sound after a
+// tap (Safari) keep allowing it from one minute to the next.
+let listening = false, player = null, current = null, waitingFor = null;
 
 const LANE = 20, LANES = 3, SPEC_TOP = LANE * LANES + 6, SPEC_H = 128, AXIS_H = 22;
+const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
+
+// Frequency labels, fixed over the left edge while the strips scroll under them.
+document.getElementById("live-freq").replaceChildren(...[12, 8, 4, 0].map((khz) => {
+  const label = document.createElement("span");
+  label.textContent = khz === MAX_KHZ ? `${khz} kHz` : String(khz);
+  label.style.top = SPEC_TOP + SPEC_H * (1 - khz / MAX_KHZ) + "px";
+  return label;
+}));
 
 let span = 300;
 try { span = SPANS.find(([s]) => s === Number(localStorage.getItem(SPAN_KEY)))?.[0] ?? span; } catch {}
@@ -172,8 +186,8 @@ function draw() {
 function frame() {
   if (following && geo && strips.length) {
     const newest = endOf(strips.at(-1));
-    if (sound && !sound.audio.paused) playhead = Date.parse(sound.strip.start) + sound.audio.currentTime * 1e3;
-    else if (!sound) {
+    if (listening && current && !player.paused) playhead = Date.parse(current.start) + player.currentTime * 1e3;
+    else if (!listening) {
       if (lag === null) lag = Date.now() - newest + FOLLOW_MARGIN;
       playhead = Math.min(Date.now() - lag, newest);
     }
@@ -186,41 +200,69 @@ function frame() {
 }
 let raf = requestAnimationFrame(frame);
 
-// Scrolling by hand (wheel, touch, scrollbar, keys) stops following and the sound.
+function markLive() {
+  followButton.hidden = !strips.length;
+  followButton.classList.toggle("is-live", following);
+  followButton.textContent = following ? "Live" : "Back to live";
+  followButton.setAttribute("aria-pressed", String(following));
+  listenButton.setAttribute("aria-pressed", String(listening));
+  listenButton.textContent = listening ? "Stop" : "Listen";
+}
+
+// Scrolling by hand (wheel, touch, scrollbar, keys) stops following, and pauses the sound.
 function stopFollowing() {
   if (!following) return;
   following = false;
-  stopSound();
-  followButton.hidden = false;
+  player?.pause();
+  waitingFor = null;
+  markLive();
 }
 for (const type of ["wheel", "touchstart", "mousedown", "keydown"]) scroller.addEventListener(type, stopFollowing, {passive: true});
-followButton.onclick = () => { following = true; followButton.hidden = true; };
 
-// Listen: play the strip under the playhead, then each next one; if the next hasn't arrived
+// Back to live: jump to just behind the newest audio and follow (and listen, if Listen was on).
+followButton.onclick = () => {
+  if (following || !strips.length) return;
+  following = true;
+  playhead = endOf(strips.at(-1)) - FOLLOW_MARGIN;
+  lag = Date.now() - playhead;
+  if (listening) playFrom(playhead);
+  markLive();
+};
+
+// Listen: play the minute under the playhead, then each next one; if the next hasn't arrived
 // yet, wait for it (poll() picks the sound up again).
 function playFrom(t) {
   const strip = strips.find((s) => s.audio && endOf(s) > t + 250);
-  if (!strip) { if (sound) sound.waiting = true; return; }
-  const audio = new Audio(LIVE + strip.audio);
-  audio.currentTime = Math.max(0, (t - Date.parse(strip.start)) / 1e3);
-  audio.onended = () => { if (sound?.audio === audio) playFrom(endOf(strip)); };
-  audio.play().catch(() => stopSound());
-  sound = {audio, strip, waiting: false};
-}
-function stopSound() {
-  if (!sound) return;
-  sound.audio.pause();
-  sound = null;
-  listenButton.setAttribute("aria-pressed", "false");
-  listenButton.textContent = "Listen";
+  if (!strip) { waitingFor = t; showStatus(); return; }
+  waitingFor = null;
+  current = strip;
+  const offset = Math.max(0, (t - Date.parse(strip.start)) / 1e3);
+  player.src = LIVE + strip.audio;
+  player.addEventListener("loadedmetadata", () => { player.currentTime = Math.min(offset, player.duration || offset); }, {once: true});
+  player.play().catch((error) => {
+    if (error.name === "AbortError") return; // replaced by the next playFrom
+    listening = false;
+    markLive();
+    status.textContent = "The browser stopped the sound. Press Listen to start it again.";
+  });
+  showStatus();
 }
 listenButton.onclick = () => {
-  if (sound) return stopSound();
-  following = true;
-  followButton.hidden = true;
-  listenButton.setAttribute("aria-pressed", "true");
-  listenButton.textContent = "Stop";
-  playFrom(playhead ?? endOf(strips.at(-1)) - FOLLOW_MARGIN);
+  player ??= Object.assign(new Audio(), {preload: "auto", onended: () => { if (listening && following) playFrom(endOf(current)); }});
+  if (listening) {
+    listening = false;
+    player.pause();
+    waitingFor = null;
+  } else {
+    listening = true;
+    // From where the view is: the playhead while following, else the right edge of the view.
+    const from = following && playhead !== null ? playhead : geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : endOf(strips.at(-1)) - FOLLOW_MARGIN;
+    following = true;
+    lag = Date.now() - from;
+    playFrom(from);
+  }
+  markLive();
+  showStatus();
 };
 
 function summarize() {
@@ -242,6 +284,8 @@ function showStatus() {
   const quiet = (Date.now() - end) / 60e3 > STALE_MINUTES;
   status.textContent = quiet
     ? `No audio from the recorder since ${time(end)}.`
+    : listening && waitingFor !== null
+    ? "Waiting for the next minute of audio…"
     : `Latest audio ${time(end)}`;
   status.classList.toggle("is-quiet", quiet);
 }
@@ -260,7 +304,8 @@ async function poll() {
     if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
     listenButton.hidden = !strips.some((s) => s.audio);
     draw();
-    if (sound?.waiting) playFrom(Date.parse(sound.strip.start) + sound.strip.seconds * 1e3);
+    markLive();
+    if (listening && following && waitingFor !== null) playFrom(waitingFor);
     summarize();
     showStatus();
   } catch (e) {
@@ -280,5 +325,5 @@ poll();
 const timer = setInterval(poll, POLL_SECONDS * 1e3);
 const resize = new ResizeObserver(() => draw());
 resize.observe(scroller);
-invalidation.then(() => { clearInterval(timer); resize.disconnect(); cancelAnimationFrame(raf); stopSound(); });
+invalidation.then(() => { clearInterval(timer); resize.disconnect(); cancelAnimationFrame(raf); player?.pause(); });
 ```

@@ -1380,6 +1380,10 @@ g[aria-label="y-axis tick label"] text { cursor: pointer; }
 .species-pop-rows > div > span:last-child { text-align: right; }
 .species-pop-more { font-weight: 600; }
 
+/* Framework's spinning loading glyph: never shown. The skeletons below mark loading instead
+   (they key off the element being there, not visible). */
+observablehq-loading { visibility: hidden; }
+
 /* Loading skeletons. While a slot's cell is still loading (it holds an <observablehq-loading>),
    faint shapes in the slot hint at what's coming: rows for timelines, bars for rankings, cards
    for photo strips, a cell grid for heatmaps, lines for tables, an axis and band for other
@@ -1519,6 +1523,36 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   cursor: pointer;
 }
 .live-button[aria-pressed="true"] { color: var(--theme-foreground-focus); border-color: var(--theme-foreground-focus); }
+.live-follow.is-live { cursor: default; }
+.live-follow.is-live::before { /* a dot, as live indicators have */
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+  vertical-align: 1px;
+}
+.live-frame { position: relative; }
+.live-freq {
+  position: absolute;
+  top: calc(0.75rem + 1px); /* the scroller's top border and padding */
+  left: 0;
+  pointer-events: none;
+}
+.live-freq span {
+  position: absolute;
+  left: 0;
+  transform: translateY(-50%);
+  padding: 0 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--theme-background) 80%, transparent);
+  font: 10px var(--sans-serif);
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-foreground-muted);
+  white-space: nowrap;
+}
 .live-button:hover { color: var(--theme-foreground-focus); }
 .live-span button { white-space: nowrap; }
 .live-status.is-quiet { color: var(--theme-foreground); }
