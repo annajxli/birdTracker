@@ -171,5 +171,5 @@ display(stage);
 .display-timer .track { stroke: var(--theme-foreground-faintest); }
 .display-timer .ring { stroke: var(--theme-foreground-muted); stroke-dasharray: 100; stroke-linecap: round; }
 .display .timeline-expand { display: none; }
-.display-slide g[aria-label="y-axis tick label"] text { font-size: 15px; }
+.display-slide svg[class^="plot"] { font-size: 15px; }
 </style>
