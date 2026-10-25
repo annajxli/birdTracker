@@ -9,9 +9,10 @@ into the incoming folder, and for each one this:
   3. cuts a short Opus clip of the most confident detection per species per
      hour, records its path on that detection, and renders the clip's
      spectrogram beside it (same name, .webp; see spectrogram.py)
-  4. renders the whole recording's spectrogram into live/ and lists it, with
-     its detections, in live/live.json, for the site's near-live view;
-     strips older than --live-hours are deleted (publish.py uploads them)
+  4. renders the whole recording's spectrogram into live/, with a 24 kHz Opus
+     copy of its audio, and lists both, with its detections, in
+     live/live.json, for the site's near-live view; strips older than
+     --live-hours are deleted (publish.py uploads them)
   5. deletes the recording (or, with --keep-days, moves it to processed/ and
      deletes it that many days later)
 
@@ -38,6 +39,7 @@ import errno
 import fcntl
 import json
 import logging
+import math
 import os
 import shutil
 import sqlite3
@@ -49,6 +51,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import soundfile as sf
+from scipy.signal import resample_poly
 
 import db
 from ingest import read_results, recording_start
@@ -62,6 +65,8 @@ SETTLE_SECONDS = 5  # a file must be unchanged this long before we treat it as c
 MAX_ATTEMPTS = 3  # analysis failures before a recording is moved to failed/
 MAX_BACKOFF_SECONDS = 15 * 60
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # the station's time zone, for BirdNET's week
+LIVE_AUDIO_RATE = 24000  # Opus needs 8/12/16/24/48 kHz; 24 kHz keeps the spectrogram's 0-12 kHz
+LIVE_AUDIO_LEVEL = 0.9  # libsndfile's Opus compression level: ~30 kbit/s, ~225 KB a minute
 
 log = logging.getLogger("analyzer")
 
@@ -219,11 +224,21 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
     live.mkdir(exist_ok=True)
     image = live / (audio.stem + ".webp")
     render_spectrogram(audio, image)
+    sound = live / (audio.stem + ".ogg")
+    data, rate = sf.read(audio, always_2d=False, dtype="float32")
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    g = math.gcd(LIVE_AUDIO_RATE, rate)
+    part = sound.with_suffix(".ogg.part")  # publish.py skips .part files
+    sf.write(part, resample_poly(data, LIVE_AUDIO_RATE // g, rate // g).astype("float32"), LIVE_AUDIO_RATE,
+             format="OGG", subtype="OPUS", compression_level=LIVE_AUDIO_LEVEL)
+    os.replace(part, sound)
     start = recording_start(audio.name, None)
     entry = {
         "start": start.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "seconds": round(sf.info(audio).duration, 2),
         "image": image.name,
+        "audio": sound.name,
         "detections": [
             {"at": r["detected_at"], "common_name": r["common_name"], "scientific_name": r["scientific_name"],
              "confidence": round(r["confidence"], 3)}
@@ -241,6 +256,8 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
     for s in strips:
         if s["start"] < cutoff:
             (live / s["image"]).unlink(missing_ok=True)
+            if s.get("audio"):
+                (live / s["audio"]).unlink(missing_ok=True)
     tmp = index.with_suffix(".json.part")
     tmp.write_text(json.dumps({"updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "strips": keep}))
     os.replace(tmp, index)

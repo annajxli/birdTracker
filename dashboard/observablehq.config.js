@@ -195,5 +195,5 @@ export default {
   header,
   interpreters: {".py": [python]},
   search: false,
-  footer: 'Detections by <a href="https://github.com/birdnet-team/BirdNET-Analyzer">BirdNET</a>. Bird photos from <a href="https://commons.wikimedia.org">Wikimedia Commons</a>; tap the ⓘ on a photo for its credit and license. Data is simulated for now.'
+  footer: 'Detections by <a href="https://github.com/birdnet-team/BirdNET-Analyzer">BirdNET</a>. Bird photos from <a href="https://commons.wikimedia.org">Wikimedia Commons</a>; tap the ⓘ on a photo for its credit and license.'
 };

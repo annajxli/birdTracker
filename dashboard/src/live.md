@@ -5,25 +5,37 @@ toc: false
 
 <link rel="stylesheet" href="./components/birds.css">
 
-<!-- The recorder, about a minute behind: the analyzer draws a spectrogram strip of each minute
-     of audio and lists that minute's detections in live.json; pipeline/publish.py uploads both to
-     R2 and the password Worker serves them under /api/live/. This page polls live.json, lays the
-     strips out by their start time (newest at the right) and names the birds above them. -->
+<!-- The recorder, a minute or two behind: the analyzer draws a spectrogram strip of each minute
+     of audio, saves its sound as Opus and lists that minute's detections in live.json;
+     pipeline/publish.py uploads them to R2 and the password Worker serves them under /api/live/.
+     This page polls live.json, lays the strips out by their start time and names the birds above
+     them. A playhead follows the recording far enough behind that the next minute has arrived
+     before it gets there, so the view scrolls smoothly; Listen plays the sound, which then drives
+     the playhead. Scrolling by hand stops following until Follow is pressed. -->
 
 ```js
 import {speciesHref} from "./components/birds.js";
 ```
 
 ```js
-const POLL_SECONDS = 30, MIN_CONF = 0.6, WINDOW_SECONDS = 300, HOUR = 3600e3;
+const POLL_SECONDS = 30, MIN_CONF = 0.6, HOUR = 3600e3;
+// How much fits across the screen; the viewer's choice is remembered.
+const SPANS = [[30, "30 sec"], [60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 hour"]];
+const SPAN_KEY = "birdtracker-live-span";
 const LIVE = "/api/live/";
 const STALE_MINUTES = 10; // no new strip for this long: say the recorder is quiet
 const RUN_GAP = 6e3; // detections of one species this close together are one run
-const time = (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"});
+const FOLLOW_MARGIN = 75e3; // how far the playhead starts behind the newest audio: about one strip's wait
+const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit", ...(seconds && {second: "2-digit"})});
 ```
 
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
+  <div class="live-controls">
+    <button type="button" class="live-button" id="live-follow" hidden>Follow</button>
+    <button type="button" class="live-button" id="live-listen" aria-pressed="false" hidden>Listen</button>
+    <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
+  </div>
 </div>
 
 <div class="live-scroller" id="live-scroller" tabindex="0" aria-label="Spectrogram of the recorder's recent audio, newest at the right">
@@ -39,15 +51,50 @@ const track = document.getElementById("live-track");
 const status = document.getElementById("live-status");
 const earlier = document.getElementById("live-earlier");
 const heard = document.getElementById("live-heard");
+const followButton = document.getElementById("live-follow");
+const listenButton = document.getElementById("live-listen");
 
 let strips = []; // from live.json, oldest first
 let shownFrom = null; // start of the earliest strip drawn (ms)
 let updated = null;
+let geo = null; // {t0, pps}: the drawn track's time at x = 0 and its scale
+const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
+const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
+const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
+
+// The playhead: where the right edge of the view sits while following. Wall clock minus `lag`,
+// held at the newest audio if the next strip is late; while listening, the audio's own position.
+let following = true, lag = null, playhead = null;
+let sound = null; // {audio, strip} while listening
 
 const LANE = 20, LANES = 3, SPEC_TOP = LANE * LANES + 6, SPEC_H = 128, AXIS_H = 22;
 
-// Scale: about five minutes across the visible width.
-const pxPerSecond = () => Math.max(2, scroller.clientWidth / WINDOW_SECONDS);
+let span = 300;
+try { span = SPANS.find(([s]) => s === Number(localStorage.getItem(SPAN_KEY)))?.[0] ?? span; } catch {}
+const spanControl = document.getElementById("live-span");
+spanControl.replaceChildren(); // the preview server re-runs this block on edits
+for (const [seconds, label] of SPANS) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = label;
+  b.dataset.span = seconds;
+  b.onclick = () => setSpan(seconds);
+  spanControl.append(b);
+}
+const markSpan = () => { for (const b of spanControl.children) b.setAttribute("aria-pressed", String(Number(b.dataset.span) === span)); };
+markSpan();
+
+// Scale: `span` seconds across the visible width.
+const pxPerSecond = () => scroller.clientWidth / span;
+
+function setSpan(seconds) {
+  if (seconds === span) return;
+  span = seconds;
+  try { localStorage.setItem(SPAN_KEY, String(span)); } catch {}
+  markSpan();
+  if (shownFrom !== null) shownFrom = Math.min(shownFrom, Date.parse(strips.at(-1)?.start ?? new Date()) - Math.max(HOUR, span * 1e3));
+  draw();
+}
 
 // Detections at the dashboard's threshold, joined into runs: one per species per stretch of song.
 function runs(list) {
@@ -64,16 +111,18 @@ function runs(list) {
   return out;
 }
 
+// Redraws the track; the moment at the right edge of the view stays put (while following, the
+// next frame puts the playhead there anyway).
 function draw() {
-  const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 8;
+  const rightEdge = geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : null;
   const shown = strips.filter((s) => Date.parse(s.start) >= shownFrom);
   track.replaceChildren();
-  if (!shown.length) { track.style.width = "100%"; return; }
+  if (!shown.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
-  const t0 = Date.parse(shown[0].start);
-  const last = shown.at(-1);
-  const t1 = Date.parse(last.start) + last.seconds * 1e3;
-  const x = (t) => ((t - t0) / 1e3) * pps;
+  const t1 = endOf(shown.at(-1));
+  // At least one full span before the newest audio, so the view can always be filled.
+  const t0 = Math.min(Date.parse(shown[0].start), t1 - span * 1e3);
+  geo = {t0, pps};
   const width = Math.max(scroller.clientWidth, x(t1));
   track.style.width = width + "px";
   track.style.height = SPEC_TOP + SPEC_H + AXIS_H + "px";
@@ -85,13 +134,15 @@ function draw() {
     el.style.setProperty("--spec", `url("${LIVE}${s.image}")`);
     track.append(el);
   }
-  // Minute ticks under the strips.
-  for (let t = Math.ceil(t0 / 60e3) * 60e3; t <= t1; t += 60e3) {
+  // Time ticks under the strips, far enough apart that their labels don't touch.
+  const label = span < 300 ? 100 : 80; // labels with seconds are wider
+  const step = [10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find((sec) => sec * pps >= label) * 1e3;
+  for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
     const tick = document.createElement("div");
     tick.className = "live-tick";
     tick.style.left = x(t) + "px";
     tick.style.top = SPEC_TOP + SPEC_H + "px";
-    tick.textContent = time(new Date(t));
+    tick.textContent = time(new Date(t), step < 60e3);
     track.append(tick);
   }
   // Names above the strips, in up to three lanes so they don't overlap; a run that finds no
@@ -113,9 +164,64 @@ function draw() {
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
   }
-  if (atEnd || !draw.scrolled) scroller.scrollLeft = scroller.scrollWidth;
-  draw.scrolled = true;
+  if (!following && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
+  else if (rightEdge === null) scroller.scrollLeft = scroller.scrollWidth;
 }
+
+// Following: each frame, put the playhead at the right edge of the view.
+function frame() {
+  if (following && geo && strips.length) {
+    const newest = endOf(strips.at(-1));
+    if (sound && !sound.audio.paused) playhead = Date.parse(sound.strip.start) + sound.audio.currentTime * 1e3;
+    else if (!sound) {
+      if (lag === null) lag = Date.now() - newest + FOLLOW_MARGIN;
+      playhead = Math.min(Date.now() - lag, newest);
+    }
+    if (playhead !== null) {
+      lag = Date.now() - playhead; // so stopping the sound or a late strip doesn't jump the view
+      scroller.scrollLeft = x(playhead) - scroller.clientWidth;
+    }
+  }
+  raf = requestAnimationFrame(frame);
+}
+let raf = requestAnimationFrame(frame);
+
+// Scrolling by hand (wheel, touch, scrollbar, keys) stops following and the sound.
+function stopFollowing() {
+  if (!following) return;
+  following = false;
+  stopSound();
+  followButton.hidden = false;
+}
+for (const type of ["wheel", "touchstart", "mousedown", "keydown"]) scroller.addEventListener(type, stopFollowing, {passive: true});
+followButton.onclick = () => { following = true; followButton.hidden = true; };
+
+// Listen: play the strip under the playhead, then each next one; if the next hasn't arrived
+// yet, wait for it (poll() picks the sound up again).
+function playFrom(t) {
+  const strip = strips.find((s) => s.audio && endOf(s) > t + 250);
+  if (!strip) { if (sound) sound.waiting = true; return; }
+  const audio = new Audio(LIVE + strip.audio);
+  audio.currentTime = Math.max(0, (t - Date.parse(strip.start)) / 1e3);
+  audio.onended = () => { if (sound?.audio === audio) playFrom(endOf(strip)); };
+  audio.play().catch(() => stopSound());
+  sound = {audio, strip, waiting: false};
+}
+function stopSound() {
+  if (!sound) return;
+  sound.audio.pause();
+  sound = null;
+  listenButton.setAttribute("aria-pressed", "false");
+  listenButton.textContent = "Listen";
+}
+listenButton.onclick = () => {
+  if (sound) return stopSound();
+  following = true;
+  followButton.hidden = true;
+  listenButton.setAttribute("aria-pressed", "true");
+  listenButton.textContent = "Stop";
+  playFrom(playhead ?? endOf(strips.at(-1)) - FOLLOW_MARGIN);
+};
 
 function summarize() {
   const since = Date.now() - HOUR;
@@ -136,7 +242,7 @@ function showStatus() {
   const quiet = (Date.now() - end) / 60e3 > STALE_MINUTES;
   status.textContent = quiet
     ? `No audio from the recorder since ${time(end)}.`
-    : `About a minute behind the recorder · latest audio ${time(end)}`;
+    : `Latest audio ${time(end)}`;
   status.classList.toggle("is-quiet", quiet);
 }
 
@@ -152,7 +258,9 @@ async function poll() {
       strips = j.strips ?? [];
     }
     if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
+    listenButton.hidden = !strips.some((s) => s.audio);
     draw();
+    if (sound?.waiting) playFrom(Date.parse(sound.strip.start) + sound.strip.seconds * 1e3);
     summarize();
     showStatus();
   } catch (e) {
@@ -172,5 +280,5 @@ poll();
 const timer = setInterval(poll, POLL_SECONDS * 1e3);
 const resize = new ResizeObserver(() => draw());
 resize.observe(scroller);
-invalidation.then(() => { clearInterval(timer); resize.disconnect(); });
+invalidation.then(() => { clearInterval(timer); resize.disconnect(); cancelAnimationFrame(raf); stopSound(); });
 ```

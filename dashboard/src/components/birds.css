@@ -1501,6 +1501,26 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   margin: 0.5rem 0 1rem;
 }
 .live-head p { margin: 0; }
+.live-head { align-items: center; }
+.live-span { flex: none; }
+.live-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.live-button {
+  min-height: 32px;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--theme-background);
+  color: var(--theme-foreground);
+  font: 600 0.78rem var(--sans-serif);
+  cursor: pointer;
+}
+.live-button[aria-pressed="true"] { color: var(--theme-foreground-focus); border-color: var(--theme-foreground-focus); }
+.live-button:hover { color: var(--theme-foreground-focus); }
+.live-span button { white-space: nowrap; }
 .live-status.is-quiet { color: var(--theme-foreground); }
 .live-scroller {
   overflow-x: auto;
