@@ -58,9 +58,16 @@ const clock = (t) => t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angel
 const cols = Math.max(2, Math.floor(W / 250));
 const cardW = (W - (cols - 1) * 20) / cols;
 const perCol = Math.max(1, Math.floor((H + 20) / (cardW * 0.75 + 120)));
+// Minutes heard per day this week, with a day axis and a minutes-per-day scale.
+const dayLetter = (d) => new Date(d).toLocaleDateString("en-US", {timeZone: "UTC", weekday: "narrow"});
 const spark = (species) => {
-  const v = week.map((d) => perDay.get(species)?.get(d) ?? 0), max = d3.max(v) || 1, bw = 100 / v.length;
-  return svg`<svg viewBox="0 0 100 24" preserveAspectRatio="none" class="display-spark">${v.map((x, k) => svg`<rect x=${k * bw + 1} width=${bw - 2} y=${24 - 22 * x / max} height=${Math.max(1, 22 * x / max)} rx="1"></rect>`)}</svg>`;
+  const v = week.map((date) => ({date, minutes: perDay.get(species)?.get(date) ?? 0}));
+  return Plot.plot({
+    width: cardW, height: 84, marginTop: 22, marginLeft: 30, marginRight: 4, marginBottom: 20, style: {fontSize: "11px"},
+    x: {type: "band", domain: week, tickFormat: dayLetter, tickSize: 0, label: null, padding: 0.25},
+    y: {ticks: 2, label: "min/day", labelAnchor: "top", labelArrow: "none", grid: true, nice: true},
+    marks: [Plot.barY(v, {x: "date", y: "minutes", fill: seriesColor(dark), rx2: 2}), Plot.ruleY([0], {strokeOpacity: 0.3})]
+  });
 };
 const card = ({species, times}) => {
   const p = photos[species], mins = d3.sum(week, (d) => perDay.get(species)?.get(d) ?? 0);
