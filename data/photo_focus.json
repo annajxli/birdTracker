@@ -1,0 +1,974 @@
+{
+ "Acanthis flammea": {
+  "x": 0.423,
+  "y": 0.477
+ },
+ "Accipiter cooperii": {
+  "x": 0.575,
+  "y": 0.34
+ },
+ "Accipiter gentilis": {
+  "x": 0.46,
+  "y": 0.422
+ },
+ "Accipiter striatus": {
+  "x": 0.374,
+  "y": 0.293
+ },
+ "Actitis macularius": {
+  "x": 0.309,
+  "y": 0.322
+ },
+ "Aechmophorus occidentalis": {
+  "x": 0.409,
+  "y": 0.374
+ },
+ "Aegolius acadicus": {
+  "x": 0.299,
+  "y": 0.398
+ },
+ "Agelaius phoeniceus": {
+  "x": 0.478,
+  "y": 0.42
+ },
+ "Aix sponsa": {
+  "x": 0.356,
+  "y": 0.458
+ },
+ "Anas acuta": {
+  "x": 0.411,
+  "y": 0.396
+ },
+ "Anas crecca": {
+  "x": 0.448,
+  "y": 0.49
+ },
+ "Anas platyrhynchos": {
+  "x": 0.518,
+  "y": 0.363
+ },
+ "Anser albifrons": {
+  "x": 0.554,
+  "y": 0.569
+ },
+ "Anser caerulescens": {
+  "x": 0.574,
+  "y": 0.213
+ },
+ "Anthus rubescens": {
+  "x": 0.462,
+  "y": 0.418
+ },
+ "Antigone canadensis": {
+  "x": 0.43,
+  "y": 0.615
+ },
+ "Aphelocoma californica": {
+  "x": 0.512,
+  "y": 0.51
+ },
+ "Aquila chrysaetos": {
+  "x": 0.471,
+  "y": 0.486
+ },
+ "Archilochus alexandri": {
+  "x": 0.449,
+  "y": 0.422
+ },
+ "Ardea alba": {
+  "x": 0.559,
+  "y": 0.417
+ },
+ "Ardea herodias": {
+  "x": 0.555,
+  "y": 0.581
+ },
+ "Ardenna grisea": {
+  "x": 0.406,
+  "y": 0.441
+ },
+ "Arenaria melanocephala": {
+  "x": 0.422,
+  "y": 0.396
+ },
+ "Asio flammeus": {
+  "x": 0.485,
+  "y": 0.648
+ },
+ "Aythya affinis": {
+  "x": 0.356,
+  "y": 0.347
+ },
+ "Aythya americana": {
+  "x": 0.373,
+  "y": 0.444
+ },
+ "Aythya collaris": {
+  "x": 0.372,
+  "y": 0.45
+ },
+ "Aythya marila": {
+  "x": 0.312,
+  "y": 0.356
+ },
+ "Aythya valisineria": {
+  "x": 0.388,
+  "y": 0.399
+ },
+ "Bombycilla cedrorum": {
+  "x": 0.526,
+  "y": 0.433
+ },
+ "Bombycilla garrulus": {
+  "x": 0.454,
+  "y": 0.415
+ },
+ "Bonasa umbellus": {
+  "x": 0.486,
+  "y": 0.545
+ },
+ "Brachyramphus marmoratus": {
+  "x": 0.505,
+  "y": 0.49
+ },
+ "Branta bernicla": {
+  "x": 0.543,
+  "y": 0.367
+ },
+ "Branta canadensis": {
+  "x": 0.498,
+  "y": 0.618
+ },
+ "Branta hutchinsii": {
+  "x": 0.448,
+  "y": 0.512
+ },
+ "Bubo virginianus": {
+  "x": 0.416,
+  "y": 0.627
+ },
+ "Bucephala albeola": {
+  "x": 0.341,
+  "y": 0.414
+ },
+ "Bucephala clangula": {
+  "x": 0.601,
+  "y": 0.452
+ },
+ "Bucephala islandica": {
+  "x": 0.329,
+  "y": 0.383
+ },
+ "Buteo jamaicensis": {
+  "x": 0.574,
+  "y": 0.495
+ },
+ "Buteo lagopus": {
+  "x": 0.466,
+  "y": 0.523
+ },
+ "Buteo swainsoni": {
+  "x": 0.513,
+  "y": 0.437
+ },
+ "Calidris alba": {
+  "x": 0.406,
+  "y": 0.451
+ },
+ "Calidris alpina": {
+  "x": 0.426,
+  "y": 0.549
+ },
+ "Calidris bairdii": {
+  "x": 0.44,
+  "y": 0.441
+ },
+ "Calidris mauri": {
+  "x": 0.513,
+  "y": 0.389
+ },
+ "Calidris melanotos": {
+  "x": 0.424,
+  "y": 0.444
+ },
+ "Calidris minutilla": {
+  "x": 0.445,
+  "y": 0.403
+ },
+ "Calidris pusilla": {
+  "x": 0.543,
+  "y": 0.427
+ },
+ "Callipepla californica": {
+  "x": 0.46,
+  "y": 0.401
+ },
+ "Calypte anna": {
+  "x": 0.432,
+  "y": 0.434
+ },
+ "Cardellina pusilla": {
+  "x": 0.45,
+  "y": 0.402
+ },
+ "Cathartes aura": {
+  "x": 0.434,
+  "y": 0.452
+ },
+ "Catharus fuscescens": {
+  "x": 0.56,
+  "y": 0.425
+ },
+ "Catharus guttatus": {
+  "x": 0.55,
+  "y": 0.39
+ },
+ "Catharus ustulatus": {
+  "x": 0.528,
+  "y": 0.465
+ },
+ "Cepphus columba": {
+  "x": 0.438,
+  "y": 0.504
+ },
+ "Certhia americana": {
+  "x": 0.476,
+  "y": 0.369
+ },
+ "Chaetura vauxi": {
+  "x": 0.491,
+  "y": 0.453
+ },
+ "Charadrius semipalmatus": {
+  "x": 0.475,
+  "y": 0.43
+ },
+ "Charadrius vociferus": {
+  "x": 0.452,
+  "y": 0.441
+ },
+ "Chondestes grammacus": {
+  "x": 0.48,
+  "y": 0.494
+ },
+ "Chordeiles minor": {
+  "x": 0.566,
+  "y": 0.449
+ },
+ "Chroicocephalus philadelphia": {
+  "x": 0.492,
+  "y": 0.6
+ },
+ "Cinclus mexicanus": {
+  "x": 0.411,
+  "y": 0.446
+ },
+ "Circus hudsonius": {
+  "x": 0.44,
+  "y": 0.372
+ },
+ "Cistothorus palustris": {
+  "x": 0.441,
+  "y": 0.479
+ },
+ "Clangula hyemalis": {
+  "x": 0.511,
+  "y": 0.567
+ },
+ "Coccothraustes vespertinus": {
+  "x": 0.549,
+  "y": 0.434
+ },
+ "Colaptes auratus": {
+  "x": 0.586,
+  "y": 0.301
+ },
+ "Columba livia": {
+  "x": 0.508,
+  "y": 0.5
+ },
+ "Contopus cooperi": {
+  "x": 0.467,
+  "y": 0.416
+ },
+ "Contopus sordidulus": {
+  "x": 0.453,
+  "y": 0.408
+ },
+ "Corthylio calendula": {
+  "x": 0.546,
+  "y": 0.442
+ },
+ "Corvus brachyrhynchos": {
+  "x": 0.323,
+  "y": 0.393
+ },
+ "Corvus corax": {
+  "x": 0.378,
+  "y": 0.446
+ },
+ "Cyanocitta stelleri": {
+  "x": 0.508,
+  "y": 0.388
+ },
+ "Cygnus buccinator": {
+  "x": 0.425,
+  "y": 0.425
+ },
+ "Cygnus columbianus": {
+  "x": 0.319,
+  "y": 0.396
+ },
+ "Cypseloides niger": {
+  "x": 0.692,
+  "y": 0.479
+ },
+ "Dendragapus fuliginosus": {
+  "x": 0.472,
+  "y": 0.479
+ },
+ "Dryobates pubescens": {
+  "x": 0.644,
+  "y": 0.427
+ },
+ "Dryobates villosus": {
+  "x": 0.539,
+  "y": 0.509
+ },
+ "Dryocopus pileatus": {
+  "x": 0.322,
+  "y": 0.282
+ },
+ "Dumetella carolinensis": {
+  "x": 0.378,
+  "y": 0.417
+ },
+ "Empidonax difficilis": {
+  "x": 0.454,
+  "y": 0.296
+ },
+ "Empidonax hammondii": {
+  "x": 0.524,
+  "y": 0.466
+ },
+ "Empidonax minimus": {
+  "x": 0.531,
+  "y": 0.366
+ },
+ "Empidonax oberholseri": {
+  "x": 0.43,
+  "y": 0.371
+ },
+ "Empidonax traillii": {
+  "x": 0.418,
+  "y": 0.325
+ },
+ "Eremophila alpestris": {
+  "x": 0.468,
+  "y": 0.463
+ },
+ "Euphagus cyanocephalus": {
+  "x": 0.463,
+  "y": 0.347
+ },
+ "Falco columbarius": {
+  "x": 0.43,
+  "y": 0.329
+ },
+ "Falco mexicanus": {
+  "x": 0.432,
+  "y": 0.282
+ },
+ "Falco peregrinus": {
+  "x": 0.527,
+  "y": 0.388
+ },
+ "Falco sparverius": {
+  "x": 0.448,
+  "y": 0.323
+ },
+ "Fulica americana": {
+  "x": 0.415,
+  "y": 0.355
+ },
+ "Gallinago delicata": {
+  "x": 0.514,
+  "y": 0.417
+ },
+ "Gavia immer": {
+  "x": 0.399,
+  "y": 0.425
+ },
+ "Gavia pacifica": {
+  "x": 0.314,
+  "y": 0.449
+ },
+ "Gavia stellata": {
+  "x": 0.405,
+  "y": 0.483
+ },
+ "Geothlypis tolmiei": {
+  "x": 0.47,
+  "y": 0.436
+ },
+ "Geothlypis trichas": {
+  "x": 0.419,
+  "y": 0.416
+ },
+ "Glaucidium gnoma": {
+  "x": 0.621,
+  "y": 0.413
+ },
+ "Haematopus bachmani": {
+  "x": 0.453,
+  "y": 0.39
+ },
+ "Haemorhous cassinii": {
+  "x": 0.263,
+  "y": 0.359
+ },
+ "Haemorhous mexicanus": {
+  "x": 0.449,
+  "y": 0.407
+ },
+ "Haemorhous purpureus": {
+  "x": 0.454,
+  "y": 0.426
+ },
+ "Haliaeetus leucocephalus": {
+  "x": 0.6,
+  "y": 0.496
+ },
+ "Himantopus mexicanus": {
+  "x": 0.436,
+  "y": 0.26
+ },
+ "Hirundo rustica": {
+  "x": 0.316,
+  "y": 0.42
+ },
+ "Histrionicus histrionicus": {
+  "x": 0.463,
+  "y": 0.488
+ },
+ "Hydroprogne caspia": {
+  "x": 0.221,
+  "y": 0.257
+ },
+ "Icteria virens": {
+  "x": 0.361,
+  "y": 0.41
+ },
+ "Icterus bullockii": {
+  "x": 0.46,
+  "y": 0.369
+ },
+ "Ixoreus naevius": {
+  "x": 0.452,
+  "y": 0.469
+ },
+ "Junco hyemalis": {
+  "x": 0.383,
+  "y": 0.374
+ },
+ "Lanius borealis": {
+  "x": 0.477,
+  "y": 0.454
+ },
+ "Larus argentatus": {
+  "x": 0.408,
+  "y": 0.434
+ },
+ "Larus brachyrhynchus": {
+  "x": 0.647,
+  "y": 0.288
+ },
+ "Larus californicus": {
+  "x": 0.356,
+  "y": 0.292
+ },
+ "Larus delawarensis": {
+  "x": 0.335,
+  "y": 0.209
+ },
+ "Larus glaucescens": {
+  "x": 0.482,
+  "y": 0.453
+ },
+ "Larus glaucoides": {
+  "x": 0.276,
+  "y": 0.307
+ },
+ "Larus heermanni": {
+  "x": 0.379,
+  "y": 0.323
+ },
+ "Larus occidentalis": {
+  "x": 0.349,
+  "y": 0.298
+ },
+ "Leiothlypis celata": {
+  "x": 0.509,
+  "y": 0.42
+ },
+ "Leiothlypis ruficapilla": {
+  "x": 0.438,
+  "y": 0.432
+ },
+ "Limnodromus griseus": {
+  "x": 0.442,
+  "y": 0.443
+ },
+ "Limnodromus scolopaceus": {
+  "x": 0.424,
+  "y": 0.437
+ },
+ "Limosa fedoa": {
+  "x": 0.54,
+  "y": 0.489
+ },
+ "Lophodytes cucullatus": {
+  "x": 0.476,
+  "y": 0.432
+ },
+ "Loxia curvirostra": {
+  "x": 0.466,
+  "y": 0.38
+ },
+ "Mareca americana": {
+  "x": 0.411,
+  "y": 0.42
+ },
+ "Mareca penelope": {
+  "x": 0.361,
+  "y": 0.463
+ },
+ "Mareca strepera": {
+  "x": 0.361,
+  "y": 0.469
+ },
+ "Megaceryle alcyon": {
+  "x": 0.45,
+  "y": 0.467
+ },
+ "Megascops kennicottii": {
+  "x": 0.523,
+  "y": 0.355
+ },
+ "Melanerpes lewis": {
+  "x": 0.322,
+  "y": 0.349
+ },
+ "Melanitta americana": {
+  "x": 0.472,
+  "y": 0.644
+ },
+ "Melanitta perspicillata": {
+  "x": 0.323,
+  "y": 0.442
+ },
+ "Meleagris gallopavo": {
+  "x": 0.455,
+  "y": 0.466
+ },
+ "Melospiza lincolnii": {
+  "x": 0.503,
+  "y": 0.495
+ },
+ "Melospiza melodia": {
+  "x": 0.509,
+  "y": 0.381
+ },
+ "Mergus merganser": {
+  "x": 0.54,
+  "y": 0.444
+ },
+ "Mergus serrator": {
+  "x": 0.486,
+  "y": 0.449
+ },
+ "Molothrus ater": {
+  "x": 0.506,
+  "y": 0.443
+ },
+ "Myadestes townsendi": {
+  "x": 0.41,
+  "y": 0.447
+ },
+ "Nannopterum auritum": {
+  "x": 0.407,
+  "y": 0.582
+ },
+ "Nucifraga columbiana": {
+  "x": 0.411,
+  "y": 0.554
+ },
+ "Numenius americanus": {
+  "x": 0.454,
+  "y": 0.341
+ },
+ "Nycticorax nycticorax": {
+  "x": 0.48,
+  "y": 0.412
+ },
+ "Oxyura jamaicensis": {
+  "x": 0.522,
+  "y": 0.323
+ },
+ "Pandion haliaetus": {
+  "x": 0.405,
+  "y": 0.47
+ },
+ "Parkesia noveboracensis": {
+  "x": 0.431,
+  "y": 0.536
+ },
+ "Passer domesticus": {
+  "x": 0.489,
+  "y": 0.438
+ },
+ "Passerculus sandwichensis": {
+  "x": 0.448,
+  "y": 0.451
+ },
+ "Passerella iliaca": {
+  "x": 0.475,
+  "y": 0.44
+ },
+ "Passerina amoena": {
+  "x": 0.456,
+  "y": 0.242
+ },
+ "Patagioenas fasciata": {
+  "x": 0.345,
+  "y": 0.405
+ },
+ "Pelecanus erythrorhynchos": {
+  "x": 0.529,
+  "y": 0.36
+ },
+ "Pelecanus occidentalis": {
+  "x": 0.478,
+  "y": 0.419
+ },
+ "Perisoreus canadensis": {
+  "x": 0.331,
+  "y": 0.342
+ },
+ "Petrochelidon pyrrhonota": {
+  "x": 0.407,
+  "y": 0.472
+ },
+ "Phalaropus lobatus": {
+  "x": 0.435,
+  "y": 0.419
+ },
+ "Phalaropus tricolor": {
+  "x": 0.471,
+  "y": 0.375
+ },
+ "Phasianus colchicus": {
+  "x": 0.334,
+  "y": 0.303
+ },
+ "Pheucticus melanocephalus": {
+  "x": 0.548,
+  "y": 0.409
+ },
+ "Pica hudsonia": {
+  "x": 0.597,
+  "y": 0.399
+ },
+ "Pinicola enucleator": {
+  "x": 0.511,
+  "y": 0.302
+ },
+ "Pipilo maculatus": {
+  "x": 0.419,
+  "y": 0.385
+ },
+ "Piranga ludoviciana": {
+  "x": 0.285,
+  "y": 0.251
+ },
+ "Plectrophenax nivalis": {
+  "x": 0.479,
+  "y": 0.499
+ },
+ "Plegadis chihi": {
+  "x": 0.523,
+  "y": 0.365
+ },
+ "Pluvialis squatarola": {
+  "x": 0.443,
+  "y": 0.472
+ },
+ "Podiceps auritus": {
+  "x": 0.515,
+  "y": 0.42
+ },
+ "Podiceps grisegena": {
+  "x": 0.601,
+  "y": 0.498
+ },
+ "Podiceps nigricollis": {
+  "x": 0.38,
+  "y": 0.582
+ },
+ "Podilymbus podiceps": {
+  "x": 0.371,
+  "y": 0.496
+ },
+ "Poecile atricapillus": {
+  "x": 0.411,
+  "y": 0.294
+ },
+ "Poecile gambeli": {
+  "x": 0.407,
+  "y": 0.431
+ },
+ "Poecile rufescens": {
+  "x": 0.345,
+  "y": 0.372
+ },
+ "Pooecetes gramineus": {
+  "x": 0.319,
+  "y": 0.431
+ },
+ "Porzana carolina": {
+  "x": 0.512,
+  "y": 0.522
+ },
+ "Psaltriparus minimus": {
+  "x": 0.414,
+  "y": 0.405
+ },
+ "Rallus limicola": {
+  "x": 0.523,
+  "y": 0.437
+ },
+ "Recurvirostra americana": {
+  "x": 0.572,
+  "y": 0.432
+ },
+ "Regulus satrapa": {
+  "x": 0.501,
+  "y": 0.487
+ },
+ "Riparia riparia": {
+  "x": 0.592,
+  "y": 0.33
+ },
+ "Salpinctes obsoletus": {
+  "x": 0.382,
+  "y": 0.447
+ },
+ "Sayornis saya": {
+  "x": 0.443,
+  "y": 0.405
+ },
+ "Selasphorus calliope": {
+  "x": 0.347,
+  "y": 0.426
+ },
+ "Selasphorus rufus": {
+  "x": 0.507,
+  "y": 0.447
+ },
+ "Setophaga coronata": {
+  "x": 0.429,
+  "y": 0.338
+ },
+ "Setophaga nigrescens": {
+  "x": 0.52,
+  "y": 0.507
+ },
+ "Setophaga occidentalis": {
+  "x": 0.433,
+  "y": 0.458
+ },
+ "Setophaga petechia": {
+  "x": 0.572,
+  "y": 0.419
+ },
+ "Setophaga ruticilla": {
+  "x": 0.452,
+  "y": 0.45
+ },
+ "Setophaga townsendi": {
+  "x": 0.419,
+  "y": 0.47
+ },
+ "Sialia currucoides": {
+  "x": 0.419,
+  "y": 0.38
+ },
+ "Sialia mexicana": {
+  "x": 0.521,
+  "y": 0.442
+ },
+ "Sitta canadensis": {
+  "x": 0.553,
+  "y": 0.457
+ },
+ "Sitta carolinensis": {
+  "x": 0.445,
+  "y": 0.529
+ },
+ "Sitta pygmaea": {
+  "x": 0.417,
+  "y": 0.404
+ },
+ "Spatula clypeata": {
+  "x": 0.559,
+  "y": 0.419
+ },
+ "Spatula cyanoptera": {
+  "x": 0.445,
+  "y": 0.36
+ },
+ "Spatula discors": {
+  "x": 0.477,
+  "y": 0.376
+ },
+ "Sphyrapicus nuchalis": {
+  "x": 0.346,
+  "y": 0.256
+ },
+ "Sphyrapicus ruber": {
+  "x": 0.356,
+  "y": 0.354
+ },
+ "Spinus pinus": {
+  "x": 0.431,
+  "y": 0.486
+ },
+ "Spinus psaltria": {
+  "x": 0.5,
+  "y": 0.462
+ },
+ "Spinus tristis": {
+  "x": 0.516,
+  "y": 0.398
+ },
+ "Spizella breweri": {
+  "x": 0.434,
+  "y": 0.472
+ },
+ "Spizella passerina": {
+  "x": 0.405,
+  "y": 0.379
+ },
+ "Spizelloides arborea": {
+  "x": 0.416,
+  "y": 0.433
+ },
+ "Stelgidopteryx serripennis": {
+  "x": 0.47,
+  "y": 0.452
+ },
+ "Streptopelia decaocto": {
+  "x": 0.527,
+  "y": 0.493
+ },
+ "Strix varia": {
+  "x": 0.642,
+  "y": 0.379
+ },
+ "Sturnella neglecta": {
+  "x": 0.56,
+  "y": 0.424
+ },
+ "Sturnus vulgaris": {
+  "x": 0.429,
+  "y": 0.428
+ },
+ "Tachycineta bicolor": {
+  "x": 0.482,
+  "y": 0.387
+ },
+ "Tachycineta thalassina": {
+  "x": 0.378,
+  "y": 0.37
+ },
+ "Thryomanes bewickii": {
+  "x": 0.415,
+  "y": 0.454
+ },
+ "Tringa flavipes": {
+  "x": 0.551,
+  "y": 0.465
+ },
+ "Tringa melanoleuca": {
+  "x": 0.545,
+  "y": 0.455
+ },
+ "Tringa semipalmata": {
+  "x": 0.444,
+  "y": 0.349
+ },
+ "Tringa solitaria": {
+  "x": 0.433,
+  "y": 0.416
+ },
+ "Troglodytes aedon": {
+  "x": 0.468,
+  "y": 0.363
+ },
+ "Troglodytes pacificus": {
+  "x": 0.574,
+  "y": 0.484
+ },
+ "Turdus migratorius": {
+  "x": 0.553,
+  "y": 0.426
+ },
+ "Tyrannus tyrannus": {
+  "x": 0.431,
+  "y": 0.39
+ },
+ "Tyrannus verticalis": {
+  "x": 0.481,
+  "y": 0.522
+ },
+ "Uria aalge": {
+  "x": 0.615,
+  "y": 0.418
+ },
+ "Vireo cassinii": {
+  "x": 0.513,
+  "y": 0.42
+ },
+ "Vireo gilvus": {
+  "x": 0.466,
+  "y": 0.501
+ },
+ "Vireo huttoni": {
+  "x": 0.375,
+  "y": 0.552
+ },
+ "Vireo olivaceus": {
+  "x": 0.469,
+  "y": 0.461
+ },
+ "Xanthocephalus xanthocephalus": {
+  "x": 0.463,
+  "y": 0.23
+ },
+ "Zenaida macroura": {
+  "x": 0.496,
+  "y": 0.448
+ },
+ "Zonotrichia albicollis": {
+  "x": 0.459,
+  "y": 0.438
+ },
+ "Zonotrichia atricapilla": {
+  "x": 0.531,
+  "y": 0.444
+ },
+ "Zonotrichia leucophrys": {
+  "x": 0.358,
+  "y": 0.428
+ }
+}

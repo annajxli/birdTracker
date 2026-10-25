@@ -29,6 +29,9 @@ export async function loadDetections() {
   return rows;
 }
 
+/** Crop a photo around its bird (focal point from pipeline/photo_focus.py) when it's cropped to fit. */
+export const focusStyle = (photo) => (photo?.focus ? `object-position: ${photo.focus.x * 100}% ${photo.focus.y * 100}%` : "");
+
 export function loadPhotos() {
   return FileAttachment("../data/species-images.json").json();
 }
@@ -233,7 +236,7 @@ export function birdPhoto(species, photo, href) {
     }
   };
   const img = photo
-    ? htl.html`<img src=${photo.image} alt=${`Photo of a ${species}`} title=${`Photo: ${photo.artist}, ${photo.license}`} loading="lazy" width=${photo.width} height=${photo.height} onload=${() => settle(true)} onerror=${() => settle(false)}>`
+    ? htl.html`<img src=${photo.image} style=${focusStyle(photo)} alt=${`Photo of a ${species}`} title=${`Photo: ${photo.artist}, ${photo.license}`} loading="lazy" width=${photo.width} height=${photo.height} onload=${() => settle(true)} onerror=${() => settle(false)}>`
     : htl.html`<span class="bird-photo-missing">No photo</span>`;
   const wrap = htl.html`<div class="photo-wrap">
     ${href ? htl.html`<a class="bird-photo" href=${href}>${img}${status}</a>` : htl.html`<div class="bird-photo">${img}${status}</div>`}
@@ -1028,7 +1031,7 @@ export function speciesCards(info) {
     anchor = el;
     card = htl.html`<div class="species-pop" role="dialog" aria-label=${species}>
       <div class="species-pop-head">
-        ${data.photo ? htl.html`<img src=${data.photo.image} alt="" loading="lazy">` : ""}
+        ${data.photo ? htl.html`<img src=${data.photo.image} style=${focusStyle(data.photo)} alt="" loading="lazy">` : ""}
         <div>
           <div class="species-pop-name">${species}</div>
           ${data.scientific ? htl.html`<div class="species-pop-sci">${data.scientific}</div>` : ""}

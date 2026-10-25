@@ -65,9 +65,9 @@ const spark = (species) => {
 const card = ({species, times}) => {
   const p = photos[species], mins = d3.sum(week, (d) => perDay.get(species)?.get(d) ?? 0);
   return html`<div class="display-card">
-    <div class="display-photo">${p ? html`<img src=${p.image} alt="">` : ""}</div>
+    <div class="display-photo">${p ? html`<img src=${p.image} alt="" style=${`object-position: ${p.focus.x * 100}% ${p.focus.y * 100}%`}>` : ""}</div>
     <div class="display-name">${species}</div>
-    <div class="display-meta">Last heard <b>${clock(times[0])}</b> · <b>${mins}</b> min this week</div>
+    <div class="display-meta"><b>${clock(times[0])}</b> · <b>${mins}</b> min this week</div>
     ${spark(species)}
   </div>`;
 };
