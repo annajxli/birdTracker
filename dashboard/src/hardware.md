@@ -36,11 +36,13 @@ const boardTempCol = optional("board_temp"), boardUptimeCol = optional("board_up
 // packet_success (0–1, frames that made it onto wifi; after a reflash), and power_mw / tx_mw: an
 // estimate of the draw from the power bank and its transmitting share (a model, from RSSI).
 const packetCol = optional("packet_success"), powerCol = optional("power_mw"), txCol = optional("tx_mw");
+const sentCol = optional("frames_sent"), droppedCol = optional("frames_dropped");
 const recs = d3.range(table.numRows).filter((i) => !col("simulated").get(i)).map((i) => ({
   time: new Date(Number(col("time").get(i))), date: col("date").get(i), hour: col("hour").get(i), seconds: col("seconds").get(i),
   rms: col("rms").get(i), rssi: col("rssi").get(i), upload: col("upload").get(i), delay: col("delay").get(i),
   boardTemp: boardTempCol?.get(i) ?? null, boardUptime: boardUptimeCol?.get(i) ?? null,
-  packet: packetCol?.get(i) ?? null, power: powerCol?.get(i) ?? null, tx: txCol?.get(i) ?? null
+  packet: packetCol?.get(i) ?? null, power: powerCol?.get(i) ?? null, tx: txCol?.get(i) ?? null,
+  sent: sentCol?.get(i) ?? null, dropped: droppedCol?.get(i) ?? null
 }));
 ```
 
@@ -83,6 +85,20 @@ const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= fr
 const confidences = confRows.map((d) => d.confidence);
 const THRESHOLD = 0.6;
 const confMedian = d3.median(confidences);
+// Packet success over many minutes, pooled (all frames sent over all frames recorded), so a short
+// minute counts for its frames, not as much as a full one. From the frame counts when exported,
+// else each minute's share weighted by its seconds (close, as frames recorded follow time on).
+// As a percentage, or NaN.
+function pooledPacket(rows) {
+  rows = rows.filter((d) => d.packet != null);
+  if (!rows.length) return NaN;
+  if (rows.every((d) => d.sent != null && d.dropped != null)) {
+    const sent = d3.sum(rows, (d) => d.sent), all = sent + d3.sum(rows, (d) => d.dropped);
+    return all ? (100 * sent) / all : NaN;
+  }
+  const weight = d3.sum(rows, (d) => d.seconds);
+  return weight ? (100 * d3.sum(rows, (d) => d.packet * d.seconds)) / weight : NaN;
+}
 // The last 24 hours (since launch, if that's sooner) in 5-minute steps, up to the newest recording.
 const STEP = 5 * 60e3;
 const dayStart = Math.max(LAUNCH, dataEnd - 24 * 3600e3);
@@ -93,7 +109,7 @@ const slots = d3.range(Math.max(1, Math.ceil((dataEnd - dayStart) / STEP))).map(
     received: v ? Math.min(100, (100 * d3.sum(v, (d) => d.seconds) * 1e3) / STEP) : 0,
     rssi: v ? d3.median(v, (d) => d.rssi) : NaN, rms: v ? d3.median(v, (d) => d.rms) : NaN, delay: v ? d3.median(v, (d) => d.delay) / 60 : NaN,
     boardTemp: v ? d3.median(v, (d) => d.boardTemp) ?? NaN : NaN,
-    packet: v ? (d3.mean(v, (d) => d.packet) ?? NaN) * 100 : NaN, power: v ? d3.mean(v, (d) => d.power) ?? NaN : NaN};
+    packet: v ? pooledPacket(v) : NaN, power: v ? d3.mean(v, (d) => d.power) ?? NaN : NaN};
 });
 ```
 
@@ -139,7 +155,7 @@ const WIFI_ZONES = [[-90, -80, "critical"], [-80, -70, "warning"], [-70, -40, "g
 const DELAY_ZONES = [[0, 3, "good"], [3, 10, "warning"], [10, 15, "critical"]];
 // Packet success: below 98% of frames sent means audible holes.
 const PACKET_ZONES = [[90, 98, "critical"], [98, 99.5, "warning"], [99.5, 100, "good"]];
-// Energy from the power bank since local midnight, from the estimated draw (mWh).
+// Energy from the power bank since local midnight, from the estimated draw (mWh; mAh at its 5 V).
 const HOUR_MS = 3600e3;
 const energyToday = () => {
   const noonUTC = Date.parse(new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}) + "T08:00:00Z");
@@ -260,7 +276,7 @@ const piSection = pi && html`<div class="grid stats">
   ${(() => {
     const last = recs.findLast((d) => d.packet != null);
     const recent = recs.filter((d) => d.packet != null && +d.time >= dataEnd - HOUR_MS);
-    const value = recent.length ? 100 * d3.mean(recent, (d) => d.packet) : null;
+    const value = recent.length ? pooledPacket(recent) : null;
     return last && value != null
       ? meterCard("Packet success", `${d3.format(".1f")(value)}%`, meter(value, PACKET_ZONES, (v) => `${v}%`), "frames sent over wifi, last hour", statusStrip(slots, "packet", PACKET_ZONES, (v) => `${d3.format(".1f")(v)}%`))
       : noData("Packet success");
@@ -269,7 +285,7 @@ const piSection = pi && html`<div class="grid stats">
     const recent = recs.filter((d) => d.power != null && +d.time >= dataEnd - HOUR_MS);
     if (!recent.length) return noData("Power draw (estimate)");
     const mw = d3.mean(recent, (d) => d.power), tx = d3.mean(recent, (d) => d.tx);
-    return html`<div class="card"><h2>Power draw (estimate)</h2><div class="big">${d3.format(",.0f")(mw)} mW</div><div class="sub">last hour · ${d3.format(".0f")(tx)} mW transmitting · ${d3.format(",.0f")(energyToday())} mWh today</div>${statusStrip(slots, "power", null, (v) => `${d3.format(",.0f")(v)} mW`)}</div>`;
+    return html`<div class="card"><h2>Power draw (estimate)</h2><div class="big">${d3.format(",.0f")(mw)} mW</div><div class="sub">last hour · ${d3.format(".0f")(tx)} mW transmitting · ${d3.format(",.0f")(energyToday() / 5)} mAh / ${d3.format(",.0f")(energyToday())} mWh today</div>${statusStrip(slots, "power", null, (v) => `${d3.format(",.0f")(v)} mW`)}</div>`;
   })()}
   ${(() => {
     const board = recs.findLast((d) => d.boardTemp != null);
