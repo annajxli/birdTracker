@@ -1749,7 +1749,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
    every level also has its own shape and word (● good, ▲ warning, ■ critical). */
 .status-good { --status: #0ca30c; }
 .status-warning { --status: #fab219; }
-.status-critical { --status: #d03b3b; }
+.status-critical { --status: #a82a2a; }
 
 .status {
   display: inline-flex;

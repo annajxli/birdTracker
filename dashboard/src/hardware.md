@@ -223,7 +223,7 @@ const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, 
     return html`<span class="strip-bar status-${level}" title="${when}: ${format(m)}, ${STATUS[level][1].toLowerCase()}"></span>`;
   })}</div><div class="strip-axis"><span>24 h ago</span><span>now</span></div></div>`;
 };
-const STATUS_COLOR = {good: "#0ca30c", warning: "#fab219", critical: "#d03b3b"};
+const STATUS_COLOR = {good: "#0ca30c", warning: "#fab219", critical: "#a82a2a"};
 const pctOf = (part, whole) => (100 * part) / whole;
 const memPct = pi?.memory_mb && pctOf(pi.memory_mb.used, pi.memory_mb.total);
 const diskPct = pi?.disk_gb && pctOf(pi.disk_gb.free, pi.disk_gb.total);
