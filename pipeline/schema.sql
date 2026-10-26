@@ -28,5 +28,7 @@ CREATE TABLE IF NOT EXISTS recordings (
     received_at  TEXT,              -- when the receiver finished writing it, ISO 8601 UTC
     analyzed_at  TEXT,              -- when its detections were stored, ISO 8601 UTC
     source       TEXT,              -- "simulated" for generated rows
+    board_temp_c REAL,              -- the recorder's chip temperature during it, deg C
+    board_uptime_s REAL,            -- seconds since the recorder booted, at its start
     UNIQUE (station_id, started_at)
 );

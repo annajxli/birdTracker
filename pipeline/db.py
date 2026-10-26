@@ -12,6 +12,11 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(path)
     conn.executescript(SCHEMA.read_text())
+    # Columns added since a database was made (CREATE TABLE IF NOT EXISTS leaves an old table as is).
+    have = {r[1] for r in conn.execute("PRAGMA table_info(recordings)")}
+    for column, kind in (("board_temp_c", "REAL"), ("board_uptime_s", "REAL")):
+        if column not in have:
+            conn.execute(f"ALTER TABLE recordings ADD COLUMN {column} {kind}")
     return conn
 
 

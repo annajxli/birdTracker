@@ -24,15 +24,17 @@ A recorder can instead stream continuously, on one long connection:
   <frames until the connection closes>
 
 Each frame is a little-endian uint64 sample index, a uint32 sample count, then
-that many 16-bit mono samples. The index counts every sample since the
+that many 16-bit mono samples. A frame with index 2^64-1 is the recorder's
+health instead: `count` 16-bit words of text like "temp_c=41.2 uptime_s=5321
+rssi_dbm=-61" (sent after connecting, then once a minute). The index counts every sample since the
 recorder started streaming, including ones it had to drop, so a gap in the
 indexes is a gap in the audio. The stream is cut into one WAV per UTC minute,
 named by its first sample's time; short gaps are filled with silence so the
 timing stays right, and a longer gap or a disconnect ends the file. The
 recorder reconnects now and then, which re-anchors the index to the clock.
 Next to each minute's WAV goes <name>.json, written just before the WAV appears:
-the wifi signal, when the minute was finished, and how much of it was silence
-filling gaps. analyzer.py stores it as that minute's row in the recordings table.
+the wifi signal, the board's temperature and uptime (from its health frames),
+when the minute was finished, and how much of it was silence filling gaps. analyzer.py stores it as that minute's row in the recordings table.
 
 With --live-port, the stream is also forwarded to pipeline/live.py on
 localhost: a `BIRDSTREAM 1 rate=... format=s16le channels=1 station=...` line,
@@ -70,6 +72,7 @@ NAME = re.compile(r"^\d{8}T\d{6}Z\.(wav|flac|ogg|opus)$")
 MAX_BYTES = 2 * 1024**3  # 2 GB: far more than a few minutes of audio
 CHUNK = 64 * 1024
 FRAME_HEADER = struct.Struct("<QI")  # sample index, sample count
+HEALTH_INDEX = 2**64 - 1  # a frame with this index carries the recorder's health, not audio
 MAX_FRAME_SAMPLES = 8192
 MAX_FILL_SECONDS = 10  # gaps up to this long become silence; longer ones end the file
 MIN_FILE_SECONDS = 3   # BirdNET's window: shorter leftovers aren't worth keeping
@@ -145,12 +148,30 @@ class MinuteFiles:
         self.next_index = None  # index of the next sample the open file expects
         self.samples_left = 0  # samples until the open file's minute ends
         self.gap_samples = 0  # silence filled into the open file
+        self.temps = []  # board temperatures reported during the open file
+        self.temp = None  # ...and the latest one, for a file that gets none
+        self.boot = None  # when the board booted (epoch seconds), from its uptime
+
+    def health(self, text: str) -> None:
+        """A health frame: keep its temperature, signal and boot time for the minute files."""
+        fields = dict(f.split("=", 1) for f in text.split() if "=" in f)
+        try:
+            if "temp_c" in fields:
+                self.temp = float(fields["temp_c"])
+                self.temps.append(self.temp)
+            if "uptime_s" in fields:
+                self.boot = time.time() - float(fields["uptime_s"])
+            if "rssi_dbm" in fields:
+                self.rssi = int(fields["rssi_dbm"])
+        except ValueError:
+            log.warning("stream from %s: bad health frame %r", self.source, text)
 
     def time_of(self, index: int) -> float:
         return self.anchor_time + (index - self.anchor_index) / self.rate
 
     def open(self, index: int) -> None:
         start = self.time_of(index)
+        self.start = start
         self.name = datetime.fromtimestamp(start, UTC).strftime("%Y%m%dT%H%M%SZ.wav")
         self.part = self.incoming / (self.name + ".part")
         self.wav = wave.open(str(self.part), "wb")
@@ -160,6 +181,7 @@ class MinuteFiles:
         self.next_index = index
         self.samples_left = max(1, round((60 - start % 60) * self.rate))
         self.gap_samples = 0
+        self.temps = []
 
     def close(self) -> None:
         if not self.wav:
@@ -177,8 +199,11 @@ class MinuteFiles:
             self.part.unlink(missing_ok=True)
             return
         received = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-        (self.incoming / (final.stem + ".json")).write_text(json.dumps(
-            {"rssi_dbm": self.rssi, "received_at": received, "gap_seconds": round(self.gap_samples / self.rate, 2)}))
+        temp = sum(self.temps) / len(self.temps) if self.temps else self.temp
+        (self.incoming / (final.stem + ".json")).write_text(json.dumps({
+            "rssi_dbm": self.rssi, "received_at": received, "gap_seconds": round(self.gap_samples / self.rate, 2),
+            "board_temp_c": None if temp is None else round(temp, 1),
+            "board_uptime_s": None if self.boot is None else round(max(0.0, self.start - self.boot))}))
         os.replace(self.part, final)
         gap = f", {self.gap_samples / self.rate:.2f} s of it silence filling gaps" if self.gap_samples else ""
         log.info("stream from %s: %s, %.1f s%s", self.source, self.name, seconds, gap)
@@ -308,6 +333,12 @@ class Handler(BaseHTTPRequestHandler):
                 if len(header) < FRAME_HEADER.size:
                     break  # closed between frames (or mid-header)
                 index, count = FRAME_HEADER.unpack(header)
+                if index == HEALTH_INDEX and 0 < count <= 64:
+                    text = self.rfile.read(2 * count)
+                    if len(text) < 2 * count:
+                        break
+                    files.health(text.decode("ascii", "replace"))
+                    continue
                 if not 0 < count <= MAX_FRAME_SAMPLES:
                     log.warning("stream from %s: bad frame (count %d); closing", source, count)
                     break

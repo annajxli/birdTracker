@@ -365,6 +365,7 @@ bool upload() {
 
 #if defined(ARDUINO_ARCH_ESP32)
 #include <ESPmDNS.h>
+#include <esp_timer.h>
 #include <freertos/ringbuf.h>
 #include <sys/time.h>
 #include <atomic>
@@ -386,7 +387,8 @@ std::atomic<bool> stampWanted{false}, stampReady{false};
 uint64_t stampIndex = 0, stampMs = 0;  // a sample index and the UTC ms it was recorded
 uint32_t framesDropped = 0, framesSent = 0, streamConnects = 0;
 WiFiClient streamClient;
-uint32_t streamConnectedAt = 0, lastStatus = 0, lastConnectTry = 0;
+uint32_t streamConnectedAt = 0, lastStatus = 0, lastConnectTry = 0, lastHealth = 0;
+bool healthDue = false;
 
 uint64_t epochMs() {
   struct timeval tv;
@@ -488,9 +490,29 @@ bool streamConnect() {
                       (unsigned long long)stampIndex, (unsigned long long)stampMs, (int)WiFi.RSSI(), WiFi.BSSIDstr().c_str());
   streamConnectedAt = millis();
   streamConnects++;
+  healthDue = true;
   digitalWrite(PIN_MARK_UP, HIGH);
   Serial.printf("stream connected (#%lu), RSSI %d dBm\n", (unsigned long)streamConnects, (int)WiFi.RSSI());
   return true;
+}
+
+// The board's own health, sent in the stream as a frame with index UINT64_MAX: its count is the
+// length of a text payload in 16-bit words ("temp_c=41.2 uptime_s=5321 rssi_dbm=-61", padded
+// with a space to an even length). Sent after connecting and then once a minute.
+void streamHealth() {
+  char text[64];
+  int n = snprintf(text, sizeof text, "temp_c=%.1f uptime_s=%llu rssi_dbm=%d", temperatureRead(),
+                   (unsigned long long)(esp_timer_get_time() / 1000000), (int)WiFi.RSSI());
+  if (n & 1) text[n++] = ' ';
+  uint8_t head[FRAME_HEADER_BYTES];
+  uint64_t index = UINT64_MAX;
+  uint32_t count = n / 2;
+  memcpy(head, &index, 8);
+  memcpy(head + 8, &count, 4);
+  streamClient.write(head, sizeof head);
+  streamClient.write((const uint8_t *)text, n);
+  lastHealth = millis();
+  healthDue = false;
 }
 
 // Called from loop(): keep the connection up and move buffered frames onto it.
@@ -526,6 +548,7 @@ void streamPump() {
     } else delay(2);
   }
   framesSent += frames;
+  if (streamClient.connected() && (healthDue || millis() - lastHealth > 60000)) streamHealth();
   if (millis() - lastStatus > 60000) {
     lastStatus = millis();
     Serial.printf("stream: %lu frames sent, %lu dropped, buffer %u%% full, RSSI %d dBm\n",

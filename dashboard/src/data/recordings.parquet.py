@@ -1,7 +1,8 @@
 """Export recorder telemetry (one row per uploaded recording) as Parquet for Hardware analytics.
 
 Local date and hour (Pacific time) are computed here, as for detections. delay_s is the time
-from the end of a recording to its detections being stored. Set BIRDTRACKER_DB to read a
+from the end of a recording to its detections being stored; board_temp and board_uptime are
+the recorder's own health (null where it didn't report them). Set BIRDTRACKER_DB to read a
 different database.
 """
 
@@ -18,11 +19,13 @@ ROOT = Path(__file__).resolve().parents[3]
 DB = Path(os.environ.get("BIRDTRACKER_DB", ROOT / "data" / "detections.sqlite"))
 TZ = "America/Los_Angeles"
 
+COLUMNS = ["started_at", "seconds", "rms_dbfs", "rssi_dbm", "upload_s", "analyzed_at", "source", "board_temp_c", "board_uptime_s"]
 with sqlite3.connect(DB) as conn:
     try:
-        df = pd.read_sql("SELECT started_at, seconds, rms_dbfs, rssi_dbm, upload_s, analyzed_at, source FROM recordings", conn)
+        df = pd.read_sql("SELECT * FROM recordings", conn)
     except (pd.errors.DatabaseError, sqlite3.OperationalError):  # an older database without the table
-        df = pd.DataFrame(columns=["started_at", "seconds", "rms_dbfs", "rssi_dbm", "upload_s", "analyzed_at", "source"])
+        df = pd.DataFrame()
+df = df.reindex(columns=COLUMNS)  # an older table lacks the newer columns: they come out null
 
 start = pd.to_datetime(df.started_at, utc=True)
 local = start.dt.tz_convert(TZ)
@@ -37,6 +40,8 @@ out = pd.DataFrame({
     "upload": df.upload_s.astype("float32"),
     "delay": ((analyzed - start).dt.total_seconds() - df.seconds).astype("float32"),
     "simulated": df.source.eq("simulated"),
+    "board_temp": df.board_temp_c.astype("float32"),
+    "board_uptime": df.board_uptime_s.astype("float32"),
 }).sort_values("time")
 
 table = pa.Table.from_pandas(out, preserve_index=False)
