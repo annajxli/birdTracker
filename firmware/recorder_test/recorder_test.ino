@@ -1,7 +1,8 @@
 // Bench test 1: record from an INMP441 / ICS-43434 I2S mic into flash, then
 // upload the WAV to pipeline/receiver.py over wifi. One sketch for both bench
 // boards: FireBeetle 2 ESP32-E (Arduino-ESP32 core 3.x) and Raspberry Pi Pico 2 W
-// (arduino-pico core). Test plan and wiring: docs/bench-test-1.md.
+// (arduino-pico core). Wiring and setup: docs/hardware.md ("Build the bench recorder").
+// Bench test 1 plan and results: docs/bench-test-1.md.
 //
 // Serial commands (115200 baud):
 //   l  level meter: peak and RMS for 10 s (is the mic alive? how loud?)

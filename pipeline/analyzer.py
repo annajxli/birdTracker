@@ -1,6 +1,6 @@
 """Watch a folder for new recordings, identify birds with BirdNET, and store the results.
 
-This is the indoor half of the setup in docs/hardware.md: the recorder drops
+This is the indoor half of the system in docs/architecture.md: the recorder drops
 short audio files (named by their UTC start time, e.g. 20260512T131500Z.flac)
 into the incoming folder, and for each one this:
 
