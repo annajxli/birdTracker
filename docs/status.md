@@ -75,8 +75,10 @@ The following table lists the branches and where their documentation goes:
 
 ### Live details update
 
-The Live UI supports the species pane, edge-clamped labels, centered mute text,
-and unidentified intervals. The analyzer export is a separate pending update;
+The Live UI supports edge-clamped labels, centered mute text, and unidentified
+intervals. The embedded species pane was removed; the popup's **More details**
+link now opens the species page in a new tab. A native drawer, rendered from data
+Live already loads, remains an option if a new tab proves clumsy. The analyzer export is a separate pending update;
 no Pi deployment has happened, so existing production strips don't gain
 unidentified intervals. Site deployment is automatic after merging this update.
 Dashboard tests and build pass; browser interaction verification remains open.

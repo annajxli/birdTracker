@@ -285,8 +285,10 @@ repository documents for them.
 
 ## Live species details and unidentified intervals
 
-The Live popup opens species details in a right pane while the Live player stays
-mounted. On phones the pane fills the screen. Close or Escape dismisses it.
+The Live popup's **More details** link opens the species page in a new tab, so
+the Live player keeps playing. An earlier version embedded the species page in
+an iframe pane; it was removed because embedding loads a second copy of the app
+and breaks where the host forbids framing.
 Incoming label text stays within the plot edge until its detection catches up;
 underlines and seek positions retain their recording timestamps.
 

@@ -1203,8 +1203,9 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
  * or null for labels that aren't species (category headers, block titles). Returns a function
  * that removes the listeners. Elements matching `hover` (with the name in data-species) open the
  * card on hover only; their clicks stay the page's own (the Live labels jump to their run).
+ * With `newTab`, "More details" opens in a new tab, so the page behind it keeps running.
  */
-export function speciesCards(info, {hover = null, onDetails = null} = {}) {
+export function speciesCards(info, {hover = null, newTab = false} = {}) {
   const LABELS = 'g[aria-label="y-axis tick label"] text';
   const LINKS = 'a[href*="species?name="]';
   const TARGETS = [LABELS, LINKS, hover].filter(Boolean).join(", ");
@@ -1247,12 +1248,8 @@ export function speciesCards(info, {hover = null, onDetails = null} = {}) {
       ${data.actions ?? ""}
       <a class="species-pop-more" href=${speciesHref(species)}>More details →</a>
     </div>`;
-    if (onDetails) card.querySelector(".species-pop-more").addEventListener("click", (event) => {
-      if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      event.preventDefault();
-      hide();
-      onDetails(species);
-    });
+    // Live keeps playing in its own tab while the species page opens beside it.
+    if (newTab) Object.assign(card.querySelector(".species-pop-more"), {target: "_blank", rel: "noopener"});
     card.addEventListener("pointerenter", () => clearTimeout(hideTimer));
     card.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hideTimer = setTimeout(hide, 200); });
     document.body.append(card);
