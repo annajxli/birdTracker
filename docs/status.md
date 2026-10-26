@@ -49,6 +49,15 @@ against real recordings. For details, see
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 1](bench-test-1.md#plan-for-bench-test-2).
 
+### Plans for more stations and microphones
+
+Neither plan is built or tested:
+
+- [Indoor computer options](plans/indoor-computer-options.md): copy the Pi 3B+
+  setup after the indoor computer checks above pass.
+- [Microphone options](plans/microphone-options.md): candidate microphones and
+  how to compare them.
+
 ## Work on other branches
 
 The following branches change documentation that isn't on `main`. When you

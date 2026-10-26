@@ -35,7 +35,9 @@ setup with the fewest parts is a microphone on the cable and a computer
 indoors on wall power, with no solar power or Wi-Fi link.
 
 The energy figures on that page are estimates. Bench tests replace them with
-measurements. For bench results, see [Bench test 1](bench-test-1.md).
+measurements. For bench results, see [Bench test 1](bench-test-1.md). For
+microphone changes, such as a quieter capsule or better wind protection, see
+[Microphone options](plans/microphone-options.md).
 
 ## Build the bench recorder
 
