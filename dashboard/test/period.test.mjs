@@ -48,3 +48,13 @@ test("all time spans everything, has no neighbours, and is labelled as such", ()
   assert.deepEqual(shiftPeriod("A", "2026-10-22", -1), bounds);
   assert.equal(periodLabel("A", "2026-10-22"), "All time");
 });
+
+test("overview axes retain a full week/month/year when only two days exist", async () => {
+  const {overviewBounds} = await import("../src/components/period.js");
+  const first = "2026-10-25", last = "2026-10-26";
+  assert.deepEqual(overviewBounds("W", last, first, last), {start: "2026-10-25", end: "2026-10-31"});
+  assert.deepEqual(overviewBounds("M", last, first, last), {start: "2026-10-01", end: "2026-10-31"});
+  assert.deepEqual(overviewBounds("Y", last, first, last), {start: "2026-01-01", end: "2026-12-31"});
+  assert.deepEqual(overviewBounds("A", last, first, last), {start: first, end: last});
+  assert.deepEqual(overviewBounds("W", "2026-10-23", first, last), {start: "2026-10-18", end: "2026-10-24"});
+});
