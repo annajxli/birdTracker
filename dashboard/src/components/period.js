@@ -3,37 +3,30 @@ export const PERIODS = {D: "Day", W: "Week", M: "Month", Y: "Year", A: "All time
 // "All time" has no calendar bounds of its own; callers clamp it to the data's first and last day.
 const ALL_TIME = {start: "0001-01-01", end: "9999-12-31"};
 
+export const TRAILING_DAYS = {W: 7, M: 30, Y: 365};
+
 export function periodBounds(scale, date) {
   if (scale === "A") return {...ALL_TIME};
-  const start = new Date(`${date}T00:00:00Z`);
-  if (scale === "W") start.setUTCDate(start.getUTCDate() - start.getUTCDay()); // weeks start on Sunday
-  if (scale === "M") start.setUTCDate(1);
-  if (scale === "Y") start.setUTCMonth(0, 1);
-  const next = new Date(start);
-  if (scale === "D") next.setUTCDate(next.getUTCDate() + 1);
-  if (scale === "W") next.setUTCDate(next.getUTCDate() + 7);
-  if (scale === "M") next.setUTCMonth(next.getUTCMonth() + 1);
-  if (scale === "Y") next.setUTCFullYear(next.getUTCFullYear() + 1);
-  const key = (d) => d.toISOString().slice(0, 10);
-  return {start: key(start), end: key(new Date(+next - 86400000))};
+  const end = new Date(`${date}T00:00:00Z`);
+  const start = new Date(end);
+  start.setUTCDate(start.getUTCDate() - ((TRAILING_DAYS[scale] ?? 1) - 1));
+  return {start: start.toISOString().slice(0, 10), end: date};
 }
 
 export function shiftPeriod(scale, date, direction) {
   if (scale === "A") return {...ALL_TIME};
-  const bounds = periodBounds(scale, date);
-  const edge = new Date(`${direction < 0 ? bounds.start : bounds.end}T00:00:00Z`);
-  edge.setUTCDate(edge.getUTCDate() + (direction < 0 ? -1 : 1));
-  return periodBounds(scale, edge.toISOString().slice(0, 10));
+  const anchor = new Date(`${date}T00:00:00Z`);
+  anchor.setUTCDate(anchor.getUTCDate() + direction * (TRAILING_DAYS[scale] ?? 1));
+  return periodBounds(scale, anchor.toISOString().slice(0, 10));
 }
 
 export function periodLabel(scale, date) {
   if (scale === "A") return "All time";
   const options = {timeZone: "UTC"};
-  if (scale === "M") return new Date(date).toLocaleDateString("en-US", {...options, month: "long", year: "numeric"});
-  if (scale === "Y") return date.slice(0, 4);
   const {start, end} = periodBounds(scale, date);
   const format = (d) => new Date(d).toLocaleDateString("en-US", {...options, month: "short", day: "numeric", year: "numeric"});
   if (scale === "D") return format(date);
+  if (scale === "Y" || (scale === "M" && start.slice(0, 4) !== end.slice(0, 4))) return `${format(start)} – ${format(end)}`;
   // Weeks are compact, with no year: "Oct 18 – 24", "Sep 28 – Oct 4", "Dec 28 – Jan 3".
   const short = (d) => new Date(d).toLocaleDateString("en-US", {...options, month: "short", day: "numeric"});
   return start.slice(0, 7) === end.slice(0, 7) ? `${short(start)} – ${Number(end.slice(8, 10))}` : `${short(start)} – ${short(end)}`;
@@ -43,6 +36,11 @@ export function calendarDays(month, scale, selectedDate) {
   const first = new Date(`${month.slice(0, 7)}-01T00:00:00Z`);
   first.setUTCDate(1 - first.getUTCDay()); // calendar rows start on Sunday
   const selected = periodBounds(scale, selectedDate);
+  // A trailing week ending early in the month can begin before the normal first
+  // calendar row. Keep that entire selected range visible.
+  if (scale === "W" && selectedDate.slice(0, 7) === month.slice(0, 7) && selected.start < first.toISOString().slice(0, 10)) {
+    first.setUTCDate(first.getUTCDate() - 7);
+  }
   return Array.from({length: 42}, (_, i) => {
     const date = new Date(+first + i * 86400000).toISOString().slice(0, 10);
     return {date, inMonth: date.slice(0, 7) === month.slice(0, 7),
@@ -52,7 +50,7 @@ export function calendarDays(month, scale, selectedDate) {
   });
 }
 
-/** Calendar views retain their complete span; only All time follows data bounds. */
+/** Period views retain their complete span; only All time follows data bounds. */
 export function overviewBounds(scale, date, first, last) {
   return scale === "A" ? {start: first, end: last} : periodBounds(scale, date);
 }

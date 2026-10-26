@@ -71,3 +71,10 @@ and unidentified intervals. The analyzer export is a separate pending update;
 no Pi deployment has happened, so existing production strips don't gain
 unidentified intervals. Site deployment is automatic after merging this update.
 Dashboard tests and build pass; browser interaction verification remains open.
+
+### Overview trailing selection
+
+Overview date and span persist in URL parameters across refreshes. W/M/Y use
+trailing ranges ending on the selected date, including blank history before
+available recordings. Calendar selection chooses the end date. Dashboard tests
+and the site build pass. Deployment follows the automatic main workflow.
