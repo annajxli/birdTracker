@@ -873,7 +873,13 @@ function summarize() {
     grid.onclick = (event) => {
       const lane = event.target.closest(".live-gantt-lane");
       if (!lane) return;
-      const bar = event.target.closest(".live-gantt-bar");
+      // Anywhere over a bar's stretch of the row (not just its thin height, with a few px
+      // of slack for one-minute bars) goes to the start of that run; elsewhere, to the time
+      // under the cursor.
+      const bar = event.target.closest(".live-gantt-bar") ?? [...lane.querySelectorAll(".live-gantt-bar")].find((b) => {
+        const r = b.getBoundingClientRect();
+        return event.clientX >= r.left - 3 && event.clientX <= r.right + 3;
+      });
       const box = lane.getBoundingClientRect();
       jumpTo(bar ? runStart(lane.dataset.name, Number(bar.dataset.first)) : w0 + ((event.clientX - box.left) / box.width) * HOUR);
     };
