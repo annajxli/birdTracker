@@ -19,7 +19,6 @@ toc: false
 ```js
 import {UNIDENTIFIED, unidentifiedDetections, unidentifiedRuns} from "./components/live-unidentified.js";
 import {liveLabelLeft} from "./components/live-label-position.js";
-import {liveSpeciesPanel} from "./components/live-species-panel.js";
 import {includedDetection, detectionPlaybackStart, shownInGantt} from "./components/detection-policy.js";
 import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview} from "./components/birds.js";
 ```
@@ -606,8 +605,6 @@ function reviewRun(run, verdict) {
   draw(); summarize();
   document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape"})); // close the card; its label was redrawn
 }
-const speciesPanel = liveSpeciesPanel();
-invalidation.then(() => speciesPanel.destroy());
 const stopCards = speciesCards((name, el) => {
   if (!cardMeta) return null;
   const heard = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name && counts(d));
@@ -621,7 +618,7 @@ const stopCards = speciesCards((name, el) => {
       ? [html`<span class="review-state">${run.review === "rejected" ? "Rejected" : "✓ Confirmed"}</span>`, act("Undo", null)]
       : [act("Confirm", "confirmed"), act("Reject", "rejected")]}</div>`
   };
-}, {hover: ".live-name", onDetails: (species) => speciesPanel.open(species)});
+}, {hover: ".live-name", newTab: true});
 invalidation.then(stopCards);
 
 // Scrolling by hand (wheel, touch, dragging the scrollbar) frees the view; time runs on.
