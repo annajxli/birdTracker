@@ -1253,11 +1253,13 @@ export function speciesCards(info, {hover = null, newTab = false} = {}) {
     card.addEventListener("pointerenter", () => clearTimeout(hideTimer));
     card.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hideTimer = setTimeout(hide, 200); });
     document.body.append(card);
-    // Beside the name if there's room, else below it; always inside the window.
-    const r = el.getBoundingClientRect();
+    // Right of the name if there's room, else left of it, else below it; always inside the window.
+    // Live labels are zero-width buttons whose text is shifted inside the view, so measure the text.
+    const r = (el.querySelector(".live-name-text") ?? el).getBoundingClientRect();
     const w = card.offsetWidth, h = card.offsetHeight;
     let left = r.right + 10, top = r.top - 12;
-    if (left + w > innerWidth - 8) { left = Math.max(8, Math.min(r.left, innerWidth - w - 8)); top = r.bottom + 6; }
+    if (left + w > innerWidth - 8) left = r.left - w - 10;
+    if (left < 8) { left = Math.max(8, Math.min(r.left, innerWidth - w - 8)); top = r.bottom + 6; }
     top = Math.max(8, Math.min(top, innerHeight - h - 8));
     card.style.left = `${left + scrollX}px`;
     card.style.top = `${top + scrollY}px`;
