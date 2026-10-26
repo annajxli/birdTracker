@@ -902,7 +902,7 @@ section.zoom {
 }
 
 .grid.stats .big {
-  font-size: 1.6rem;
+  font-size: 1.35rem;
   line-height: 1.1;
   min-height: 1.1em;
 }
@@ -1847,3 +1847,143 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .card-history {
   margin-top: auto;
 }
+
+/* Species calendar: the hour axis stays put beside the scrolling days. */
+.calendar-wrap {
+  display: flex;
+  align-items: flex-start;
+}
+
+.calendar-wrap > svg { flex: none; }
+.calendar-wrap > .species-calendar { flex: 1; min-width: 0; }
+
+/* Species picker: "Category › Species" button; opens category tabs over a tray of species. */
+.species-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+/* The panel drops over the page below the filter bar, so nothing in the bar moves. */
+.species-filters { position: relative; }
+
+.picker-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--theme-foreground-muted);
+}
+
+.picker-button {
+  display: inline-grid;
+  justify-items: start;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground);
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.picker-button:hover { border-color: var(--theme-foreground-muted); }
+.picker-text { grid-area: 1 / 1; white-space: nowrap; }
+.picker-sizer { visibility: hidden; }
+.picker-button b { font-weight: 600; }
+.picker-cat, .picker-sep { color: var(--theme-foreground-muted); }
+.picker-sep { margin: 0 0.35rem; }
+
+.picker-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.25);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--theme-background-alt);
+  overflow: hidden;
+}
+
+.picker-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 0.4rem;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--rule);
+  scrollbar-width: thin;
+}
+
+.picker-tab {
+  flex: none;
+  padding: 0.55rem 0.6rem 0.45rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--theme-foreground-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.picker-tab[aria-selected="true"] {
+  color: var(--theme-foreground);
+  font-weight: 600;
+  border-bottom-color: var(--theme-foreground);
+}
+
+.picker-tab small, .picker-species small {
+  margin-left: 0.3rem;
+  color: var(--theme-foreground-muted);
+  font-weight: 400;
+}
+
+.picker-tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  background: var(--theme-background);
+}
+
+.picker-species {
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.picker-species:hover { border-color: var(--theme-foreground-muted); }
+
+.picker-species[aria-pressed="true"] {
+  background: var(--theme-foreground);
+  border-color: var(--theme-foreground);
+  color: var(--theme-background);
+}
+
+.picker-species[aria-pressed="true"] small { color: var(--theme-background-alt); }
+
+.picker-random {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.picker-random:hover { border-color: var(--theme-foreground-muted); }
+.picker-random svg { width: 14px; height: 14px; }

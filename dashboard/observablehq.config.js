@@ -157,7 +157,7 @@ const header = `<div class="site-header">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16c3 0 5-1.2 6-4 .9-2.6 3-4.5 5.5-4.5 1.6 0 2.8.9 3.3 2.2L21 10l-2.2 1c0 3.6-3 6.5-7 6.5H7z"/><path d="M10.5 17.5 9 20.5M13.5 17.5l.5 3"/><circle cx="16.2" cy="9.6" r="0.4" fill="currentColor"/></svg>
     </a>
     <a class="icon-link" href="./detections" aria-label="Detections" title="Detections">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7h11M9 12h11M9 17h11"/><circle cx="5" cy="7" r="0.6" fill="currentColor"/><circle cx="5" cy="12" r="0.6" fill="currentColor"/><circle cx="5" cy="17" r="0.6" fill="currentColor"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="15.5" r="3.5"/><circle cx="17" cy="15.5" r="3.5"/><path d="M10.5 15.5h3M5 12.5 7 5.5h2.5l1 7M19 12.5 17 5.5h-2.5l-1 7"/></svg>
     </a>
     <a class="icon-link" href="./hardware" aria-label="Hardware analytics" title="Hardware analytics">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3"/></svg>

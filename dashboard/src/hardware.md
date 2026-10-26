@@ -134,6 +134,21 @@ const WIFI_ZONES = [[-90, -80, "critical"], [-80, -70, "warning"], [-70, -40, "g
 const DELAY_ZONES = [[0, 3, "good"], [3, 10, "warning"], [10, 15, "critical"]];
 // The ESP32 is rated to 85 °C; its own sensor reads warm, so Okay starts well short of that.
 const BOARD_TEMP_ZONES = [[-10, 65, "good"], [65, 80, "warning"], [80, 90, "critical"]];
+// Background level is judged against the recorder's own usual level (its 7-day median), since
+// what's normal depends on the spot: up to 6 dB louder Good, 6–12 Okay (noisy), more Bad (quiet
+// calls masked). Near the mic's own noise floor (about −87 dBFS) is Bad too: a mic that's
+// disconnected or failed reads like that. Plain bars until there's an hour of data to set "usual".
+const MIC_FLOOR = -85;
+const dbfs = (v) => `${d3.format(".0f")(v).replace("-", "−")} dBFS`;
+const backgroundCard = () => {
+  const lastWeek = recs.filter((d) => +d.time >= dataEnd - 7 * 864e5 && d.rms != null);
+  const usual = lastWeek.length >= 60 ? d3.median(lastWeek, (d) => d.rms) : null;
+  const now = d3.median(slots.slice(-12), (d) => d.rms);
+  const fmt = (v) => `${d3.format(".1f")(v).replace("-", "−")} dBFS`;
+  if (usual == null || now == null) return html`<div class="card"><h2>Background level</h2><div class="big">${now == null ? "–" : dbfs(now)}</div><div class="sub">median, last hour</div>${statusStrip(slots, "rms", null, fmt)}</div>`;
+  const zones = [[-95, MIC_FLOOR, "critical"], [MIC_FLOOR, usual + 6, "good"], [usual + 6, usual + 12, "warning"], [usual + 12, -25, "critical"]];
+  return meterCard("Background level", dbfs(now), meter(now, zones, (v) => d3.format(".0f")(v).replace("-", "−")), `median, last hour · usual ${dbfs(usual)}`, statusStrip(slots, "rms", zones, fmt));
+};
 const COVERAGE_ZONES = [[0, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
 // Recent history at the foot of a card: the last 24 hours in half-hour bars, each colored and
 // sized by the status of its median reading (tall green, shorter amber, short red), so a good
@@ -214,7 +229,7 @@ const piSection = pi && html`<div class="grid stats">
 <!-- End to end: what both halves together deliver. -->
 <div class="grid stats">
   ${confidences.length
-    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median of ${d3.format(",")(confidences.length)} detections</div>${confidenceDensity()}</div>`
+    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median · middle half ${d3.format(".2f")(d3.quantile(confidences, 0.25))}–${d3.format(".2f")(d3.quantile(confidences, 0.75))} · ${d3.format(",")(confidences.length)} detections</div>${confidenceDensity()}</div>`
     : noData("Detection confidence")}
   ${hasRecs ? [
     meterCard("Uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), `since ${clock(new Date(LAUNCH))}`, statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
@@ -226,7 +241,7 @@ const piSection = pi && html`<div class="grid stats">
 <div class="grid stats">
   ${hasRecs ? [
     meterCard("Wifi signal", `${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm`, meter(d3.median(recent, (d) => d.rssi), WIFI_ZONES, (v) => `${v}`.replace("-", "−")), `median since ${formatDate(windowStart)}`, statusStrip(slots, "rssi", WIFI_ZONES, (v) => `${d3.format(".0f")(v)} dBm`)),
-    html`<div class="card"><h2>Background level</h2><div class="big">${d3.format(".0f")(d3.median(slots.slice(-12), (d) => d.rms) ?? NaN).replace("-", "−")} dBFS</div><div class="sub">median, last hour</div>${statusStrip(slots, "rms", null, (v) => `${d3.format(".1f")(v).replace("-", "−")} dBFS`)}</div>`
+    backgroundCard()
   ] : ["Wifi signal", "Background level"].map(noData)}
   ${(() => {
     const board = recs.findLast((d) => d.boardTemp != null);
