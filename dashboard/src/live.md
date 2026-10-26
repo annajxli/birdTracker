@@ -102,9 +102,9 @@ const reviewOf = (d) => (localReviews.has(reviewKey(d)) ? localReviews.get(revie
 const counts = (d) => reviewOf(d) !== "rejected";
 const accepted = (d) => includedDetection({confidence: d.confidence, review: reviewOf(d)}, MIN_CONF);
 const mergeStrips = (a, b) => [...new Map([...a, ...b].map((s) => [s.start, s])).values()].sort((p, q) => p.start.localeCompare(q.start));
-let shownFrom = null; // start of the earliest strip drawn (ms)
 let updated = null;
-let geo = null; // {t0, pps}: the drawn track's time at x = 0 and its scale
+let geo = null; // {t0, t1, pps}: the drawn track's time at x = 0, its last audio, and its scale
+let drawnWindow = null; // the overview window [w0, w1] the track was last drawn for
 const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
 const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
 const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
@@ -167,7 +167,7 @@ function setSpan(seconds) {
   span = seconds;
   try { localStorage.setItem(SPAN_KEY, String(span)); } catch {}
   markSpan();
-  if (shownFrom !== null) shownFrom = Math.min(shownFrom, Date.parse(strips.at(-1)?.start ?? new Date()) - Math.max(HOUR, span * 1e3));
+  drawOverview(); // a new span has a new overview window, and the track follows it
   draw();
 }
 
@@ -260,14 +260,18 @@ const HATCH = 7; // px between the hatching's lines
 // next frame puts the playhead there anyway).
 function draw() {
   const rightEdge = geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : null;
-  const shown = strips.filter((s) => Date.parse(s.start) >= shownFrom);
+  // The strips in the overview's window, so the scroll range is always what the overview shows.
+  const w = ov ?? ovWindow();
+  const shown = strips.filter((s) => endOf(s) > w.w0 && Date.parse(s.start) < w.w1);
+  drawnWindow = [w.w0, w.w1];
   track.replaceChildren();
-  if (!shown.length) { track.style.width = "100%"; geo = null; return; }
+  if (!strips.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
-  const t1 = endOf(shown.at(-1));
+  // The whole window scrolls, loaded or not: older days load as the view nears them (loadNearView).
+  const t1 = Math.min(w.w1, endOf(strips.at(-1)));
   // At least one full span before the newest audio, so the view can always be filled.
-  const t0 = Math.min(Date.parse(shown[0].start), t1 - span * 1e3);
-  geo = {t0, pps};
+  const t0 = Math.min(w.w0, t1 - span * 1e3);
+  geo = {t0, t1, pps};
   const width = Math.max(scroller.clientWidth, x(t1) + LIVE_INSET); // room for the line at the newest audio
   track.style.width = width + "px";
   if (specHeight() !== SPEC_H) { SPEC_H = specHeight(); drawFreqLabels(); }
@@ -296,7 +300,9 @@ function draw() {
   }
   // No audio at all between strips (the recorder was offline, or reconnecting for over 10 s):
   // hatched like the dropouts inside them.
+  // A gap reaching into a day not loaded yet isn't known to be silent, so it stays blank.
   for (let i = 1; i < shown.length; i++) {
+    if (!loadedBetween(endOf(shown[i - 1]), Date.parse(shown[i].start))) continue;
     const a = Math.round(x(endOf(shown[i - 1]))), b = Math.round(x(Date.parse(shown[i].start)));
     if (b - a < 1) continue;
     const gap = document.createElement("div");
@@ -399,7 +405,10 @@ const pacificDate = (t) => new Date(t).toLocaleDateString("en-CA", {timeZone: "A
 const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
 const midnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - pacificHour(t) * HOUR; };
 const dayShift = (date, n) => new Date(Date.parse(date + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
-const loadedDays = new Set();
+const loadedDays = new Set(); // UTC dates of live/days/ files fetched
+// Whether every day file between a and b has been fetched (live.json holds the last 24 hours).
+const loadedBetween = (a, b) => d3.utcDay.range(d3.utcDay.floor(new Date(a)), new Date(Math.min(b, Date.now() - 23 * HOUR)))
+  .every((d) => loadedDays.has(d.toISOString().slice(0, 10)));
 async function loadDay(date) { // the UTC-dated files covering a Pacific day
   const [w0, w1] = [midnight(date), midnight(dayShift(date, 1))];
   const files = [...new Set([new Date(w0).toISOString().slice(0, 10), new Date(w1 - 1).toISOString().slice(0, 10)])].filter((f) => !loadedDays.has(f));
@@ -428,6 +437,7 @@ function drawOverview() {
   if (overviewRow.hidden) return;
   ov = ovWindow();
   const {w0, w1, bin, days} = ov, now = Date.now();
+  if (drawnWindow && (drawnWindow[0] !== w0 || drawnWindow[1] !== w1)) draw();
   const oldest = Math.min(daysIndex?.[0]?.start ? Date.parse(daysIndex[0].start) : Infinity, Date.parse(strips[0]?.start ?? now));
   document.getElementById("live-days-back").disabled = w0 <= oldest || w0 <= now - KEEP_DAYS * 864e5;
   document.getElementById("live-days-fwd").disabled = ovEnd === null;
@@ -497,6 +507,7 @@ function drawOverview() {
 function showOverviewView() {
   if (!geo || !ov) return;
   if (ovEnd === null && ovWindow().w1 !== ov.w1) drawOverview(); // following: slide along
+  else if (ovEnd !== null && tracking && playhead !== null && (playhead >= ov.w1 || playhead < ov.w0)) { ovEnd = null; drawOverview(); } // played out of a stepped window
   const {w0, w1} = ov, pct = (t) => (100 * (t - w0)) / (w1 - w0);
   const clamp = (v) => Math.max(0, Math.min(100, v));
   const view = document.getElementById("live-overview-view"), head = document.getElementById("live-overview-head");
@@ -514,7 +525,9 @@ function stepDays(n) {
   const end = ov.w1 + n * (ov.days ? 864e5 : ov.len);
   ovEnd = null;
   ovEnd = end >= ovWindow().w1 ? null : end; // back at (or past) where it would follow: follow again
+  if (ovEnd !== null) tracking = false; // look at the stepped window; time runs on
   drawOverview();
+  if (ovEnd !== null) scroller.scrollLeft = scroller.scrollWidth;
 }
 document.getElementById("live-days-back").onclick = () => stepDays(-1);
 document.getElementById("live-days-fwd").onclick = () => stepDays(1);
@@ -542,13 +555,16 @@ function positionNames() {
   const viewRight = scroller.scrollLeft + scroller.clientWidth - 4;
   const lanes = Array.from({length: LANES}, () => []);
   // Read text widths together before writing positions, avoiding layout per label.
-  const names = [...track.querySelectorAll(".live-name")].map(button => {
-    const text = button.querySelector(".live-name-text");
-    return {button, text, width: text.offsetWidth, ...button.labelGeometry};
-  });
-  for (const {button, text, width, start, end} of names) {
+  // Labels away from the view are hidden unmeasured, so days of them stay light.
+  const names = [];
+  for (const button of track.querySelectorAll(".live-name")) {
+    const {start, end} = button.labelGeometry;
     // Do not pin labels whose detection hasn't entered, or has left, the view.
-    if (start > viewRight || end < viewLeft) { button.style.visibility = "hidden"; continue; }
+    if (start > viewRight || end < viewLeft) { if (button.style.visibility !== "hidden") button.style.visibility = "hidden"; continue; }
+    names.push({button, text: button.querySelector(".live-name-text"), start, end});
+  }
+  for (const n of names) n.width = n.text.offsetWidth;
+  for (const {button, text, width, start, end} of names) {
     const left = liveLabelLeft(start, width, viewLeft, viewRight);
     const right = Math.max(left + width, Math.min(end, viewRight));
     const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || left >= r + 6));
@@ -558,6 +574,14 @@ function positionNames() {
     button.style.top = lane * LANE + "px";
     text.style.transform = `translateX(${left - start}px)`;
   }
+}
+
+// Older days' strips load as the view (give or take a span) reaches them; live.json holds the
+// last 24 hours. loadDay skips days already loaded, so asking every frame is cheap.
+function loadNearView() {
+  if (!geo) return;
+  const pad = span * 1e3, a = tAt(scroller.scrollLeft) - pad, b = tAt(scroller.scrollLeft + scroller.clientWidth) + pad;
+  for (const t of [a, b]) if (t < Date.now() - 23 * HOUR && t >= (ov?.w0 ?? t)) loadDay(pacificDate(t));
 }
 
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
@@ -571,8 +595,10 @@ function frame() {
     else if (!(soundOn && waitingFor !== null)) playhead = Math.min(Date.now() - lag, newest);
     lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
+    playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
+  loadNearView();
   positionNames();
   showView();
   showOverviewView();
@@ -756,12 +782,9 @@ function seek(t, at = anchor) {
   if (!strips.length) return;
   const newest = endOf(strips.at(-1));
   t = Math.max(Date.parse(strips[0].start), Math.min(t, newest));
-  if (t < shownFrom) { // draw from the strip holding t (or the last before it), so the view starts there
-    const before = strips.findLast((s) => Date.parse(s.start) <= t);
-    shownFrom = Math.min(t, before ? Date.parse(before.start) : t) - 60e3;
-    draw();
-  }
   playhead = t;
+  if (ov && (t < ov.w0 || t >= ov.w1)) ovEnd = null; // outside the overview window: it follows the playhead there
+  drawOverview(); // and the track with it
   lag = Date.now() - t;
   live = false;
   tracking = true;
@@ -1004,7 +1027,6 @@ async function poll() {
       updated = j.updated;
       strips = mergeStrips(older, j.strips ?? []);
     }
-    if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
     transport.hidden = !strips.length;
     audioControls.hidden = !strips.some((s) => s.audio);
     draw();

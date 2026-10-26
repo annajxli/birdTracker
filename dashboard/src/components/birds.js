@@ -673,7 +673,7 @@ export function dayTimeline(rows, sun, dates, {
     const unidMarks = unidRow ? [
       Plot.rect(unidBouts, {x1: "first", x2: "end", y1: unidRow.y1 + 0.2, y2: unidRow.y2 - 0.2, fill: MUTED, fillOpacity: fade * 0.8, rx: 1.5}),
       Plot.tip(unidBouts, Plot.pointer({x: (b) => new Date((+b.first + +b.end) / 2), y: unidRow.y,
-        channels: {"": () => "Birdsong BirdNET couldn't name", Time: (b) => `${clock(b.firstTime)}${b.minutes > 1 ? `–${clock(new Date(+b.firstTime + b.minutes * 6e4))}` : ""}`, Length: (b) => `${b.minutes} min`,
+        channels: {"": () => "Unidentified", Time: (b) => `${clock(b.firstTime)}${b.minutes > 1 ? `–${clock(new Date(+b.firstTime + b.minutes * 6e4))}` : ""}`, Length: (b) => `${b.minutes} min`,
           ...(n > 1 ? {Day: (b) => formatDate(b.date, {weekday: "short", month: "short", day: "numeric"})} : {})},
         format: {x: false, y: false}}))
     ] : [];
