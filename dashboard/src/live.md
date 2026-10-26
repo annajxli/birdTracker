@@ -815,7 +815,7 @@ function summarize() {
   }).sort((a, b) => sort.dir * (SORTS[sort.by](a) - SORTS[sort.by](b)) || a.first - b.first);
 
   if (!rows.length) {
-    heard.replaceChildren(html`<p class="sub">No birds named in ${hourLabel}.</p>`);
+    heard.replaceChildren(html`<p class="sub">No birds heard in ${hourLabel}.</p>`);
   } else {
     const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
     const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 2}`}>${r.bars.map((b, j) =>

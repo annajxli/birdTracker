@@ -44,7 +44,7 @@ const confident = all.filter((d) => d.confidence >= minConf);
 ```
 
 <div class="page-top">
-  <h1>What's singing in the yard</h1>
+  <h1>Who's singing in the yard</h1>
 </div>
 
 ```js
@@ -104,7 +104,7 @@ const recent = recentSpecies(confident, {limit: 12});
 ```
 
 <p class="eyebrow">Recently heard</p>
-<div id="home-recent" class="recent-row layout-reserve">${recent.length ? recent.map((r) => birdCard(r, photos[r.species])) : html`<p class="sub">Nothing heard yet at this confidence.</p>`}</div>
+<div id="home-recent" class="recent-row layout-reserve">${recent.length ? recent.map((r) => birdCard(r, photos[r.species])) : html`<p class="sub">No birds heard yet at this confidence.</p>`}</div>
 
 <!-- The sticky period ribbon only applies to the charts it controls: it scrolls away at the end of this block, before the year-round sections. -->
 <div class="period-scope">
@@ -242,7 +242,7 @@ const historicalChanges = comparable ? [] : biggestMonthlyChanges(minutes, perio
       <div class="card">
         <h2>Most heard</h2>
         <div class="big">${mostHeard ? html`<a class="stat-link" href=${speciesHref(mostHeard[0])}>${mostHeard[0]}</a>` : "–"}</div>
-        <div class="sub">${mostHeard ? `${d3.format(",")(mostHeard[1])} minutes heard` : "Nothing heard"}</div>
+        <div class="sub">${mostHeard ? `${d3.format(",")(mostHeard[1])} minutes heard` : "No birds heard"}</div>
       </div>
     </div>
     <div id="home-activity" class="day-stack layout-reserve">
