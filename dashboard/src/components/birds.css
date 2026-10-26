@@ -2083,3 +2083,6 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .status-strip { position: relative; }
 .strip-line { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .strip-line path { fill: none; stroke: var(--theme-foreground); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+
+/* Hardware: a card that isn't Good shows it in its top bar too. */
+.card.is-alert { border-top: 3px solid var(--status); }

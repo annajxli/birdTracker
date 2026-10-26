@@ -138,7 +138,9 @@ const meter = (value, zones, format = (v) => v) => {
   </div>`};
 };
 // A stat card with a meter: the value, the meter, its status and a note, then its recent history.
-const meterCard = (title, big, m, note, history) => html`<div class="card"><h2>${title}</h2><div class="big">${big}</div>${m.node}<div class="sub">${statusTag(m.status)}${note ? html` · ${note}` : ""}</div>${history ?? ""}</div>`;
+// A card whose status isn't Good gets its top bar in the status color.
+const alertClass = (level) => (level && level !== "good" ? ` is-alert status-${level}` : "");
+const meterCard = (title, big, m, note, history) => html`<div class="card${alertClass(m.status)}"><h2>${title}</h2><div class="big">${big}</div>${m.node}<div class="sub">${statusTag(m.status)}${note ? html` · ${note}` : ""}</div>${history ?? ""}</div>`;
 
 const TEMP_ZONES = [[20, 70, "good"], [70, 80, "warning"], [80, 90, "critical"]];
 const CPU_ZONES = [[0, 75, "good"], [75, 90, "warning"], [90, 100, "critical"]];
@@ -151,6 +153,13 @@ const power = !pi?.throttled ? null
   : pi.throttled.throttled_since_boot ? ["warning", "CPU clock reduced at least once since boot", "Throttled"]
   : ["good", "no under-voltage or throttling since boot", "Normal"];
 const piHistory = (pi?.history ?? []).map((h) => ({...h, at: new Date(h.at)}));
+// Power trouble in the last hour of history counts as now (Bad): a since-boot flag alone can't
+// tell a dip at startup from ones that keep happening.
+const lastHour = piHistory.filter((h) => +h.at >= Date.now() - 3600e3);
+const powerShown = !power ? null
+  : lastHour.some((h) => h.under_voltage) && power[0] !== "critical" ? ["critical", "below 4.63 V in the last hour", "Under-voltage"]
+  : lastHour.some((h) => h.throttled) && power[0] !== "critical" ? ["critical", "CPU clock reduced in the last hour", "Throttled"]
+  : power;
 const hourTick = (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric"});
 const UPTIME_ZONES = [[50, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
 const WIFI_ZONES = [[-90, -80, "critical"], [-80, -70, "warning"], [-70, -40, "good"]];
@@ -262,7 +271,7 @@ const piSection = pi && html`<div class="grid stats">
   ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
   ${pi.memory_mb ? meterCard("Memory in use", `${d3.format(".0f")(pi.memory_mb.used)} MB`, meter(memPct, MEMORY_ZONES, pctFormat), `of ${d3.format(".0f")(pi.memory_mb.total)} MB`, statusStrip(piHistory, "memory_pct", MEMORY_ZONES, pctFormat)) : ""}
   ${pi.disk_gb ? meterCard("Storage free", `${d3.format(".1f")(pi.disk_gb.free)} GB`, meter(diskPct, STORAGE_ZONES, pctFormat), `of ${d3.format(".0f")(pi.disk_gb.total)} GB`, statusStrip(piHistory, "disk_pct", STORAGE_ZONES, pctFormat)) : ""}
-  ${power ? html`<div class="card"><h2>Power supply</h2><div class="big">${power[2]}</div><div class="sub">${statusTag(power[0])} · ${power[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max, false)}</div>` : ""}
+  ${powerShown ? html`<div class="card${alertClass(powerShown[0])}"><h2>Power supply</h2><div class="big">${powerShown[2]}</div><div class="sub">${statusTag(powerShown[0])} · ${powerShown[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max, false)}</div>` : ""}
   ${pi.uptime_s != null ? html`<div class="card"><h2>Time since restart</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">booted ${clock(new Date(Date.parse(pi.updated) - pi.uptime_s * 1e3))}</div></div>` : ""}
 </div>`;
 ```
