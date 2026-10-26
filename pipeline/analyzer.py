@@ -321,7 +321,10 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
     # Twice: as recorded, and with the background turned down (denoise.py) for Bird boost.
     sound, cleaned = live / (audio.stem + ".mp3"), live / (audio.stem + ".clean.mp3")
     g = math.gcd(LIVE_AUDIO_RATE, rate)
-    for path, samples in ((sound, data), (cleaned, clean(data, rate))):
+    begun = recording_start(audio.name, None)
+    at = lambda r: (datetime.strptime(r["detected_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC) - begun).total_seconds()
+    keep = [(at(r), at(r) + SEGMENT_SECONDS) for r in rows]  # BirdNET's windows: never clean a detected call away
+    for path, samples in ((sound, data), (cleaned, clean(data, rate, keep))):
         part = path.with_name(path.name + ".part")  # publish.py skips .part files
         sf.write(part, resample_poly(samples, LIVE_AUDIO_RATE // g, rate // g).astype("float32"), LIVE_AUDIO_RATE,
                  format="MP3", subtype="MPEG_LAYER_III", compression_level=LIVE_AUDIO_LEVEL)
