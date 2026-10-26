@@ -18,7 +18,7 @@ single species' score, so birdsong that BirdNET can't pin to a species still cou
 It's 0 where a non-bird sound outscores every bird.
 
 The model files ship inside the birdnet-analyzer package; on the Pi they're copied to
-models/ by deploy/pi/install.sh, and BIRDNET_MODELS points at that folder.
+models/ by deploy/pi/push.sh, and BIRDNET_MODELS points at that folder.
 """
 
 import csv
