@@ -4,7 +4,8 @@ Local date and hour (Pacific time) are computed here, as for detections. delay_s
 from the end of a recording to its detections being stored; board_temp and board_uptime are
 the recorder's own health (null where it didn't report them). packet_success is the share of
 audio frames the recorder recorded that it got onto wifi (the rest it dropped because its buffer
-filled while wifi was slow; TCP itself loses nothing).
+filled while wifi was slow; TCP itself loses nothing); frames_sent and frames_dropped are the
+counts behind it, for pooling over a span.
 
 power_mw and tx_mw are estimates, not measurements (the PPK2 will measure them): the recorder's
 draw from its 5 V supply, and the part of it spent transmitting. The model: the ESP32 at 240 MHz
@@ -63,6 +64,8 @@ out = pd.DataFrame({
     "board_temp": df.board_temp_c.astype("float32"),
     "board_uptime": df.board_uptime_s.astype("float32"),
 }).sort_values("time")
+out["frames_sent"] = df.frames_sent.astype("float32")  # float: null before the board reported them
+out["frames_dropped"] = df.frames_dropped.astype("float32")
 frames = df.frames_sent + df.frames_dropped
 out["packet_success"] = (df.frames_sent / frames.where(frames > 0)).astype("float32")
 real = df.source.ne("simulated") & df.rssi_dbm.notna()
