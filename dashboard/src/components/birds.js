@@ -463,6 +463,7 @@ export function spanInput(value = "1 day") {
 }
 
 export const HEADER = "\u00a7"; // prefix marking a category header row
+const UNIDENTIFIED = "Unidentified bird"; // the day timeline's row for birdsong BirdNET couldn't name
 const HEADER_ROWS = 1.4; // a category header is this many species rows tall...
 const GROUP_GAP = 0.2; // ...plus this much extra space above every group but the first
 const ROW_PX = 17;
@@ -496,6 +497,7 @@ export function dayTimeline(rows, sun, dates, {
   maxRows = Infinity, // with a sort other than category, a collapsed list shows this many rows
   rowPx = ROW_PX, // height of one species row; a full-screen display passes more
   recordedUntil = null, // end of the newest recorded audio; on that day alone, marked with a line
+  unidentified = [], // minutes ({time, date}) with birdsong BirdNET couldn't name: a muted last row, never counted
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
@@ -585,6 +587,11 @@ export function dayTimeline(rows, sun, dates, {
       shown = shown.filter((d) => kept.has(d.species));
     }
   }
+  // Unidentified birdsong: one muted row after everything else, on tick views only (it's large;
+  // the 30-day density view leaves it out). Not a species: no card, no counts, no sorting.
+  const unidentifiedShown = density ? [] : unidentified.map((u) => ({...u, clock: onRef(u.date, u.time)}))
+    .filter((u) => u.clock >= domain[0] && u.clock <= domain[1]);
+  if (unidentifiedShown.length && order.length) order.push(UNIDENTIFIED);
   const headers = order.filter((k) => k.startsWith(HEADER));
   const groupSize = new Map(groups.map(([g, sp]) => [g, sp.length]));
 
@@ -593,7 +600,7 @@ export function dayTimeline(rows, sun, dates, {
   let pos = 0;
   for (const key of order) {
     const header = key.startsWith(HEADER);
-    if (header && pos > 0) pos += GROUP_GAP;
+    if ((header || key === UNIDENTIFIED) && pos > 0) pos += GROUP_GAP;
     const h = header ? HEADER_ROWS : nameWraps(width, rowKeyOf(key) === key ? key : "") ? 1.7 : 1; // room for a wrapped name
     rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2});
     pos += h;
@@ -654,7 +661,23 @@ export function dayTimeline(rows, sun, dates, {
       "Top confidence": (b) => d3.format(".0%")(b.confidence)
     };
     if (n > 1) boutTip.Day = (b) => formatDate(b.date, {weekday: "short", month: "short", day: "numeric"});
+    // Unidentified minutes, merged while they run on, in the muted color.
+    const unidBouts = [];
+    for (const u of unidentifiedShown.sort((a, b) => a.clock - b.clock)) {
+      const last = unidBouts.at(-1);
+      if (last && last.date === u.date && u.clock - last.end <= 6e4) { last.end = new Date(+u.clock + 6e4); last.minutes++; }
+      else unidBouts.push({date: u.date, first: u.clock, end: new Date(+u.clock + 6e4), firstTime: u.time, minutes: 1});
+    }
+    const unidRow = rowsAt.get(UNIDENTIFIED);
+    const unidMarks = unidRow ? [
+      Plot.rect(unidBouts, {x1: "first", x2: "end", y1: unidRow.y1 + 0.2, y2: unidRow.y2 - 0.2, fill: MUTED, fillOpacity: fade * 0.8, rx: 1.5}),
+      Plot.tip(unidBouts, Plot.pointer({x: (b) => new Date((+b.first + +b.end) / 2), y: unidRow.y,
+        channels: {"": () => "Birdsong BirdNET couldn't name", Time: (b) => `${clock(b.firstTime)}${b.minutes > 1 ? `–${clock(new Date(+b.firstTime + b.minutes * 6e4))}` : ""}`, Length: (b) => `${b.minutes} min`,
+          ...(n > 1 ? {Day: (b) => formatDate(b.date, {weekday: "short", month: "short", day: "numeric"})} : {})},
+        format: {x: false, y: false}}))
+    ] : [];
     dataMarks = [
+      ...unidMarks,
       Plot.rect(bouts, {x1: "first", x2: "end", y1: (b) => rowOf(b.species).y1 + 0.2, y2: (b) => rowOf(b.species).y2 - 0.2, fill: seriesColor(dark), fillOpacity: fade, rx: 1.5}),
       Plot.tip(bouts, Plot.pointer({
         x: (b) => new Date((+b.first + +b.end) / 2),
@@ -678,10 +701,22 @@ export function dayTimeline(rows, sun, dates, {
   // time not recorded yet doesn't read as time without birds.
   const pacificDate = (t) => t.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
   const recordedAt = recordedUntil && n === 1 && pacificDate(recordedUntil) === dates[0] ? onRef(dates[0], recordedUntil) : null;
+  // Its label goes left of the line, or right when that would overlap the sunrise or sunset
+  // label above the chart; if both would, just inside the top of the chart.
+  const recordedText = recordedAt && `Recorded to ${clock(recordedUntil)}`;
+  const recordedSide = (() => {
+    if (!recordedAt) return null;
+    const px = (width - nameMargin(width) - (width < 520 ? 30 : 16)) / (domain[1] - domain[0]);
+    const x = (t) => (t - domain[0]) * px, w = recordedText.length * 5.6, rx = x(recordedAt);
+    const suns = [sunriseRange, sunsetRange].filter((r) => !isBand(r)).map(([t]) => [x(t) - 24, x(t) + 24]);
+    const clear = ([a, b]) => suns.every(([s0, s1]) => b < s0 || a > s1);
+    return clear([rx - w - 4, rx - 4]) ? "left" : clear([rx + 4, rx + w + 4]) ? "right" : "inside";
+  })();
   const recordedMarks = recordedAt && recordedAt >= domain[0] && recordedAt <= domain[1] ? [
     Plot.rectX([recordedAt], {x1: (t) => t, x2: () => domain[1], y1: gridTop, y2: total, fill: "currentColor", fillOpacity: 0.05}),
     Plot.ruleX([recordedAt], {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.55}),
-    Plot.text([recordedAt], {x: (t) => t, y: gridTop, text: () => `Recorded to ${clock(recordedUntil)}`, textAnchor: "end", lineAnchor: "bottom", dx: -4, dy: -4, fontSize: 10, fill: "currentColor", fillOpacity: 0.75})
+    Plot.text([recordedAt], {x: (t) => t, y: gridTop, text: () => recordedText, textAnchor: recordedSide === "left" ? "end" : "start",
+      lineAnchor: recordedSide === "inside" ? "top" : "bottom", dx: recordedSide === "left" ? -4 : 4, dy: recordedSide === "inside" ? 4 : -4, fontSize: 10, fill: "currentColor", fillOpacity: 0.75})
   ] : [];
   const plot = Plot.plot({
     width,

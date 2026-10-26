@@ -7,16 +7,24 @@ toc: false
 
 
 ```js
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds} from "./components/period.js";
 import {biggestMonthlyChanges, windowChanges} from "./components/changes.js";
 ```
 
 ```js
-const [all, photos, sun, categories, weather, weatherHourly, recordedUntil] = await Promise.all([
-  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadRecordedUntil()
+const [all, photos, sun, categories, weather, weatherHourly, recordedUntil, recordings] = await Promise.all([
+  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadRecordedUntil(), recordingsTable().catch(() => null)
 ]);
+// Minutes with birdsong BirdNET couldn't name (the recorder's unidentified_windows, when it has
+// them), for the day timeline's muted last row.
+const unidentifiedMinutes = (() => {
+  const col = (k) => (recordings?.schema.fields.some((f) => f.name === k) ? recordings.getChild(k) : null);
+  const uw = col("unidentified_windows"), time = col("time"), date = col("date");
+  if (!uw) return [];
+  return d3.range(recordings.numRows).filter((i) => uw.get(i) > 0).map((i) => ({time: new Date(Number(time.get(i))), date: date.get(i)}));
+})();
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
@@ -41,6 +49,9 @@ const daylightOnly = Generators.input(daylightIn);
 ```js
 // Depends only on the threshold, so moving between periods doesn't recompute the year-round charts.
 const confident = all.filter((d) => d.confidence >= minConf);
+// Unidentified only where no bird was named at this confidence that minute.
+const namedMinutes = new Set(confident.map((d) => Math.floor(+d.time / 6e4)));
+const unidentified = unidentifiedMinutes.filter((u) => !namedMinutes.has(Math.floor(+u.time / 6e4)));
 ```
 
 <div class="page-top">
@@ -145,7 +156,7 @@ const timelineDates = selection.scale === "D" ? formatDate(selection.date)
   <div id="home-timeline" class="card layout-reserve timeline-card">
     <div class="filters timeline-sort">${sortIn}</div>
     ${spanDates.length
-      ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed, recordedUntil}))
+      ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed, recordedUntil, unidentified: unidentified.filter((u) => spanDateSet.has(u.date))}))
       : html`<p class="sub">No recordings ${selection.scale === "D" ? "on this day" : "in this period"}; the recorder was offline.</p>`}
   </div>
   </div>
