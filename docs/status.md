@@ -80,6 +80,8 @@ None of these plans is built or tested:
   pictures.
 - [Feeder camera](plans/feeder-camera.md): a window feeder with a camera, matched
   to detections.
+- [Multi-station expansion](plans/multi-station.md): more stations, their
+  storage and cost, and a possible home server.
 
 ## Work on other branches
 
@@ -92,8 +94,7 @@ The following table lists the branches and where their documentation goes:
 
 | Branch | State | Documentation migration |
 | --- | --- | --- |
-| `codex/publisher-usage-reduction` | Implemented, checked locally, not deployed. | `docs/publisher-handoff.md`: deployment steps into [Deploy](deploy.md); the deployment record into the [deployment log](#deployment-log). Additions to `docs/deploy.md` about publisher usage stay in `deploy.md`; the parts that describe behavior move to [Architecture](architecture.md). `docs/multi-station-plan.md`: see the next row. |
-| `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md` to `docs/plans/multi-station.md`. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
+| `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md`: already moved to [Multi-station expansion](plans/multi-station.md); merge its changes there. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
 | `codex/ui-live-polish` | Live page changes. | `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). |
 
 ### Live details update

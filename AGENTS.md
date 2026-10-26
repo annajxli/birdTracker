@@ -40,6 +40,7 @@ Before you commit, run the checks that apply to your change:
 
 - Dashboard components: `node --test dashboard/test/*.test.mjs`
 - Password Worker: `node deploy/password-worker.test.mjs`
+- Pipeline: `.venv/bin/python -m unittest discover -s pipeline -p 'test_*.py'`
 - Site build: `npm --prefix dashboard run build`
 - Whitespace: `git diff --check`
 

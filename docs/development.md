@@ -161,6 +161,12 @@ To run the tests, run the following commands:
   node deploy/password-worker.test.mjs
   ```
 
+- Pipeline tests, which use no network or credentials:
+
+  ```bash
+  .venv/bin/python -m unittest discover -s pipeline -p 'test_*.py'
+  ```
+
 To check the site build, run `npm --prefix dashboard run build`.
 
 ## Regenerate reference data

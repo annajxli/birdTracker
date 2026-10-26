@@ -25,3 +25,7 @@ firmware/**/.pio/
 
 # Personal recordings (Merlin exports) for trying the analyzer
 data/merlin/
+
+# Local publisher usage counters
+data/publish-usage.json
+data/publish-usage.json.part

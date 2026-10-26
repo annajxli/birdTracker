@@ -229,6 +229,27 @@ The pages load the newest data from R2 when they open, so new detections
 appear without a rebuild. How often the publisher uploads each kind of data
 depends on its flags; for details, run `pipeline/publish.py --help`.
 
+### Check the publisher's R2 usage
+
+To see how many R2 API calls and upload bytes the publisher used each UTC day,
+on the Pi, run the following command:
+
+```bash
+cat ~/birdtracker/data/publish-usage.json
+```
+
+These counts are for planning, not billing. Before you estimate a month's
+cost, compare a few complete days with the R2 metrics in the Cloudflare
+dashboard. A partial day, such as the day of a deployment, undercounts.
+
+### Change how often the publisher checks
+
+To change how often the publisher checks for reviews or updates the Live page's
+day files, add `--reviews-seconds` or `--history-seconds` to the `ExecStart`
+line of `deploy/pi/birdtracker-publish.service`, and run `deploy/pi/push.sh`.
+Keep the change in the repository, so that a later `push.sh` doesn't replace it,
+and record it in the [deployment log](status.md#deployment-log).
+
 ## Migrate from a GitHub Pages setup
 
 An earlier version of this setup served the site from GitHub Pages with the
