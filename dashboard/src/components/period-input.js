@@ -66,8 +66,29 @@ export function periodInput({first, last}) {
     </div>`, htl.html`<div class="calendar-weekdays" aria-hidden="true">${["S", "M", "T", "W", "T", "F", "S"].map((d) => htl.html`<span>${d}</span>`)}</div>`,
       htl.html`<div class="calendar-grid" role="grid" aria-label=${periodLabel("M", calendarMonth)}>${Array.from({length: 6}, (_, row) => htl.html`<div class="calendar-week" role="row">${cells.slice(row * 7, row * 7 + 7).map((d) => htl.html`<button type="button" role="gridcell" data-date=${d.date} class=${[d.inMonth ? "" : "outside-month", d.selected ? "in-range" : "", d.rangeStart ? "range-start" : "", d.rangeEnd ? "range-end" : "", d.date === root.value.date ? "selected-date" : ""].filter(Boolean).join(" ")} aria-label=${fullDate(d.date)} aria-selected=${String(d.selected)} tabindex=${d.date === focusDate ? 0 : -1} disabled=${d.date < first || d.date > last}>${Number(d.date.slice(-2))}</button>`)}</div>`)}</div>`);
   };
+  // The date's width per scale: wide enough for that scale's longest label (every day of a
+  // year for D, every week for W, every month for M), measured in the label's own font, so the
+  // arrows hold still within a scale while a day isn't padded out to a month's width.
+  const widths = new Map();
+  const labelWidth = (scale) => {
+    if (widths.has(scale)) return widths.get(scale);
+    const text = root.querySelector(".period-label-text");
+    if (!text.isConnected) return null; // not on the page yet: measured on the next render
+    const ctx = document.createElement("canvas").getContext("2d");
+    const cs = getComputedStyle(text);
+    ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+    const year = last.slice(0, 4);
+    const days = Array.from({length: 366}, (_, i) => new Date(Date.parse(`${year}-01-01T00:00:00Z`) + i * 864e5).toISOString().slice(0, 10));
+    const labels = scale === "Y" ? [year] : scale === "A" ? ["All time"] : [...new Set(days.map((d) => periodLabel(scale, d)))];
+    const w = Math.ceil(d3max(labels.map((l) => ctx.measureText(l).width))) + 2;
+    widths.set(scale, w);
+    return w;
+  };
+  const d3max = (xs) => xs.reduce((a, b) => Math.max(a, b), 0);
   const render = (emit = true) => {
     const {scale, date} = root.value;
+    const w = labelWidth(scale);
+    root.querySelector(".period-label-text").style.minWidth = w ? `${w}px` : "";
     for (const button of root.querySelectorAll("[data-scale]")) button.setAttribute("aria-pressed", String(button.dataset.scale === scale));
     root.querySelector(".period-label-text").textContent = periodLabel(scale, date);
     trigger.setAttribute("aria-label", `Choose ${PERIODS[scale].toLowerCase()}: ${periodLabel(scale, date)}`);
@@ -158,6 +179,9 @@ export function periodInput({first, last}) {
   document.addEventListener("pointerdown", dismiss);
   root.destroy = () => document.removeEventListener("pointerdown", dismiss);
   render(false);
+  // Measure once it's on the page, and again when the web font arrives (it changes the widths).
+  requestAnimationFrame(() => render(false));
+  document.fonts?.ready.then(() => { widths.clear(); render(false); });
   return root;
 }
 

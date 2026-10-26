@@ -120,9 +120,8 @@
   text-align: center;
   font-family: var(--display);
   font-size: 0.92rem;
-  /* Fixed width, just enough for the longest label ("September 2026"), so the arrows never
-     shift as the date changes; the icon and date stay centered between them. */
-  width: 10.5rem;
+  /* Sized per scale by its longest label (period-input.js sets the text's min-width), so the
+     arrows hold still while the date changes; the icon and date stay centered between them. */
   justify-content: center;
   font-variant-numeric: tabular-nums;
   min-height: 28px;
@@ -140,7 +139,7 @@
 .period-label:hover:not(:disabled),
 .period-label[aria-expanded="true"] { background: var(--theme-background); }
 .period-label svg { width: 15px; height: 15px; flex: none; color: var(--theme-foreground-muted); }
-.period-label-text { white-space: nowrap; }
+.period-label-text { white-space: nowrap; text-align: center; }
 
 .period-calendar {
   position: absolute;
