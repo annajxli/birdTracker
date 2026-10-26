@@ -53,6 +53,3 @@ The `docs/design/` folder holds design artifacts. Open them in a browser:
 
 - [Recorder hardware options](docs/design/hardware-design.html): candidate
   builds, energy estimates, and component choices.
-- [Palette options](docs/design/palettes.html): dashboard color palettes. The
-  site uses Cedar & Olive.
-- [Font pairings](docs/design/fonts.html): heading and body font options.

@@ -62,7 +62,7 @@ The following table lists where each kind of documentation goes:
 | `docs/status.md` | What is deployed, in progress, or unverified |
 | `docs/plans/TOPIC.md` | A proposal that isn't implemented on `main` |
 | `docs/bench-test-NUMBER.md` | A dated record of a test, where `NUMBER` is the test's number |
-| `docs/design/` | Design artifacts, such as palette and hardware comparisons |
+| `docs/design/` | Design artifacts, such as hardware comparisons |
 
 Module docstrings and `--help` output are the reference for each script's
 behavior and flags.
