@@ -10,7 +10,7 @@ toc: false
 import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
-import {periodBounds} from "./components/period.js";
+import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, windowChanges} from "./components/changes.js";
 ```
 
@@ -104,8 +104,9 @@ const sortBy = Generators.input(sortIn);
 
 ```js
 const bounds = periodBounds(selection.scale, selection.date);
-const start = bounds.start < dataStart ? dataStart : bounds.start;
-const end = bounds.end > latest ? latest : bounds.end;
+const {start, end} = overviewBounds(selection.scale, selection.date, dataStart, latest);
+// Statistics use real rows, while calendar axes retain unrecorded/future dates.
+const availableEnd = end < latest ? end : latest;
 const period = dateSpan(start, end);
 const rows = confident.filter((d) => d.date >= start && d.date <= end);
 ```
@@ -214,8 +215,8 @@ const top = d3.rollups(minutes, (v) => v.length, (d) => d.species)
 // whatever the period's scale, so a few days of a new month never face a whole month.
 const TREND_DAYS = 30, MIN_RECORDED_DAYS = 7;
 const recordedIn = (from, to) => dateSpan(from, to).filter((d) => recordedDates.has(d)).length;
-const trendFrom = addDays(end, -(TREND_DAYS - 1));
-const cmp = {nowFrom: trendFrom, nowTo: end, prevFrom: addDays(trendFrom, -TREND_DAYS), prevTo: addDays(trendFrom, -1)};
+const trendFrom = addDays(availableEnd, -(TREND_DAYS - 1));
+const cmp = {nowFrom: trendFrom, nowTo: availableEnd, prevFrom: addDays(trendFrom, -TREND_DAYS), prevTo: addDays(trendFrom, -1)};
 cmp.nowLabel = dateRange(cmp.nowFrom, cmp.nowTo);
 cmp.prevLabel = dateRange(cmp.prevFrom, cmp.prevTo);
 const comparable = cmp.prevFrom >= dataStart
@@ -292,15 +293,17 @@ const historicalChanges = comparable ? [] : biggestMonthlyChanges(minutes, perio
         const frame = dayFrame(period, width, margins);
         const inset = dayInset(period, width, gap, margins);
         // Strips under the detections, top to bottom.
+        const availableDates = period.filter((date) => date >= dataStart && date <= latest);
+        const periodWeather = Object.fromEntries(availableDates.filter((date) => weather[date]).map((date) => [date, weather[date]]));
         const weekTemps = selection.scale === "W"
-          ? period.flatMap((date) => (weatherHourly[date] ?? []).map((temp, hour) => ({
+          ? availableDates.flatMap((date) => (weatherHourly[date] ?? []).map((temp, hour) => ({
               t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
               when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(hour)}`
             }))).filter((d) => d.temp != null)
           : null;
         const strips = [
-          conditionsStrip(period, weather, {width, dark, ...margins}),
-          weekTemps ? hourlyTemperatureStrip(weekTemps, {width, domain: frame.x.domain, ...margins}) : temperatureStrip(period, weather, {width, ...margins})
+          conditionsStrip(period, periodWeather, {width, dark, ...margins}),
+          weekTemps ? hourlyTemperatureStrip(weekTemps, {width, domain: frame.x.domain, ...margins}) : temperatureStrip(period, periodWeather, {width, ...margins})
         ].filter(Boolean);
         // Week: hourly bars (3-hourly when an hour would be under ~3 px wide); longer periods: daily.
         const plotWidth = width - margins.marginLeft - margins.marginRight;

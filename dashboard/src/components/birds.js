@@ -1,3 +1,4 @@
+import {dailyTemperatureSeries} from "./weather-series.js";
 import {FileAttachment} from "observablehq:stdlib";
 import * as d3 from "npm:d3";
 import * as Inputs from "npm:@observablehq/inputs";
@@ -975,7 +976,7 @@ let gradientId = 0;
  * shows each day's slice of it).
  */
 export function temperatureStrip(dates, weather, {width, ...margins}) {
-  const days = dates.filter((d) => weather[d]).map((date) => ({date, day: new Date(date), ...weather[date], ...barSpan(date)}));
+  const {days, edges} = dailyTemperatureSeries(dates, weather);
   const frame = dayFrame(dates, width, margins);
   const id = `temp-gradient-${++gradientId}`;
   const gradient = (index, {y}) => {
@@ -984,9 +985,6 @@ export function temperatureStrip(dates, weather, {width, ...margins}) {
       ${TEMP_STOPS.map(([t, c]) => htl.svg`<stop offset=${(t - lo) / (hi - lo)} stop-color=${c}></stop>`)}
     </linearGradient></defs>`;
   };
-  // Carry the first and last day out to the chart's edges, so the ribbon doesn't stop short
-  // half a day in from each end.
-  const edges = days.length ? [{...days[0], day: frame.x.domain[0]}, ...days, {...days.at(-1), day: frame.x.domain[1]}] : days;
   return Plot.plot({
     ...frame,
     height: 112,
@@ -996,7 +994,7 @@ export function temperatureStrip(dates, weather, {width, ...margins}) {
     y: {label: "High–low °F", labelAnchor: "center", labelArrow: "none", ticks: 3, grid: true, nice: true},
     marks: [
       gradient,
-      Plot.areaY(edges, {x: "day", y1: "low", y2: "high", curve: "monotone-x", fill: `url(#${id})`, fillOpacity: 0.9}),
+      Plot.areaY(edges, {x: "day", y1: "low", y2: "high", z: "segment", curve: "monotone-x", fill: `url(#${id})`, fillOpacity: 0.9}),
       Plot.tip(days, Plot.pointerX({
         x: "day", y: "high",
         channels: {Day: (d) => formatDate(d.date), High: (d) => `${Math.round(d.high)}°F`, Low: (d) => `${Math.round(d.low)}°F`},

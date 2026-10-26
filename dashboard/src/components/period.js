@@ -51,3 +51,8 @@ export function calendarDays(month, scale, selectedDate) {
       rangeEnd: date === selected.end || i % 7 === 6};
   });
 }
+
+/** Calendar views retain their complete span; only All time follows data bounds. */
+export function overviewBounds(scale, date, first, last) {
+  return scale === "A" ? {start: first, end: last} : periodBounds(scale, date);
+}
