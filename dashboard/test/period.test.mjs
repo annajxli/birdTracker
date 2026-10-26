@@ -1,60 +1,62 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {periodBounds, shiftPeriod, periodLabel, calendarDays} from "../src/components/period.js";
+import {periodBounds, shiftPeriod, periodLabel, calendarDays, overviewBounds, TRAILING_DAYS} from "../src/components/period.js";
 
-test("day, Sunday-based week, month, and year use calendar boundaries", () => {
-  assert.deepEqual(periodBounds("D", "2026-10-23"), {start: "2026-10-23", end: "2026-10-23"});
-  assert.deepEqual(periodBounds("W", "2026-10-23"), {start: "2026-10-18", end: "2026-10-24"});
-  assert.deepEqual(periodBounds("M", "2026-10-23"), {start: "2026-10-01", end: "2026-10-31"});
-  assert.deepEqual(periodBounds("Y", "2026-10-23"), {start: "2026-01-01", end: "2026-12-31"});
+test("D/W/M/Y end on the selected date with inclusive trailing spans", () => {
+  assert.deepEqual(periodBounds("D", "2026-10-26"), {start: "2026-10-26", end: "2026-10-26"});
+  assert.deepEqual(periodBounds("W", "2026-10-26"), {start: "2026-10-20", end: "2026-10-26"});
+  assert.deepEqual(periodBounds("M", "2026-10-26"), {start: "2026-09-27", end: "2026-10-26"});
+  assert.deepEqual(periodBounds("Y", "2026-10-26"), {start: "2025-10-27", end: "2026-10-26"});
 });
 
-test("month navigation does not skip February when anchored on January 31", () => {
-  assert.deepEqual(shiftPeriod("M", "2024-01-31", 1), {start: "2024-02-01", end: "2024-02-29"});
-  assert.deepEqual(shiftPeriod("M", "2024-03-31", -1), {start: "2024-02-01", end: "2024-02-29"});
+test("navigation moves by full adjacent spans across month, leap and DST boundaries", () => {
+  for (const date of ["2024-01-31", "2024-03-01", "2026-03-09", "2026-01-01"]) {
+    for (const [scale, days] of Object.entries(TRAILING_DAYS)) {
+      const current = periodBounds(scale, date), previous = shiftPeriod(scale, date, -1);
+      const next = shiftPeriod(scale, date, 1);
+      assert.equal((Date.parse(current.start) - Date.parse(previous.end)) / 864e5, 1);
+      assert.equal((Date.parse(next.start) - Date.parse(current.end)) / 864e5, 1);
+      assert.equal((Date.parse(current.end) - Date.parse(current.start)) / 864e5 + 1, days);
+      assert.deepEqual(shiftPeriod(scale, previous.end, 1), current);
+    }
+  }
 });
 
-test("navigation handles year boundaries and DST without changing calendar dates", () => {
-  assert.deepEqual(shiftPeriod("Y", "2026-10-23", -1), {start: "2025-01-01", end: "2025-12-31"});
-  assert.deepEqual(shiftPeriod("D", "2026-03-08", 1), {start: "2026-03-09", end: "2026-03-09"});
-  assert.deepEqual(periodBounds("W", "2026-01-01"), {start: "2025-12-28", end: "2026-01-03"});
+test("labels describe the actual trailing window", () => {
+  assert.equal(periodLabel("W", "2026-10-26"), "Oct 20 – 26");
+  assert.equal(periodLabel("M", "2026-10-26"), "Sep 27 – Oct 26");
+  assert.equal(periodLabel("Y", "2026-10-26"), "Oct 27, 2025 – Oct 26, 2026");
+  assert.equal(periodLabel("W", "2026-01-01"), "Dec 26 – Jan 1");
 });
 
-test("labels distinguish months, years, and weeks crossing a year", () => {
-  assert.equal(periodLabel("M", "2026-10-23"), "October 2026");
-  assert.equal(periodLabel("Y", "2026-10-23"), "2026");
-  assert.equal(periodLabel("W", "2026-10-23"), "Oct 18 – 24");
-  assert.equal(periodLabel("W", "2026-01-01"), "Dec 28 – Jan 3");
-});
-
-test("calendar highlights the complete selected week, including adjacent months", () => {
+test("calendar highlights the complete trailing week even at the start of a month", () => {
   const cells = calendarDays("2026-01-01", "W", "2026-01-01");
   assert.equal(cells.length, 42);
   const selected = cells.filter((d) => d.selected);
   assert.equal(selected.length, 7);
-  assert.equal(selected[0].date, "2025-12-28");
-  assert.equal(selected.at(-1).date, "2026-01-03");
+  assert.equal(selected[0].date, "2025-12-26");
+  assert.equal(selected.at(-1).date, "2026-01-01");
 });
 
-test("calendar highlights one day, a full month, or the visible part of a year", () => {
-  assert.equal(calendarDays("2026-10-01", "D", "2026-10-23").filter(d => d.selected).length, 1);
-  assert.equal(calendarDays("2026-10-01", "M", "2026-10-23").filter(d => d.selected).length, 31);
-  assert.equal(calendarDays("2026-10-01", "Y", "2026-10-23").filter(d => d.selected).length, 42);
+test("calendar highlights the visible part of each trailing span through its end date", () => {
+  for (const scale of ["D", "W", "M", "Y"]) {
+    const bounds = periodBounds(scale, "2026-10-26");
+    const cells = calendarDays("2026-10-01", scale, "2026-10-26");
+    assert.ok(cells.find((d) => d.date === "2026-10-26").selected);
+    assert.equal(cells.find((d) => d.date === "2026-10-27").selected, false);
+    for (const cell of cells) assert.equal(cell.selected, cell.date >= bounds.start && cell.date <= bounds.end);
+  }
 });
 
-test("all time spans everything, has no neighbours, and is labelled as such", () => {
-  const bounds = periodBounds("A", "2026-10-22");
-  assert.ok(bounds.start < "1000-01-01" && bounds.end > "9000-01-01");
-  assert.deepEqual(shiftPeriod("A", "2026-10-22", -1), bounds);
-  assert.equal(periodLabel("A", "2026-10-22"), "All time");
+test("all time follows recorded dates, has no neighbours and is labelled as such", () => {
+  const bounds = periodBounds("A", "2026-10-26");
+  assert.ok(bounds.start < "1000-01-01" && bounds.end > "9000-12-31");
+  assert.deepEqual(shiftPeriod("A", "2026-10-26", -1), bounds);
+  assert.equal(periodLabel("A", "2026-10-26"), "All time");
+  assert.deepEqual(overviewBounds("A", "2026-10-26", "2026-10-25", "2026-10-26"), {start: "2026-10-25", end: "2026-10-26"});
 });
 
-test("overview axes retain a full week/month/year when only two days exist", async () => {
-  const {overviewBounds} = await import("../src/components/period.js");
-  const first = "2026-10-25", last = "2026-10-26";
-  assert.deepEqual(overviewBounds("W", last, first, last), {start: "2026-10-25", end: "2026-10-31"});
-  assert.deepEqual(overviewBounds("M", last, first, last), {start: "2026-10-01", end: "2026-10-31"});
-  assert.deepEqual(overviewBounds("Y", last, first, last), {start: "2026-01-01", end: "2026-12-31"});
-  assert.deepEqual(overviewBounds("A", last, first, last), {start: first, end: last});
-  assert.deepEqual(overviewBounds("W", "2026-10-23", first, last), {start: "2026-10-18", end: "2026-10-24"});
+test("overview retains all earlier dates in trailing spans with only two days of data", () => {
+  for (const scale of ["W", "M", "Y"]) assert.deepEqual(
+    overviewBounds(scale, "2026-10-26", "2026-10-25", "2026-10-26"), periodBounds(scale, "2026-10-26"));
 });
