@@ -199,6 +199,9 @@ class Health:
     def __init__(self, data: Path):
         self.data, self.path = data, data / "live" / "status.json"
         self.cpu = None  # last /proc/stat (busy, total), for the CPU use between writes
+        # Power trouble seen since the last history sample: under-voltage or throttling flagged now
+        # at any write, or a since-boot flag that turned on between writes (a dip shorter than a minute).
+        self.power_seen, self.prev_flags = {"under_voltage": False, "throttled": False}, None
         self.written = self.sampled = 0.0
         try:
             self.history = json.loads(self.path.read_text()).get("history", [])
@@ -250,8 +253,20 @@ class Health:
         if now - self.written < self.EVERY:
             return
         snap = self.snapshot()
+        if (t := snap.get("throttled")):
+            for k in self.power_seen:
+                newly = self.prev_flags is not None and t[f"{k}_since_boot"] and not self.prev_flags[f"{k}_since_boot"]
+                self.power_seen[k] |= t[k] or newly
+            self.prev_flags = t
         if now - self.sampled >= self.SAMPLE_EVERY and "cpu_percent" in snap:
-            self.history.append({"at": snap["updated"], **{k: snap[k] for k in ("temp_c", "cpu_percent") if k in snap}})
+            sample = {"at": snap["updated"], **{k: snap[k] for k in ("temp_c", "cpu_percent") if k in snap}}
+            if "memory_mb" in snap:
+                sample["memory_mb_used"] = snap["memory_mb"]["used"]
+            sample["disk_gb_free"] = snap["disk_gb"]["free"]
+            if "throttled" in snap:
+                sample.update(self.power_seen)
+                self.power_seen = dict.fromkeys(self.power_seen, False)
+            self.history.append(sample)
             cutoff = datetime.fromtimestamp(now - self.HISTORY, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             self.history = [h for h in self.history if h["at"] >= cutoff]
             self.sampled = now

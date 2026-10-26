@@ -9,45 +9,57 @@ toc: false
      like (background level), how it got here (wifi), and how fast it became detections
      (pipeline delay). One row per uploaded recording, from the recordings table. Above them, the
      indoor computer's health, from the status.json pipeline/publish.py writes there each minute
-     (read when the page opens, so it's current without a rebuild). -->
+     (re-read while the page is open, so it's current without a rebuild). -->
 
 ```js
-import {loadSun, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
+import {loadSun, detectionsTable, recordingsTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
 ```
 
 ```js
-const table = await FileAttachment("data/recordings.parquet").parquet();
-const col = (k) => table.getChild(k);
-const recs = Array.from({length: table.numRows}, (_, i) => ({
-  time: new Date(Number(col("time").get(i))), date: col("date").get(i), hour: col("hour").get(i), seconds: col("seconds").get(i),
-  rms: col("rms").get(i), rssi: col("rssi").get(i), upload: col("upload").get(i), delay: col("delay").get(i)
-}));
-const sun = await loadSun();
-// Share of BirdNET's detections below the dashboard's 0.6 confidence threshold.
-const detections = await FileAttachment("data/detections.parquet").parquet();
-const simulated = table.numRows > 0 && col("simulated").get(0);
+// Re-fetched while the page is open: the Pi reports each minute, and uploads the recorder's
+// tables every 10 minutes.
+const every = (ms, load) => (async function* () { for (;;) { yield await load(); await new Promise((r) => setTimeout(r, ms)); } })();
+const table = every(10 * 60e3, recordingsTable);
+const detections = every(10 * 60e3, detectionsTable);
 // The indoor computer's health, as of its last report (null if it hasn't reported).
-const pi = await fetch("/api/live/status.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+const pi = every(60e3, () => fetch("/api/live/status.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+const sun = await loadSun();
 ```
 
 ```js
-if (!recs.length) {
-  display(html`<p class="sub">No recordings yet. This page fills in once the recorder uploads audio.</p>`);
-  await new Promise(() => {});
-}
-const latest = d3.max(recs, (d) => d.date);
+const col = (k) => table.getChild(k);
+// The recorder's own rows only (the table may still hold simulated ones from before it ran).
+// board_temp (°C, the ESP32's own sensor) and board_uptime (s since the board started) arrive once
+// the firmware sends them; until then they're absent.
+const optional = (k) => (table.schema.fields.some((f) => f.name === k) ? col(k) : null);
+const boardTempCol = optional("board_temp"), boardUptimeCol = optional("board_uptime");
+const recs = d3.range(table.numRows).filter((i) => !col("simulated").get(i)).map((i) => ({
+  time: new Date(Number(col("time").get(i))), date: col("date").get(i), hour: col("hour").get(i), seconds: col("seconds").get(i),
+  rms: col("rms").get(i), rssi: col("rssi").get(i), upload: col("upload").get(i), delay: col("delay").get(i),
+  boardTemp: boardTempCol?.get(i) ?? null, boardUptime: boardUptimeCol?.get(i) ?? null
+}));
+```
+
+```js
+const hasRecs = recs.length > 0;
+const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+const latest = d3.max(recs, (d) => d.date) ?? today;
 const DAYS = 90;
 const from = addDays(latest, -(DAYS - 1));
 const span = dateSpan(from, latest);
 const recent = recs.filter((d) => d.date >= from);
 const byDate = d3.group(recent, (d) => d.date);
-// Uptime: the share of the time since recording began (within the window) that audio arrived.
-const upFrom = d3.min(recent, (d) => +d.time), upTo = d3.max(recent, (d) => +d.time + d.seconds * 1e3);
-const uptime = upTo > upFrom ? d3.sum(recent, (d) => d.seconds) * 1e3 / (upTo - upFrom) : 0;
+const windowStart = d3.min(recent, (d) => d.date) ?? from; // the window's first recorded day
+// Uptime: the share of the time since launch that audio arrived. Up to the newest recording, as
+// the table arrives in 10-minute batches, but no further back than 15 minutes ago, so a recorder
+// that stops shows it.
+const LAUNCH = Date.parse("2026-10-25T23:11:00Z"); // when the recorder's telemetry began (4:11 PM)
+const dataEnd = d3.max(recs, (d) => +d.time + d.seconds * 1e3) ?? Date.now();
+const upFrom = LAUNCH, upTo = Math.max(dataEnd, Date.now() - 15 * 60e3);
+const uptime = upTo > upFrom ? d3.sum(recent, (d) => (+d.time >= upFrom ? d.seconds : 0)) * 1e3 / (upTo - upFrom) : 0;
 const daily = span.filter((d) => byDate.has(d)).map((date) => {
   const v = byDate.get(date);
   return {date: new Date(date), day: date,
-    hours: d3.sum(v, (d) => d.seconds) / 3600,
     rmsLow: d3.quantile(v, 0.1, (d) => d.rms), rms: d3.median(v, (d) => d.rms), rmsHigh: d3.quantile(v, 0.9, (d) => d.rms),
     rssi: d3.median(v, (d) => d.rssi), upload: d3.median(v, (d) => d.upload),
     delay: d3.median(v, (d) => d.delay) / 60, delay95: d3.quantile(v, 0.95, (d) => d.delay) / 60};
@@ -61,59 +73,163 @@ const fmtDay = (d) => formatDate(d.toISOString().slice(0, 10));
 const last = recs.at(-1);
 const detDate = detections.getChild("date"), detConf = detections.getChild("confidence");
 const clock = (iso) => new Date(iso).toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
-let detTotal = 0, detLow = 0;
-for (let i = 0; i < detections.numRows; ++i) if (detDate.get(i) >= from) { ++detTotal; if (detConf.get(i) < 0.6) ++detLow; }
+// BirdNET's confidence for each detection in the window, for the distribution card.
+const detTime = detections.getChild("time");
+const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= from).map((i) => ({at: new Date(Number(detTime.get(i))), confidence: detConf.get(i)}));
+const confidences = confRows.map((d) => d.confidence);
+const THRESHOLD = 0.6;
+const confMedian = d3.median(confidences);
+// The last 24 hours (since launch, if that's sooner) in 5-minute steps, up to the newest recording.
+const STEP = 5 * 60e3;
+const dayStart = Math.max(LAUNCH, dataEnd - 24 * 3600e3);
+const bySlot = d3.group(recs.filter((d) => +d.time >= dayStart), (d) => Math.floor((+d.time - dayStart) / STEP));
+const slots = d3.range(Math.max(1, Math.ceil((dataEnd - dayStart) / STEP))).map((i) => {
+  const v = bySlot.get(i), start = dayStart + i * STEP;
+  return {start: new Date(start), at: new Date(start + STEP / 2), end: new Date(start + STEP),
+    received: v ? Math.min(100, (100 * d3.sum(v, (d) => d.seconds) * 1e3) / STEP) : 0,
+    rssi: v ? d3.median(v, (d) => d.rssi) : NaN, rms: v ? d3.median(v, (d) => d.rms) : NaN, delay: v ? d3.median(v, (d) => d.delay) / 60 : NaN,
+    boardTemp: v ? d3.median(v, (d) => d.boardTemp) ?? NaN : NaN};
+});
 ```
 
 ```js
-// The indoor computer: its latest numbers as cards, and the last day of temperature and CPU use.
+// Cards: each reading now (its value, a meter, its status) above its last 24 hours.
 const piFresh = pi && Date.now() - Date.parse(pi.updated) < 5 * 60e3;
 const duration = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
-const warnings = pi?.throttled ? [
-  pi.throttled.under_voltage ? "under-voltage now" : pi.throttled.under_voltage_since_boot ? "under-voltage since boot" : null,
-  pi.throttled.throttled ? "slowed down now" : pi.throttled.throttled_since_boot ? "slowed down since boot" : null
-].filter(Boolean) : [];
+// Status: each level has its own shape and word, so it never rests on color alone.
+const STATUS = {good: ["●", "Good"], warning: ["▲", "Okay"], critical: ["■", "Bad"]};
+const statusTag = (level) => html`<span class="status status-${level}"><span class="status-icon" aria-hidden="true">${STATUS[level][0]}</span>${STATUS[level][1]}</span>`;
+// A meter: the scale from its first zone's start to its last zone's end, in status zones
+// ([from, to, level]), with a marker at the value. The zone holding the value is drawn solid,
+// the others faint. Returns the meter and the value's level.
+const zoneOf = (value, zones) => zones.find((z) => value < z[1]) ?? zones.at(-1);
+const levelOf = (value, zones) => zoneOf(value, zones)[2];
+const meter = (value, zones, format = (v) => v) => {
+  const lo = zones[0][0], hi = zones.at(-1)[1], at = Math.max(lo, Math.min(hi, value));
+  const zone = zoneOf(at, zones);
+  const pct = (v) => `${(100 * (v - lo)) / (hi - lo)}%`;
+  return {status: zone[2], node: html`<div class="meter" role="img" aria-label="${format(value)}: ${STATUS[zone[2]][1]}">
+    <div class="meter-track">${zones.map((z) => html`<span class="meter-zone status-${z[2]}${z === zone ? " is-current" : ""}" style="width: ${pct(z[1] + lo - z[0])}"></span>`)}</div>
+    <span class="meter-mark" style="left: ${pct(at)}"></span>
+    <div class="meter-ticks">${zones.slice(1).map((z) => html`<span style="left: ${pct(z[0])}">${format(z[0])}</span>`)}</div>
+  </div>`};
+};
+// A stat card with a meter: the value, the meter, its status and a note, then its recent history.
+const meterCard = (title, big, m, note, history) => html`<div class="card"><h2>${title}</h2><div class="big">${big}</div>${m.node}<div class="sub">${statusTag(m.status)}${note ? html` · ${note}` : ""}</div>${history ?? ""}</div>`;
+
+const TEMP_ZONES = [[20, 70, "good"], [70, 80, "warning"], [80, 90, "critical"]];
+const CPU_ZONES = [[0, 75, "good"], [75, 90, "warning"], [90, 100, "critical"]];
+const MEMORY_ZONES = [[0, 80, "good"], [80, 92, "warning"], [92, 100, "critical"]];
+const STORAGE_ZONES = [[0, 5, "critical"], [5, 15, "warning"], [15, 100, "good"]];
+const power = !pi?.throttled ? null
+  : pi.throttled.under_voltage ? ["critical", "below 4.63 V now", "Under-voltage"]
+  : pi.throttled.throttled ? ["critical", "CPU clock reduced now", "Throttled"]
+  : pi.throttled.under_voltage_since_boot ? ["warning", "below 4.63 V at least once since boot", "Under-voltage"]
+  : pi.throttled.throttled_since_boot ? ["warning", "CPU clock reduced at least once since boot", "Throttled"]
+  : ["good", "no under-voltage or throttling since boot", "Normal"];
 const piHistory = (pi?.history ?? []).map((h) => ({...h, at: new Date(h.at)}));
-const piChart = (key, label, domain, rule) => resize((width) => Plot.plot({
-  width, height: 160, marginLeft: 44,
-  x: {type: "time", label: null, tickFormat: (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric"})},
-  y: {label, grid: true, domain},
-  marks: [
-    rule ? Plot.ruleY([rule[0]], {stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "4,3"}) : null,
-    rule ? Plot.text([rule[0]], {y: (d) => d, frameAnchor: "left", dx: 4, dy: -6, text: () => rule[1], fill: "currentColor", fillOpacity: 0.7, fontSize: 10, textAnchor: "start"}) : null,
-    Plot.lineY(piHistory.filter((h) => h[key] != null), {x: "at", y: key, stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
-    Plot.tip(piHistory.filter((h) => h[key] != null), Plot.pointerX({x: "at", y: key, title: (h) => `${clock(h.at)}\n${label}: ${h[key]}`}))
-  ]
-}));
-const piSection = pi && html`<div class="grid stats" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
-  ${pi.temp_c != null ? html`<div class="card"><h2>Temperature</h2><div class="big">${d3.format(".0f")(pi.temp_c)} °C</div><div class="sub">the Pi slows itself down near 80 °C</div></div>` : ""}
-  ${pi.cpu_percent != null ? html`<div class="card"><h2>CPU</h2><div class="big">${d3.format(".0f")(pi.cpu_percent)}%</div><div class="sub">busy over the last minute; load ${pi.load?.[0] ?? "–"}</div></div>` : ""}
-  ${pi.memory_mb ? html`<div class="card"><h2>Memory</h2><div class="big">${d3.format(".0f")(pi.memory_mb.used)} MB</div><div class="sub">in use of ${d3.format(".0f")(pi.memory_mb.total)} MB</div></div>` : ""}
-  ${pi.disk_gb ? html`<div class="card"><h2>Storage</h2><div class="big">${d3.format(".1f")(pi.disk_gb.free)} GB</div><div class="sub">free of ${d3.format(".0f")(pi.disk_gb.total)} GB</div></div>` : ""}
-  ${pi.uptime_s != null ? html`<div class="card"><h2>Running for</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">since it last started${warnings.length ? html`; <strong>${warnings.join(", ")}</strong>: check its power supply` : ""}</div></div>` : ""}
-</div>
-${piHistory.length > 1 ? html`<div class="grid grid-cols-2">
-  <div class="card"><div class="chart-slot" style="--chart-height: 160px">${piChart("temp_c", "Temperature (°C)", [30, 85], [80, "slows down from here"])}</div></div>
-  <div class="card"><div class="chart-slot" style="--chart-height: 160px">${piChart("cpu_percent", "CPU busy (%)", [0, 100])}</div></div>
-</div>` : ""}`;
+const hourTick = (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric"});
+const UPTIME_ZONES = [[50, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
+const WIFI_ZONES = [[-90, -80, "critical"], [-80, -70, "warning"], [-70, -40, "good"]];
+const DELAY_ZONES = [[0, 3, "good"], [3, 10, "warning"], [10, 15, "critical"]];
+// The ESP32 is rated to 85 °C; its own sensor reads warm, so Okay starts well short of that.
+const BOARD_TEMP_ZONES = [[-10, 65, "good"], [65, 80, "warning"], [80, 90, "critical"]];
+const COVERAGE_ZONES = [[0, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
+// Recent history at the foot of a card: the last 24 hours in half-hour bars, each colored and
+// sized by the status of its median reading (tall green, shorter amber, short red), so a good
+// day is a row of full green bars; a faint stub where there's no data. A reading without status
+// zones (zones null) gets plain bars sized by its value instead. Hover a bar for its value.
+const HALF_HOUR = 30 * 60e3, BARS = 48;
+const statusStrip = (rows, key, zones, format, reduce = d3.median) => {
+  const start = Date.now() - BARS * HALF_HOUR;
+  const byBar = d3.group(rows.filter((r) => r[key] != null && !Number.isNaN(r[key]) && +r.at >= start), (r) => Math.floor((+r.at - start) / HALF_HOUR));
+  const medians = new Map([...byBar].map(([i, v]) => [i, reduce(v, (r) => r[key])]));
+  const [lo, hi] = d3.extent(medians.values());
+  const size = (m) => (hi > lo ? 20 + (80 * (m - lo)) / (hi - lo) : 60); // % of the strip's height
+  return html`<div class="card-history"><div class="status-strip">${d3.range(BARS).map((i) => {
+    const m = medians.get(i), when = clock(new Date(start + i * HALF_HOUR));
+    if (m == null) return html`<span class="strip-bar" title="${when}: no data"></span>`;
+    if (!zones) return html`<span class="strip-bar is-plain" style="height: ${size(m)}%" title="${when}: ${format(m)}"></span>`;
+    const level = levelOf(m, zones);
+    return html`<span class="strip-bar status-${level}" title="${when}: ${format(m)}, ${STATUS[level][1].toLowerCase()}"></span>`;
+  })}</div><div class="strip-axis"><span>24 h ago</span><span>now</span></div></div>`;
+};
+const STATUS_COLOR = {good: "#0ca30c", warning: "#fab219", critical: "#d03b3b"};
+const pctOf = (part, whole) => (100 * part) / whole;
+const memPct = pi?.memory_mb && pctOf(pi.memory_mb.used, pi.memory_mb.total);
+const diskPct = pi?.disk_gb && pctOf(pi.disk_gb.free, pi.disk_gb.total);
+// Memory and storage as shares, so they share the meters' zones; power trouble as a level
+// (0 none, 1 throttled, 2 under-voltage), taken at its worst in each half hour.
+const POWER_ZONES = [[0, 0.5, "good"], [0.5, 1.5, "warning"], [1.5, 2, "critical"]];
+const powerText = ["normal", "throttled", "under-voltage"];
+for (const h of piHistory) {
+  if (h.under_voltage != null) h.power = h.under_voltage ? 2 : h.throttled ? 1 : 0;
+  if (h.memory_mb_used != null && pi?.memory_mb) h.memory_pct = pctOf(h.memory_mb_used, pi.memory_mb.total);
+  if (h.disk_gb_free != null && pi?.disk_gb) h.disk_pct = pctOf(h.disk_gb_free, pi.disk_gb.total);
+}
+// Detection confidence as a meter whose track is its distribution: bins in 0.025 steps, sized by
+// count, colored by zone (below the dashboard's 0.6 threshold Okay, above it Good), the median's
+// zone solid and the other faint, as on the other meters; the marker at the median.
+const CONF_LO = confidences.length ? Math.min(0.5, Math.floor(d3.min(confidences) * 10) / 10) : 0;
+const CONF_ZONES = [[CONF_LO, THRESHOLD, "warning"], [THRESHOLD, 1, "good"]];
+const confidenceMeter = () => {
+  const bins = d3.bin().domain([CONF_LO, 1]).thresholds(d3.range(CONF_LO, 1, 0.025))(confidences);
+  const top = d3.max(bins, (b) => b.length), level = levelOf(confMedian, CONF_ZONES);
+  const pct = (v) => `${(100 * (v - CONF_LO)) / (1 - CONF_LO)}%`;
+  return {status: level, node: html`<div class="meter conf-meter" role="img" aria-label="median ${d3.format(".2f")(confMedian)}: ${STATUS[level][1]}">
+    <div class="conf-bins">${bins.map((b) => {
+      const z = levelOf(b.x0, CONF_ZONES);
+      return html`<span class="status-${z}${z === level ? " is-current" : ""}" style="height: ${b.length ? Math.max(10, (100 * b.length) / top) : 0}%" title="${d3.format(".3f")(b.x0)}–${d3.format(".3f")(b.x1)}: ${b.length}"></span>`;
+    })}</div>
+    <span class="meter-mark" style="left: ${pct(confMedian)}"></span>
+    <div class="meter-ticks"><span style="left: ${pct(THRESHOLD)}">${THRESHOLD}</span></div>
+  </div>`};
+};
+const noData = (title) => html`<div class="card"><h2>${title}</h2><div class="big">–</div><div class="sub">No data yet</div></div>`;
+const pctFormat = (v) => `${d3.format(".0f")(v)}%`;
+const piSection = pi && html`<div class="grid stats">
+  ${pi.temp_c != null ? meterCard("CPU temperature", `${d3.format(".0f")(pi.temp_c)} °C`, meter(pi.temp_c, TEMP_ZONES, (v) => `${v}°`), "CPU throttles at 80 °C", statusStrip(piHistory, "temp_c", TEMP_ZONES, (v) => `${v} °C`)) : ""}
+  ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
+  ${pi.memory_mb ? meterCard("Memory in use", `${d3.format(".0f")(pi.memory_mb.used)} MB`, meter(memPct, MEMORY_ZONES, pctFormat), `of ${d3.format(".0f")(pi.memory_mb.total)} MB`, statusStrip(piHistory, "memory_pct", MEMORY_ZONES, pctFormat)) : ""}
+  ${pi.disk_gb ? meterCard("Storage free", `${d3.format(".1f")(pi.disk_gb.free)} GB`, meter(diskPct, STORAGE_ZONES, pctFormat), `of ${d3.format(".0f")(pi.disk_gb.total)} GB`, statusStrip(piHistory, "disk_pct", STORAGE_ZONES, pctFormat)) : ""}
+  ${power ? html`<div class="card"><h2>Power supply</h2><div class="big">${power[2]}</div><div class="sub">${statusTag(power[0])} · ${power[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max)}</div>` : ""}
+  ${pi.uptime_s != null ? html`<div class="card"><h2>Time since restart</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">booted ${clock(new Date(Date.parse(pi.updated) - pi.uptime_s * 1e3))}</div></div>` : ""}
+</div>`;
 ```
 
 # Hardware analytics
 
-<p class="sub">${dateRange(from, latest)}${simulated ? " · simulated until the recorder is running" : ""}</p>
+<p class="sub">${hasRecs ? dateRange(windowStart, latest) : "No recorder data yet"}</p>
 
-<div class="grid stats" style="grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));">
-  <div class="card"><h2>Low-confidence fraction</h2><div class="big">${d3.format(".0%")(detTotal ? detLow / detTotal : 0)}</div><div class="sub">of BirdNET detections are below the 0.6 threshold</div></div>
-  <div class="card"><h2>Uptime</h2><div class="big">${d3.format(".1%")(Math.min(1, uptime))}</div><div class="sub">of the time since ${formatDate(new Date(upFrom).toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}))} had audio</div></div>
-  <div class="card"><h2>Audio per day</h2><div class="big">${d3.format(".1f")(d3.mean(daily, (d) => d.hours))} h</div><div class="sub">average on days recorded</div></div>
-  <div class="card"><h2>Wifi signal</h2><div class="big">${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm</div><div class="sub">median; −70 or better is solid</div></div>
-  <div class="card"><h2>Recording → dashboard delay</h2><div class="big">${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min</div><div class="sub">median; latest recording ${last.time.toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"})}</div></div>
+<!-- End to end: what both halves together deliver. -->
+<div class="grid stats">
+  ${confidences.length
+    ? meterCard("Detection confidence", d3.format(".2f")(confMedian), confidenceMeter(), `median of ${d3.format(",")(confidences.length)} detections`, statusStrip(confRows, "confidence", CONF_ZONES, (v) => `${d3.format(".2f")(v)} median`))
+    : noData("Detection confidence")}
+  ${hasRecs ? [
+    meterCard("Audio uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), `since ${clock(new Date(LAUNCH))}`, statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
+    meterCard("Recording → dashboard delay", `${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min`, meter(d3.median(recent, (d) => d.delay) / 60, DELAY_ZONES, (v) => `${v}m`), `median since ${formatDate(windowStart)}`, statusStrip(slots, "delay", DELAY_ZONES, (v) => `${d3.format(".1f")(v)} min`))
+  ] : ["Audio uptime", "Recording → dashboard delay"].map(noData)}
 </div>
 
-<div class="section-top"><p class="eyebrow">Indoor computer</p>${pi ? html`<p class="sub section-sub">${pi.host} · ${piFresh ? "reported" : "no report since"} ${clock(pi.updated)}</p>` : ""}</div>
-${pi ? piSection : html`<div class="card"><p class="sub">The indoor computer hasn't reported yet. Its health shows here once publish.py is running on it.</p></div>`}
+<div class="section-top"><p class="eyebrow">Outdoor recorder</p>${hasRecs ? html`<p class="sub section-sub">FireBeetle · last recording ${clock(last.time)}</p>` : ""}</div>
+<div class="grid stats">
+  ${hasRecs ? [
+    meterCard("Wifi signal", `${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm`, meter(d3.median(recent, (d) => d.rssi), WIFI_ZONES, (v) => `${v}`.replace("-", "−")), `median since ${formatDate(windowStart)}`, statusStrip(slots, "rssi", WIFI_ZONES, (v) => `${d3.format(".0f")(v)} dBm`)),
+    html`<div class="card"><h2>Background level</h2><div class="big">${d3.format(".0f")(d3.median(slots.slice(-12), (d) => d.rms) ?? NaN).replace("-", "−")} dBFS</div><div class="sub">median, last hour</div>${statusStrip(slots, "rms", null, (v) => `${d3.format(".1f")(v).replace("-", "−")} dBFS`)}</div>`
+  ] : ["Wifi signal", "Background level"].map(noData)}
+  ${(() => {
+    const board = recs.findLast((d) => d.boardTemp != null);
+    return board
+      ? meterCard("Board temperature", `${d3.format(".0f")(board.boardTemp)} °C`, meter(board.boardTemp, BOARD_TEMP_ZONES, (v) => `${v}°`), board.boardUptime != null ? `ESP32 sensor · booted ${clock(new Date(+board.time - board.boardUptime * 1e3))}` : "ESP32 sensor", statusStrip(slots, "boardTemp", BOARD_TEMP_ZONES, (v) => `${d3.format(".0f")(v)} °C`))
+      : noData("Board temperature");
+  })()}
+</div>
 
-<div class="section-top"><p class="eyebrow">Coverage</p></div>
+<div class="section-top"><p class="eyebrow">Indoor computer</p>${pi ? html`<p class="sub section-sub">${pi.host} · last report ${clock(pi.updated)}${piFresh ? "" : " (over 5 min ago)"}</p>` : ""}</div>
+${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
+
+<div class="section-top"><p class="eyebrow">Coverage, last 90 days</p></div>
 <div class="card"><div class="chart-slot" data-skeleton="grid" style="--chart-height: 330px">${resize((width) => Plot.plot({
   width, height: 260, marginLeft: 40, marginRight: 64,
   x: {type: "utc", label: null},
@@ -128,7 +244,7 @@ ${pi ? piSection : html`<div class="card"><p class="sub">The indoor computer has
   ]
 }))}</div></div>
 
-<div class="section-top"><p class="eyebrow">Background level</p></div>
+<div class="section-top"><p class="eyebrow">Background level, last 90 days</p></div>
 <div class="card"><div class="chart-slot" style="--chart-height: 220px">${resize((width) => Plot.plot({
   width, height: 220, marginLeft: 50, marginRight: 110,
   x: {type: "utc", label: null},
@@ -136,40 +252,40 @@ ${pi ? piSection : html`<div class="card"><p class="sub">The indoor computer has
   marks: [
     Plot.areaY(daily, {x: "date", y1: "rmsLow", y2: "rmsHigh", fill: seriesColor(dark), fillOpacity: 0.18, curve: "monotone-x"}),
     Plot.lineY(daily, {x: "date", y: "rms", stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
-    Plot.text(daily.slice(-1), {x: "date", y: "rms", text: () => "daily median", dx: 6, textAnchor: "start", fill: "currentColor", fontSize: 10}),
-    Plot.text(daily.slice(-1), {x: "date", y: "rmsHigh", text: () => "middle 80% of files", dx: 6, dy: -6, textAnchor: "start", fill: "currentColor", fillOpacity: 0.7, fontSize: 10}),
-    Plot.tip(daily, Plot.pointerX({x: "date", y: "rms", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.rms)} dBFS\nQuietest–loudest 10%: ${d3.format(".0f")(d.rmsLow)} to ${d3.format(".0f")(d.rmsHigh)}`}))
+    Plot.text(daily.slice(-1), {x: "date", y: "rms", text: () => "median", dx: 6, textAnchor: "start", fill: "currentColor", fontSize: 10}),
+    Plot.text(daily.slice(-1), {x: "date", y: "rmsHigh", text: () => "10th–90th percentile", dx: 6, dy: -6, textAnchor: "start", fill: "currentColor", fillOpacity: 0.7, fontSize: 10}),
+    Plot.tip(daily, Plot.pointerX({x: "date", y: "rms", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.rms)} dBFS\n10th–90th percentile: ${d3.format(".0f")(d.rmsLow)} to ${d3.format(".0f")(d.rmsHigh)}`}))
   ]
 }))}
 </div>
 
 <div class="grid grid-cols-2">
 <div>
-<div class="section-top"><p class="eyebrow">Wifi signal</p></div>
+<div class="section-top"><p class="eyebrow">Wifi signal, last 90 days</p></div>
 <div class="card"><div class="chart-slot" style="--chart-height: 200px">${resize((width) => Plot.plot({
   width, height: 200, marginLeft: 50,
   x: {type: "utc", label: null},
   y: {label: "Wifi signal (dBm)", grid: true, domain: [-90, -40]},
   marks: [
     Plot.ruleY([-70], {stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "4,3"}),
-    Plot.text([-70], {y: (d) => d, frameAnchor: "left", dx: 4, dy: 8, text: () => "weaker than −70: uploads slow down", fill: "currentColor", fillOpacity: 0.7, fontSize: 10, textAnchor: "start"}),
+    Plot.text([-70], {y: (d) => d, frameAnchor: "left", dx: 4, dy: 8, text: () => "−70 dBm", fill: "currentColor", fillOpacity: 0.7, fontSize: 10, textAnchor: "start"}),
     Plot.lineY(daily, {x: "date", y: "rssi", stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
-    Plot.tip(daily, Plot.pointerX({x: "date", y: "rssi", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".0f")(d.rssi)} dBm\nUpload ${d3.format(".0f")(d.upload)} s per file`}))
+    Plot.tip(daily, Plot.pointerX({x: "date", y: "rssi", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".0f")(d.rssi)} dBm`}))
   ]
 }))}</div></div>
 </div>
 <div>
-<div class="section-top"><p class="eyebrow">Recording → dashboard delay</p></div>
+<div class="section-top"><p class="eyebrow">Recording → dashboard delay, last 90 days</p></div>
 <div class="card"><div class="chart-slot" style="--chart-height: 200px">${resize((width) => Plot.plot({
   width, height: 200, marginLeft: 50, marginRight: 60,
   x: {type: "utc", label: null},
-  y: {type: "log", label: "Minutes to the dashboard", grid: true},
+  y: {type: "log", label: "Delay (min)", grid: true},
   marks: [
     Plot.lineY(daily, {x: "date", y: "delay95", stroke: "currentColor", strokeOpacity: 0.45, strokeWidth: 1.5, curve: "step"}),
     Plot.lineY(daily, {x: "date", y: "delay", stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
     Plot.text(daily.slice(-1), {x: "date", y: "delay", text: () => "median", dx: 6, textAnchor: "start", fill: "currentColor", fontSize: 10}),
-    Plot.text([d3.greatest(daily, (d) => d.delay95)], {x: "date", y: "delay95", text: () => "slowest 5%", dx: 6, textAnchor: "start", fill: "currentColor", fillOpacity: 0.7, fontSize: 10}),
-    Plot.tip(daily, Plot.pointerX({x: "date", y: "delay", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.delay)} min\nSlowest 5%: ${d3.format(".0f")(d.delay95)} min`}))
+    Plot.text(daily.length ? [d3.greatest(daily, (d) => d.delay95)] : [], {x: "date", y: "delay95", text: () => "95th percentile", dx: 6, textAnchor: "start", fill: "currentColor", fillOpacity: 0.7, fontSize: 10}),
+    Plot.tip(daily, Plot.pointerX({x: "date", y: "delay", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.delay)} min\n95th percentile: ${d3.format(".0f")(d.delay95)} min`}))
   ]
 }))}
 </div>

@@ -1740,3 +1740,129 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   .live-gantt-total { grid-template-columns: auto; font-size: 12px; line-height: 1.25; } /* stacked */
   .live-gantt-axis .is-minor { display: none; }
 }
+
+/* Hardware analytics: status tags and meters. Status colors are fixed across themes, and
+   every level also has its own shape and word (● good, ▲ warning, ■ critical). */
+.status-good { --status: #0ca30c; }
+.status-warning { --status: #fab219; }
+.status-critical { --status: #d03b3b; }
+
+.status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3em;
+  font-weight: 600;
+  color: var(--theme-foreground);
+}
+
+.status-icon {
+  color: var(--status);
+  font-size: 0.85em;
+}
+
+.meter {
+  position: relative;
+  margin: 0.5rem 0 1.1rem;
+}
+
+.meter-track {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.meter-zone {
+  background: var(--status);
+  opacity: 0.25;
+}
+
+.meter-zone:first-child { border-radius: 4px 0 0 4px; }
+.meter-zone:last-child { border-radius: 0 4px 4px 0; }
+.meter-zone.is-current { opacity: 1; }
+
+.meter-mark {
+  position: absolute;
+  top: -4px;
+  width: 3px;
+  height: 16px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--theme-foreground);
+  box-shadow: 0 0 0 2px var(--theme-background-alt);
+}
+
+.meter-ticks {
+  position: absolute;
+  inset: 12px 0 auto;
+  font-size: 0.68rem;
+  line-height: 1;
+  color: var(--theme-foreground-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.meter-ticks > span {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* Recent history at the foot of a stat card: half-hour bars, tall when good, shorter when okay,
+   short when bad (so the status reads by height too, not only color); a stub where no data. */
+.status-strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 22px;
+  margin-top: 0.6rem;
+}
+
+.strip-bar {
+  flex: 1;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--theme-foreground-faintest);
+}
+
+.strip-bar.status-good { height: 100%; background: var(--status); }
+.strip-bar.status-warning { height: 64%; background: var(--status); }
+.strip-bar.status-critical { height: 32%; background: var(--status); }
+
+.strip-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 0.65rem;
+  color: var(--theme-foreground-muted);
+}
+
+.strip-bar.is-plain { background: var(--theme-foreground-muted); }
+
+/* History strips sit on the card's bottom edge, so they line up across a row whether or not the
+   card has a meter above. */
+.grid.stats .card:has(.card-history) {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-history {
+  margin-top: auto;
+}
+
+/* Detection confidence: a meter whose track is the distribution. */
+.conf-meter .conf-bins {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 24px;
+}
+
+.conf-meter .conf-bins > span {
+  flex: 1;
+  border-radius: 1px 1px 0 0;
+  background: var(--status);
+  opacity: 0.3;
+}
+
+.conf-meter .conf-bins > span.is-current { opacity: 1; }
+.conf-meter .meter-mark { top: -3px; height: 30px; }
+.conf-meter .meter-ticks { inset: 28px 0 auto; }

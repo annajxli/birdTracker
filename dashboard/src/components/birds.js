@@ -28,7 +28,7 @@ async function latestTable(name, builtIn) {
   return builtIn();
 }
 
-const detectionsTable = () => latestTable("detections", () => FileAttachment("../data/detections.parquet").parquet());
+export const detectionsTable = () => latestTable("detections", () => FileAttachment("../data/detections.parquet").parquet());
 
 /** The recorder's telemetry, one row per recording (Hardware analytics), fresh like the detections. */
 export const recordingsTable = () => latestTable("recordings", () => FileAttachment("../data/recordings.parquet").parquet());

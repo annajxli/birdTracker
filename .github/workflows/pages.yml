@@ -72,9 +72,6 @@ jobs:
             .venv/bin/python pipeline/simulate.py
           fi
 
-      - name: Simulate recorder telemetry
-        run: .venv/bin/python pipeline/simulate_recordings.py
-
       - name: Build site
         working-directory: dashboard
         env:
