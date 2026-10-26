@@ -17,7 +17,7 @@ toc: false
      without stopping it. -->
 
 ```js
-import {speciesHref} from "./components/birds.js";
+import {speciesHref, speciesCards, loadPhotos, loadCategories} from "./components/birds.js";
 ```
 
 ```js
@@ -34,6 +34,7 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
+  <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
 </div>
 
 <div class="live-overview-row" id="live-overview-row" hidden>
@@ -54,7 +55,6 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
       <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: cleaner sound, brighter birdsong, calls up front (B)" aria-pressed="false">Bird boost</button>
     </div>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
-    <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
   </div>
 <div class="live-frame">
   <div class="live-freq" id="live-freq" aria-hidden="true"></div>
@@ -289,11 +289,15 @@ function draw() {
     const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
     if (lane < 0) continue;
     lanes[lane].push([left, right]);
-    const a = document.createElement("a");
+    // A click jumps to the run's first detection; hovering opens the species card (details).
+    const a = document.createElement("button");
+    a.type = "button";
     a.className = sure(r) ? "live-name" : "live-name is-unsure";
-    a.href = speciesHref(r.name);
+    a.dataset.species = r.name;
     a.textContent = label;
-    a.title = `${r.name}: ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%`;
+    a.setAttribute("aria-label", `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
+    a.onmousedown = (e) => e.preventDefault(); // stay unfocused, so space still mutes
+    a.onclick = () => seek(r.start, PLAYHEAD_AT);
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
@@ -491,6 +495,21 @@ function markLive() {
   soundButton.title = soundOn ? "Mute (space)" : "Unmute (space)";
   summarize(); // its hour ends at the playhead only while live
 }
+
+// Species cards on the names above the spectrogram, on hover: photo, names, category, and the
+// species' minutes heard in the audio loaded (no card until the photos and categories arrive).
+let cardMeta = null;
+Promise.all([loadPhotos(), loadCategories()]).then(([photos, categories]) => { cardMeta = {photos, categories}; }).catch(() => {});
+const stopCards = speciesCards((name) => {
+  if (!cardMeta) return null;
+  const heard = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name);
+  const sure = heard.filter((d) => d.confidence >= MIN_CONF);
+  return {
+    photo: cardMeta.photos?.[name], scientific: heard[0]?.scientific_name, category: cardMeta.categories?.species?.[name],
+    rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`]]
+  };
+}, {hover: ".live-name"});
+invalidation.then(stopCards);
 
 // Scrolling by hand (wheel, touch, dragging the scrollbar) frees the view; time runs on.
 const freeView = () => { tracking = false; };

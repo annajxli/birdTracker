@@ -1614,6 +1614,10 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 }
 .live-name {
   position: absolute;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
   height: 18px;
   font: 600 13.5px/16px var(--sans-serif);
   color: var(--theme-foreground);

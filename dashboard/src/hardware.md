@@ -85,6 +85,7 @@ const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= fr
 const confidences = confRows.map((d) => d.confidence);
 const THRESHOLD = 0.6;
 const confMedian = d3.median(confidences);
+const confFrom = d3.min(d3.range(detections.numRows).filter((i) => detDate.get(i) >= from), (i) => detDate.get(i)); // first day counted
 // Packet success over many minutes, pooled (all frames sent over all frames recorded), so a short
 // minute counts for its frames, not as much as a full one. From the frame counts when exported,
 // else each minute's share weighted by its seconds (close, as frames recorded follow time on).
@@ -260,7 +261,7 @@ const piSection = pi && html`<div class="grid stats">
 <!-- End to end: what both halves together deliver. -->
 <div class="grid stats">
   ${confidences.length
-    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median · IQR ${d3.format(".2f")(d3.quantile(confidences, 0.25))}–${d3.format(".2f")(d3.quantile(confidences, 0.75))} · ${d3.format(",")(confidences.length)} detections</div>${confidenceDensity()}</div>`
+    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median · IQR ${d3.format(".2f")(d3.quantile(confidences, 0.25))}–${d3.format(".2f")(d3.quantile(confidences, 0.75))} · ${d3.format(",")(confidences.length)} detections since ${formatDate(confFrom)}</div>${confidenceDensity()}</div>`
     : noData("Detection confidence")}
   ${hasRecs ? [
     meterCard("Uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), `since ${clock(new Date(LAUNCH))}`, statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),

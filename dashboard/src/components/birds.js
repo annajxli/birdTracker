@@ -1137,12 +1137,13 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
  * "More details" link to the species page. With a mouse, hovering a name opens it too. Chart
  * marks (bars, cells) are data and keep their own tooltips. info(species) returns {photo, scientific, category, rows: [[label, value]]},
  * or null for labels that aren't species (category headers, block titles). Returns a function
- * that removes the listeners.
+ * that removes the listeners. Elements matching `hover` (with the name in data-species) open the
+ * card on hover only; their clicks stay the page's own (the Live labels jump to their run).
  */
-export function speciesCards(info) {
+export function speciesCards(info, {hover = null} = {}) {
   const LABELS = 'g[aria-label="y-axis tick label"] text';
   const LINKS = 'a[href*="species?name="]';
-  const TARGETS = `${LABELS}, ${LINKS}`;
+  const TARGETS = [LABELS, LINKS, hover].filter(Boolean).join(", ");
   let card = null;
   let anchor = null;
   let showTimer = null;
@@ -1151,6 +1152,7 @@ export function speciesCards(info) {
   // Plot keeps a truncated name's full text in a <title>, which would also pop the browser's
   // own tooltip; move it to a data attribute the first time the pointer comes near.
   const nameOf = (el) => {
+    if (hover && el.matches(hover)) return el.dataset.species;
     if (el.matches(LINKS)) return new URL(el.getAttribute("href"), location.href).searchParams.get("name");
     const title = el.querySelector("title");
     if (title) { el.dataset.species = title.textContent; title.remove(); }
@@ -1215,6 +1217,7 @@ export function speciesCards(info) {
     if (card?.contains(e.target)) return; // "More details" and the like work normally
     const el = e.target.closest?.(TARGETS);
     if (el?.closest("svg a")) return; // a linked chart mark is data, not a name
+    if (hover && el?.matches(hover)) { hide(); return; } // hover-only: the click is the page's
     if (el && el.matches(LINKS) && (e.metaKey || e.ctrlKey || e.shiftKey)) return; // open in a new tab as usual
     if (el && info(nameOf(el))) {
       e.preventDefault();
