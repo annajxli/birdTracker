@@ -167,23 +167,33 @@ for (const h of piHistory) {
   if (h.memory_mb_used != null && pi?.memory_mb) h.memory_pct = pctOf(h.memory_mb_used, pi.memory_mb.total);
   if (h.disk_gb_free != null && pi?.disk_gb) h.disk_pct = pctOf(h.disk_gb_free, pi.disk_gb.total);
 }
-// Detection confidence as a meter whose track is its distribution: bins in 0.025 steps, sized by
-// count, colored by zone (below the dashboard's 0.6 threshold Okay, above it Good), the median's
-// zone solid and the other faint, as on the other meters; the marker at the median.
+// Detection confidence over the last 24 hours: one column per hour, confidence up the side in
+// 0.05 steps, each cell shaded by its share of that hour's detections (so busy and quiet hours
+// read alike); the dashboard's 0.6 threshold dashed. No status: BirdNET's scores run low for
+// faint or distant calls, so there's no healthy level to judge against yet.
 const CONF_LO = confidences.length ? Math.min(0.5, Math.floor(d3.min(confidences) * 10) / 10) : 0;
-const CONF_ZONES = [[CONF_LO, THRESHOLD, "warning"], [THRESHOLD, 1, "good"]];
-const confidenceMeter = () => {
-  const bins = d3.bin().domain([CONF_LO, 1]).thresholds(d3.range(CONF_LO, 1, 0.025))(confidences);
-  const top = d3.max(bins, (b) => b.length), level = levelOf(confMedian, CONF_ZONES);
-  const pct = (v) => `${(100 * (v - CONF_LO)) / (1 - CONF_LO)}%`;
-  return {status: level, node: html`<div class="meter conf-meter" role="img" aria-label="median ${d3.format(".2f")(confMedian)}: ${STATUS[level][1]}">
-    <div class="conf-bins">${bins.map((b) => {
-      const z = levelOf(b.x0, CONF_ZONES);
-      return html`<span class="status-${z}${z === level ? " is-current" : ""}" style="height: ${b.length ? Math.max(10, (100 * b.length) / top) : 0}%" title="${d3.format(".3f")(b.x0)}–${d3.format(".3f")(b.x1)}: ${b.length}"></span>`;
-    })}</div>
-    <span class="meter-mark" style="left: ${pct(confMedian)}"></span>
-    <div class="meter-ticks"><span style="left: ${pct(THRESHOLD)}">${THRESHOLD}</span></div>
-  </div>`};
+const confidenceDensity = () => {
+  const end = Date.now(), start = end - 24 * 3600e3, HOUR = 3600e3, STEP = 0.05;
+  const rows = confRows.filter((d) => +d.at >= start);
+  if (!rows.length) return html`<div class="card-history"><p class="sub">No detections in the last 24 hours</p></div>`;
+  const cells = [];
+  for (const [h, v] of d3.group(rows, (d) => Math.floor((+d.at - start) / HOUR))) {
+    for (const [b, w] of d3.group(v, (d) => Math.min(Math.floor((d.confidence - CONF_LO) / STEP), Math.round((1 - CONF_LO) / STEP) - 1))) {
+      const y1 = CONF_LO + b * STEP;
+      cells.push({x1: new Date(start + h * HOUR), x2: new Date(start + (h + 1) * HOUR), y1, y2: y1 + STEP, count: w.length, of: v.length, share: w.length / v.length});
+    }
+  }
+  return html`<div class="card-history">${resize((width) => Plot.plot({
+    width, height: 84, marginTop: 2, marginBottom: 2, marginLeft: 0, marginRight: 22,
+    x: {type: "time", domain: [new Date(start), new Date(end)], axis: null},
+    y: {domain: [CONF_LO, 1], ticks: [THRESHOLD, 1], tickFormat: (v) => d3.format(".1f")(v), tickSize: 0, tickPadding: 3, axis: "right", label: null},
+    color: sequential(dark, {domain: [0, d3.max(cells, (c) => c.share)]}),
+    marks: [
+      Plot.rect(cells, {x1: "x1", x2: "x2", y1: "y1", y2: "y2", fill: "share", inset: 0.5}),
+      Plot.ruleY([THRESHOLD], {stroke: "currentColor", strokeOpacity: 0.5, strokeDasharray: "3,2"}),
+      Plot.tip(cells, Plot.pointer({x1: "x1", x2: "x2", y1: "y1", y2: "y2", title: (c) => `${clock(c.x1)}\nConfidence ${d3.format(".2f")(c.y1)}–${d3.format(".2f")(c.y2)}\n${c.count} of ${c.of} detections that hour`}))
+    ]
+  }))}<div class="strip-axis"><span>24 h ago</span><span>now</span></div></div>`;
 };
 const noData = (title) => html`<div class="card"><h2>${title}</h2><div class="big">–</div><div class="sub">No data yet</div></div>`;
 const pctFormat = (v) => `${d3.format(".0f")(v)}%`;
@@ -204,12 +214,12 @@ const piSection = pi && html`<div class="grid stats">
 <!-- End to end: what both halves together deliver. -->
 <div class="grid stats">
   ${confidences.length
-    ? meterCard("Detection confidence", d3.format(".2f")(confMedian), confidenceMeter(), `median of ${d3.format(",")(confidences.length)} detections`, statusStrip(confRows, "confidence", CONF_ZONES, (v) => `${d3.format(".2f")(v)} median`))
+    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median of ${d3.format(",")(confidences.length)} detections</div>${confidenceDensity()}</div>`
     : noData("Detection confidence")}
   ${hasRecs ? [
-    meterCard("Audio uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), `since ${clock(new Date(LAUNCH))}`, statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
+    meterCard("Uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), `since ${clock(new Date(LAUNCH))}`, statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
     meterCard("Recording → dashboard delay", `${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min`, meter(d3.median(recent, (d) => d.delay) / 60, DELAY_ZONES, (v) => `${v}m`), `median since ${formatDate(windowStart)}`, statusStrip(slots, "delay", DELAY_ZONES, (v) => `${d3.format(".1f")(v)} min`))
-  ] : ["Audio uptime", "Recording → dashboard delay"].map(noData)}
+  ] : ["Uptime", "Recording → dashboard delay"].map(noData)}
 </div>
 
 <div class="section-top"><p class="eyebrow">Outdoor recorder</p>${hasRecs ? html`<p class="sub section-sub">FireBeetle · last recording ${clock(last.time)}</p>` : ""}</div>

@@ -1847,22 +1847,3 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .card-history {
   margin-top: auto;
 }
-
-/* Detection confidence: a meter whose track is the distribution. */
-.conf-meter .conf-bins {
-  display: flex;
-  align-items: flex-end;
-  gap: 1px;
-  height: 24px;
-}
-
-.conf-meter .conf-bins > span {
-  flex: 1;
-  border-radius: 1px 1px 0 0;
-  background: var(--status);
-  opacity: 0.3;
-}
-
-.conf-meter .conf-bins > span.is-current { opacity: 1; }
-.conf-meter .meter-mark { top: -3px; height: 30px; }
-.conf-meter .meter-ticks { inset: 28px 0 auto; }
