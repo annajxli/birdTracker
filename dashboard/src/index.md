@@ -25,7 +25,8 @@ if (!all.length) {
 const latest = d3.max(all, (d) => d.date);
 const dataStart = d3.min(all, (d) => d.date);
 const yearAgo = d3.utcDay.offset(d3.utcYear.offset(new Date(latest), -1), 1).toISOString().slice(0, 10);
-const presenceStart = yearAgo < dataStart ? dataStart : yearAgo;
+// The year-round charts always span a full year; weeks before recording began stay blank.
+const presenceStart = yearAgo;
 const presenceEnd = latest;
 const recordedDates = new Set(all.map((d) => d.date));
 ```
@@ -371,7 +372,8 @@ const week = (date) => d3.utcWeek.floor(new Date(date));
 
 // Days per week the recorder was up, so a week with outages isn't read as "no birds".
 const recordedDays = d3.rollup(new Set(all.filter((d) => d.date >= presenceStart && d.date <= presenceEnd).map((d) => d.date)), (v) => v.length, (date) => +week(date));
-const weeks = [...recordedDays.keys()].sort(d3.ascending).map((t) => new Date(t));
+const weeks = d3.utcWeek.range(week(presenceStart), d3.utcDay.offset(new Date(presenceEnd), 1));
+const recordedWeeks = recordedDays.size;
 
 // For each species and week: share of recorded days it was heard.
 const speciesWeekDays = d3.rollup(presenceRows, (v) => new Set(v.map((d) => d.date)).size, (d) => d.species, (d) => +week(d.date));
@@ -387,7 +389,7 @@ const stats = d3.rollups(presence, (v) => ({
   center: d3.sum(v, (d) => +d.week * d.days) / d3.sum(v, (d) => d.days)
 }), (d) => d.species);
 const shown = stats.sort((a, b) => d3.descending(a[1].days, b[1].days)).slice(0, 40);
-const resident = ([, s]) => s.weeks >= 0.75 * weeks.length;
+const resident = ([, s]) => s.weeks >= 0.75 * recordedWeeks;
 const order = [
   ...shown.filter(resident).sort((a, b) => d3.descending(a[1].days, b[1].days)),
   ...shown.filter((d) => !resident(d)).sort((a, b) => d3.ascending(a[1].center, b[1].center))
@@ -397,7 +399,7 @@ const shownSet = new Set(order);
 // The same shares by month, for narrow screens where 52 week columns would be ~2px each.
 const month = (date) => d3.utcMonth.floor(new Date(date));
 const recordedMonthDays = d3.rollup(new Set(all.filter((d) => d.date >= presenceStart && d.date <= presenceEnd).map((d) => d.date)), (v) => v.length, (date) => +month(date));
-const months = [...recordedMonthDays.keys()].sort(d3.ascending).map((t) => new Date(t));
+const months = d3.utcMonth.range(month(presenceStart), d3.utcDay.offset(new Date(presenceEnd), 1));
 const monthPresence = [];
 for (const [species, byMonth] of d3.rollup(presenceRows.filter((d) => shownSet.has(d.species)), (v) => new Set(v.map((d) => d.date)).size, (d) => d.species, (d) => +month(d.date))) {
   for (const [t, days] of byMonth) monthPresence.push({species, week: new Date(t), days, of: recordedMonthDays.get(t), share: days / recordedMonthDays.get(t)});
@@ -432,12 +434,13 @@ const setPresenceCollapsed = (pairs) => { presenceOverrides.value = new Map([...
 
 ```js
 const speciesPerWeek = d3.rollup(presenceRows, (v) => new Set(v.map((d) => d.species)).size, (d) => +week(d.date));
-const richness = weeks.map((w) => ({week: w, species: speciesPerWeek.get(+w) ?? 0}));
+// Unrecorded weeks are left out (a gap), not drawn as zero species.
+const richness = weeks.map((w) => ({week: w, species: recordedDays.has(+w) ? speciesPerWeek.get(+w) ?? 0 : NaN}));
 
 // When the yard is loud across the year: minutes of birdsong per recorded day, by week and
 // Pacific hour of day, with each week's sunrise and sunset (mid-week) as wall-clock hours.
 const songByWeekHour = d3.rollup(presenceRows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => +week(d.date), (d) => d.hour);
-const songGrid = weeks.flatMap((w, row) => d3.range(24).map((hour) => {
+const songGrid = weeks.flatMap((w, row) => !recordedDays.has(+w) ? [] : d3.range(24).map((hour) => {
   const minutes = songByWeekHour.get(+w)?.get(hour) ?? 0;
   return {week: w, row, hour, minutes, days: recordedDays.get(+w), perDay: minutes / recordedDays.get(+w)};
 }));
@@ -509,11 +512,13 @@ const weekSun = weeks.map((w, row) => {
       ${resize((width) => Plot.plot({
         width,
         height: 220,
-        x: {label: null},
+        x: {label: null, domain: [weeks[0], weeks.at(-1)]},
         y: {label: "Species heard per week", labelAnchor: "center", labelArrow: "none", grid: true, zero: true},
         marks: [
           Plot.areaY(richness, {x: "week", y: "species", fill: seriesColor(dark), fillOpacity: 0.1, curve: "monotone-x"}),
           Plot.lineY(richness, {x: "week", y: "species", stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
+          // Dots too, so a week standing alone (no recorded neighbour to join) still shows.
+          Plot.dot(richness, {x: "week", y: "species", fill: seriesColor(dark), r: 2.5}),
           Plot.ruleY([0], {strokeOpacity: 0.3}),
           Plot.tip(richness, Plot.pointerX({x: "week", y: "species", format: {x: (d) => `Week of ${d.toLocaleDateString("en-US", {timeZone: "UTC", month: "short", day: "numeric"})}`}}))
         ]
