@@ -6,6 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
+import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadCategories, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
 ```
 
@@ -27,7 +28,7 @@ const byCount = d3.rollups(all, (v) => v.length, (d) => d.species)
 ```js
 const requested = new URLSearchParams(location.search).get("name");
 // Opened without a species named (the header link): a random one heard at the default threshold.
-const confidentSpecies = [...new Set(all.filter((d) => d.confidence >= 0.6).map((d) => d.species))];
+const confidentSpecies = [...new Set(all.filter((d) => includedDetection(d, 0.6)).map((d) => d.species))];
 const pool = confidentSpecies.length ? confidentSpecies : byCount;
 const speciesIn = speciesPicker(byCount.includes(requested) ? requested : pool[Math.floor(Math.random() * pool.length)]);
 const species = Generators.input(speciesIn);
@@ -36,12 +37,12 @@ const species = Generators.input(speciesIn);
 // the open category's species, most heard first, with minutes heard at the default threshold.
 // Picking one closes it. Works as an input: .value and "input" events, like Inputs.select.
 function speciesPicker(value) {
-  const minutes = d3.rollup(minutesHeard(all.filter((d) => d.confidence >= 0.6)), (v) => v.length, (d) => d.species);
+  const minutes = d3.rollup(minutesHeard(all.filter((d) => includedDetection(d, 0.6))), (v) => v.length, (d) => d.species);
   const categoryOf = (s) => categories?.species?.[s] ?? "Other";
   const rank = (c) => { const i = categories?.order?.indexOf(c) ?? -1; return i < 0 ? 1e3 : i; };
   const groups = d3.groups(byCount, categoryOf).sort(([a], [b]) => rank(a) - rank(b))
     .map(([c, list]) => [c, list.slice().sort((a, b) => d3.descending(minutes.get(a) ?? 0, minutes.get(b) ?? 0) || d3.ascending(a, b))]);
-  const root = html`<div class="species-picker"><span class="picker-label">Species</span><button type="button" class="picker-button" aria-expanded="false"></button><button type="button" class="picker-random" title="A random species heard at 0.6 confidence or above"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c4 0 6 10 10 10H21M3 17h3.5c1.6 0 2.8-1.6 3.9-3.6M13.6 9.6C14.7 8 15.6 7 17 7h4"/><path d="m18.5 4.5 2.5 2.5-2.5 2.5M18.5 14.5l2.5 2.5-2.5 2.5"/></svg>Random species</button><div class="picker-panel" hidden><div class="picker-tabs" role="tablist"></div><div class="picker-tray"></div></div></div>`;
+  const root = html`<div class="species-picker"><span class="picker-label">Species</span><button type="button" class="picker-button" aria-expanded="false"></button><button type="button" class="picker-random" title="A random species confirmed or heard at 0.6 confidence or above"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.5c4 0 6 10 10 10H21M3 17h3.5c1.6 0 2.8-1.6 3.9-3.6M13.6 9.6C14.7 8 15.6 7 17 7h4"/><path d="m18.5 4.5 2.5 2.5-2.5 2.5M18.5 14.5l2.5 2.5-2.5 2.5"/></svg>Random species</button><div class="picker-panel" hidden><div class="picker-tabs" role="tablist"></div><div class="picker-tray"></div></div></div>`;
   const [button, panel] = [root.querySelector(".picker-button"), root.querySelector(".picker-panel")];
   let tab = categoryOf(value);
   const render = () => {
@@ -83,7 +84,7 @@ history.replaceState(null, "", `?name=${encodeURIComponent(species)}`);
 
 ```js
 const sp = all.filter((d) => d.species === species);
-const heard = sp.filter((d) => d.confidence >= minConf);
+const heard = sp.filter((d) => includedDetection(d, minConf));
 // Counted in minutes heard: minutes with at least one detection, not raw 3-second detections.
 const heardMinutes = minutesHeard(heard);
 const daysHeard = new Set(heard.map((d) => d.date)).size;
@@ -228,7 +229,7 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
       x: {domain: [0.25, 1], tickFormat: ".0%", label: "BirdNET confidence", labelOffset: 36},
       y: {label: "Detections", grid: true, tickFormat: "s"},
       marks: [
-        Plot.rectY(sp, Plot.binX({y: "count"}, {x: "confidence", thresholds: d3.range(0.25, 1.0001, 0.05), fill: (d) => (d.confidence >= minConf ? "shown" : "below threshold"), insetLeft: 1, insetRight: 1, ry2: 2, tip: {format: {x: ".0%"}}})),
+        Plot.rectY(sp, Plot.binX({y: "count"}, {x: "confidence", thresholds: d3.range(0.25, 1.0001, 0.05), fill: (d) => (includedDetection(d, minConf) ? "shown" : "below threshold"), insetLeft: 1, insetRight: 1, ry2: 2, tip: {format: {x: ".0%"}}})),
         Plot.ruleX([minConf], {stroke: "currentColor", strokeWidth: 1.5}),
         Plot.ruleY([0], {strokeOpacity: 0.3})
       ],

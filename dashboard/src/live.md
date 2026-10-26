@@ -17,6 +17,7 @@ toc: false
      without stopping it. -->
 
 ```js
+import {includedDetection, detectionPlaybackStart, shownInGantt} from "./components/detection-policy.js";
 import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview} from "./components/birds.js";
 ```
 
@@ -63,6 +64,10 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
   </div>
 </div>
 
+<div class="live-gantt-heading">
+  <p class="eyebrow" id="live-heard-heading">Heard in the last hour</p>
+  <label class="live-gantt-filter"><input type="checkbox" id="live-confident-only"> Confident detections only</label>
+</div>
 <div id="live-heard"></div>
 
 ```js
@@ -70,6 +75,9 @@ const scroller = document.getElementById("live-scroller");
 const track = document.getElementById("live-track");
 const status = document.getElementById("live-status");
 const heard = document.getElementById("live-heard");
+const heardHeading = document.getElementById("live-heard-heading");
+const confidentOnly = document.getElementById("live-confident-only");
+confidentOnly.onchange = () => summarize();
 const followButton = document.getElementById("live-follow");
 const transport = document.getElementById("live-transport");
 const audioControls = document.getElementById("live-audio");
@@ -90,6 +98,7 @@ const localReviews = new Map();
 const reviewKey = (d) => `${d.at}|${d.scientific_name}`;
 const reviewOf = (d) => (localReviews.has(reviewKey(d)) ? localReviews.get(reviewKey(d)) : serverReviews[reviewKey(d)] ?? null);
 const counts = (d) => reviewOf(d) !== "rejected";
+const accepted = (d) => includedDetection({confidence: d.confidence, review: reviewOf(d)}, MIN_CONF);
 const mergeStrips = (a, b) => [...new Map([...a, ...b].map((s) => [s.start, s])).values()].sort((p, q) => p.start.localeCompare(q.start));
 let shownFrom = null; // start of the earliest strip drawn (ms)
 let updated = null;
@@ -166,7 +175,7 @@ function setSpan(seconds) {
 function runs(list, minConf = MIN_CONF) {
   const out = [];
   const open = new Map();
-  for (const d of list.flatMap((s) => s.detections).filter((d) => d.confidence >= minConf).sort((a, b) => a.at.localeCompare(b.at))) {
+  for (const d of list.flatMap((s) => s.detections).filter((d) => d.confidence >= minConf || reviewOf(d) === "confirmed").sort((a, b) => a.at.localeCompare(b.at))) {
     const t = Date.parse(d.at);
     const run = open.get(d.common_name);
     if (run && t - run.end <= RUN_GAP) { run.end = t + 3e3; run.best = Math.max(run.best, d.confidence); run.dets.push(d); continue; }
@@ -310,7 +319,7 @@ function draw() {
   // species, the candidates show side by side. Confident runs are placed first, then non-bird
   // sounds, then the rest by score, so a crowded stretch keeps its surest names.
   const lanes = Array.from({length: LANES}, () => []);
-  const sure = (r) => r.best >= MIN_CONF;
+  const sure = (r) => includedDetection({confidence: r.best, review: r.review}, MIN_CONF);
   const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
     const label = `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
@@ -328,7 +337,10 @@ function draw() {
     a.textContent = r.review === "confirmed" ? `${label} ✓` : label;
     a.setAttribute("aria-label", `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault(); // stay unfocused, so space still mutes
-    a.onclick = () => seek(r.start, PLAYHEAD_AT);
+    a.onclick = (event) => {
+      event.stopPropagation(); // don't let the track seek again at the label's click position
+      seek(detectionPlaybackStart(r.start), PLAYHEAD_AT);
+    };
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
@@ -351,7 +363,10 @@ function draw() {
     a.append(label);
     a.setAttribute("aria-label", `${r.name} (not a bird), ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault();
-    a.onclick = () => seek(r.start, PLAYHEAD_AT);
+    a.onclick = (event) => {
+      event.stopPropagation(); // don't let the track seek again at the label's click position
+      seek(detectionPlaybackStart(r.start), PLAYHEAD_AT);
+    };
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
@@ -422,7 +437,7 @@ function drawOverview() {
     if (endOf(st) < w0 || t0 >= w1) continue;
     const k = Math.floor(t0 / bin) * bin;
     audio.set(k, (audio.get(k) ?? 0) + st.seconds - d3.sum(st.gaps ?? [], ([a, b]) => b - a));
-    for (const d of st.detections) if (d.confidence >= MIN_CONF && counts(d)) {
+    for (const d of st.detections) if (accepted(d)) {
       const t = Date.parse(d.at), kd = Math.floor(t / bin) * bin;
       if (!birds.has(kd)) birds.set(kd, new Set());
       birds.get(kd).add(byMinute ? Math.floor(t / 6e4) : t);
@@ -508,10 +523,10 @@ document.getElementById("live-overview-bars").onclick = async (e) => {
   // In a half hour with birds, land on its busiest minute (the start of its first detection
   // there), which is what a short span can show; elsewhere, where clicked.
   const bin = Math.floor(t / OV_BIN) * OV_BIN;
-  const inBin = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= bin && Date.parse(d.at) < bin + OV_BIN);
+  const inBin = strips.flatMap((s) => s.detections).filter((d) => accepted(d) && Date.parse(d.at) >= bin && Date.parse(d.at) < bin + OV_BIN);
   if (inBin.length) {
     const [, busiest] = d3.greatest(d3.groups(inBin, (d) => Math.floor(Date.parse(d.at) / 6e4)), ([, v]) => v.length);
-    return seek(d3.min(busiest, (d) => Date.parse(d.at)) - 2e3, PLAYHEAD_AT);
+    return seek(detectionPlaybackStart(d3.min(busiest, (d) => Date.parse(d.at))), PLAYHEAD_AT);
   }
   // A click where there's no audio lands on the nearest audio instead.
   const near = d3.least(strips, (s) => (t < Date.parse(s.start) ? Date.parse(s.start) - t : t > endOf(s) ? t - endOf(s) : 0));
@@ -565,7 +580,7 @@ function reviewRun(run, verdict) {
 const stopCards = speciesCards((name, el) => {
   if (!cardMeta) return null;
   const heard = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name && counts(d));
-  const sure = heard.filter((d) => d.confidence >= MIN_CONF);
+  const sure = heard.filter(accepted);
   const run = el?.run;
   const act = (label, verdict) => Object.assign(html`<button type="button" class="review-button">${label}</button>`, {onclick: () => reviewRun(run, verdict)});
   return {
@@ -625,7 +640,7 @@ function duckOpen(t) {
   let open = 0;
   for (const s of strips.slice(Math.max(0, i - 1), i + 2)) {
     for (const d of s.detections) {
-      const a = Date.parse(d.at), weight = d.confidence >= MIN_CONF ? 1 : 0.5;
+      const a = Date.parse(d.at), weight = accepted(d) ? 1 : 0.5;
       const ramp = t < a ? 1 - (a - t) / DUCK_LEAD : t > a + 3e3 ? 1 - (t - a - 3e3) / DUCK_TAIL : 1;
       if (ramp > 0) open = Math.max(open, Math.min(1, ramp) * weight);
     }
@@ -783,9 +798,9 @@ fwdButton.onclick = () => step(STEP);
 // Clicking these shouldn't leave them focused, where space would press them again.
 for (const b of [pauseButton, followButton, soundButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
 
-// Clicking the spectrogram moves the playhead there (the names above it are links to the species).
+// Only background/strip clicks seek to the pointer. Name buttons seek to the run start.
 track.addEventListener("click", (event) => {
-  if (!geo || event.target.closest("a")) return;
+  if (!geo || event.target.closest("a, button")) return;
   const box = scroller.getBoundingClientRect();
   const at = (event.clientX - box.left) / scroller.clientWidth;
   seek(tAt(scroller.scrollLeft + event.clientX - box.left), at);
@@ -830,33 +845,34 @@ function summarize() {
   const hourLabel = live || playhead === null ? "the last hour" : `${time(new Date(w0))}–${time(new Date(w1))}`;
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
-  const confident = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && counts(d) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
-  const rows = d3.groups(confident, (d) => d.common_name).map(([name, v]) => {
-    const byMinute = d3.rollup(v, (w) => ({best: d3.max(w, (d) => d.confidence), first: d3.min(w, (d) => Date.parse(d.at))}),
+  heardHeading.textContent = `Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}`;
+  const detections = strips.flatMap((s) => s.detections).filter((d) =>
+    shownInGantt({confidence: d.confidence, review: reviewOf(d)}, confidentOnly.checked, MIN_CONF) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
+  const rows = d3.groups(detections, (d) => d.common_name).map(([name, v]) => {
+    const byMinute = d3.rollup(v, (w) => ({best: d3.max(w, (d) => d.confidence), first: d3.min(w, (d) => Date.parse(d.at)), confident: w.some(accepted)}),
       (d) => Math.floor(Date.parse(d.at) / 60e3) * 60e3);
     const bars = [];
     for (const m of [...byMinute.keys()].sort((a, b) => a - b)) {
-      const bar = bars.at(-1), {best, first} = byMinute.get(m);
-      if (bar && bar.end === m) { bar.end = m + 60e3; bar.minutes++; bar.best = Math.max(bar.best, best); }
-      else bars.push({start: m, end: m + 60e3, minutes: 1, best, first}); // first: its first detection, where a click goes
+      const bar = bars.at(-1), {best, first, confident} = byMinute.get(m);
+      if (bar && bar.end === m && bar.confident === confident) { bar.end = m + 60e3; bar.minutes++; bar.best = Math.max(bar.best, best); }
+      else bars.push({start: m, end: m + 60e3, minutes: 1, best, first, confident}); // first: its first detection, where a click goes
     }
-    return {name, bars, minutes: byMinute.size, first: d3.min(v, (d) => Date.parse(d.at)), last: d3.max(v, (d) => Date.parse(d.at))};
+    return {name, bars, uncertain: !v.some(accepted), minutes: byMinute.size, first: d3.min(v, (d) => Date.parse(d.at)), last: d3.max(v, (d) => Date.parse(d.at))};
   }).sort((a, b) => sort.dir * (SORTS[sort.by](a) - SORTS[sort.by](b)) || a.first - b.first);
 
   if (!rows.length) {
-    heard.replaceChildren(html`<p class="sub">No birds heard in ${hourLabel}.</p>`);
+    heard.replaceChildren(html`<p class="sub">${confidentOnly.checked ? "No confident detections" : "No birds heard"} in ${hourLabel}.</p>`);
   } else {
     const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
     const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 2}`}>${r.bars.map((b, j) =>
-        html`<span class=${j === r.bars.length - 1 ? "live-gantt-bar is-last" : "live-gantt-bar"} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · best ${Math.round(b.best * 100)}%`}
+        html`<span class=${`live-gantt-bar${j === r.bars.length - 1 ? " is-last" : ""}${b.confident ? "" : " is-unsure"}`} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · ${b.confident ? "" : "uncertain · "}best ${Math.round(b.best * 100)}%`}
           style=${{left: pct(Math.max(b.start, w0)), width: `calc(${pct(Math.min(b.end, w1))} - ${pct(Math.max(b.start, w0))})`}}></span>`)}</div>`);
     heard.replaceChildren(html`<div class="live-gantt">
-      <p class="eyebrow">Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}</p>
       <div class="live-gantt-grid">
         ${header("first", "First heard", "live-gantt-sort-first")}
         <span class="live-gantt-total live-gantt-head">${header("minutes", "Total")}${header("last", "Last")}</span>
         ${rows.flatMap((r, i) => [
-          html`<a class="live-gantt-name" href=${speciesHref(r.name)} title=${r.name} style=${`grid-row: ${i + 2}`}>${r.name}</a>`,
+          html`<a class=${`live-gantt-name${r.uncertain ? " is-unsure" : ""}`} href=${speciesHref(r.name)} title=${r.uncertain ? `${r.name}: uncertain detections` : r.name} style=${`grid-row: ${i + 2}`}>${r.uncertain ? "? " : ""}${r.name}</a>`,
           lanes[i],
           html`<span class="sub live-gantt-total" style=${`grid-row: ${i + 2}`}><span>${r.minutes} min</span><span>${time(new Date(r.last))}</span></span>`
         ])}
@@ -924,7 +940,7 @@ function runStart(name, t) {
 
 // From the hour chart: the playhead to `t`, at its usual place in the view.
 function jumpTo(t) {
-  seek(t, PLAYHEAD_AT);
+  seek(detectionPlaybackStart(t), PLAYHEAD_AT);
   document.querySelector(".live-head").scrollIntoView({block: "nearest", behavior: "smooth"});
 }
 
@@ -969,7 +985,7 @@ async function poll() {
       const t = pendingJump;
       pendingJump = null;
       if (t < Date.parse(strips[0].start)) await loadDay(pacificDate(t));
-      seek(t - 2e3, PLAYHEAD_AT);
+      seek(detectionPlaybackStart(t), PLAYHEAD_AT);
     }
     if (soundOn && waitingFor !== null) playFrom(waitingFor);
     summarize();

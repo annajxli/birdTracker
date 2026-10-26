@@ -27,9 +27,15 @@ def spectrogram(data: np.ndarray, rate: int) -> np.ndarray:
         data = data.mean(axis=1)
     n_fft = 1024 if rate > 24000 else 512
     hop = max(1, rate // PX_PER_SECOND)
-    if len(data) < n_fft:
-        data = np.pad(data, (0, n_fft - len(data)))
-    frames = np.lib.stride_tricks.sliding_window_view(data, n_fft)[::hop]
+    # Each image pixel represents an equal slice of the entire recording. Center
+    # its FFT window on that slice, including the edges, instead of stretching
+    # only the unpadded windows across the full duration (which shifts features).
+    if not len(data):
+        raise ValueError("cannot render an empty recording")
+    columns = max(1, int(np.ceil(len(data) / hop)))
+    centers = np.minimum(len(data) - 1, ((np.arange(columns) + 0.5) * len(data) / columns).astype(int))
+    padded = np.pad(data, (n_fft // 2, n_fft // 2))
+    frames = np.lib.stride_tricks.sliding_window_view(padded, n_fft)[centers]
     mag = np.abs(np.fft.rfft(frames * np.hanning(n_fft), axis=1)).T  # (bins, frames)
     freqs = np.fft.rfftfreq(n_fft, 1 / rate)
     # Average FFT bins into HEIGHT evenly spaced rows up to MAX_HZ (or Nyquist).
