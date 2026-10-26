@@ -189,6 +189,7 @@ def process(audio: Path, args, conn) -> int:
         csv_path = run_birdnet(audio, Path(tmp), args)
         rows = list(read_results(csv_path, args.station, None))
         sounds = read_sounds(csv_path.with_name(f"{audio.stem}.BirdNET.sounds.csv"), start)
+        activity = read_activity(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"))
 
     for r in rows:
         r["source_file"] = audio.name  # BirdNET reports the full path; keep just the name
@@ -216,7 +217,7 @@ def process(audio: Path, args, conn) -> int:
             log.exception("couldn't render a spectrogram for %s", written.name)
 
     inserted = db.insert_detections(conn, rows, commit=False)  # one transaction with the clip updates
-    record_telemetry(audio, start, args, conn)
+    record_telemetry(audio, start, args, conn, activity)
     for row_id, _, _ in replaced:
         conn.execute("UPDATE detections SET clip_path = NULL WHERE id = ?", (row_id,))
     # A re-run may find rows that already exist; still attach any new clips to them.
@@ -291,7 +292,23 @@ def background_dbfs(data, rate: int) -> float | None:
     return round(20 * math.log10(float(rms[: max(1, len(rms) // 10)].mean())), 1)
 
 
-def record_telemetry(audio: Path, start: datetime, args, conn) -> None:
+# A 3 s window counts as birdsong when BirdNET's "any bird" score reaches ANY_BIRD, and as
+# unidentified birdsong when, on top of that, no single species reaches LIVE_MIN_CONF.
+# Provisional: reviews will show where real birds start.
+ANY_BIRD = 0.5
+
+
+def read_activity(path: Path) -> tuple[int, int] | None:
+    """(bird windows, unidentified windows) from birdnet_lite's activity file, or None without one."""
+    if not path.exists():
+        return None
+    with path.open(newline="") as f:
+        rows = [(float(r["Any bird"]), float(r["Best species"])) for r in csv.DictReader(f)]
+    birds = [best for any_bird, best in rows if any_bird >= ANY_BIRD]
+    return len(birds), sum(1 for best in birds if best < LIVE_MIN_CONF)
+
+
+def record_telemetry(audio: Path, start: datetime, args, conn, activity: tuple[int, int] | None = None) -> None:
     """The recording's row in the recordings table (Hardware analytics): its length less any
     filled-in silence, background level, and the receiver's notes in <name>.json, when there
     (wifi signal, board temperature and uptime, audio frames sent and dropped)."""
@@ -304,11 +321,12 @@ def record_telemetry(audio: Path, start: datetime, args, conn) -> None:
         data = data.mean(axis=1)
     conn.execute(
         "INSERT OR REPLACE INTO recordings (station_id, started_at, seconds, rms_dbfs, rssi_dbm, upload_s, received_at,"
-        " analyzed_at, source, board_temp_c, board_uptime_s, frames_sent, frames_dropped) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " analyzed_at, source, board_temp_c, board_uptime_s, frames_sent, frames_dropped, bird_windows, unidentified_windows)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (args.station, start.strftime("%Y-%m-%dT%H:%M:%SZ"), round(len(data) / rate - notes.get("gap_seconds", 0), 2),
          background_dbfs(data, rate), notes.get("rssi_dbm"), None, notes.get("received_at"),
          datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "recorder", notes.get("board_temp_c"), notes.get("board_uptime_s"),
-         notes.get("frames_sent"), notes.get("frames_dropped")))
+         notes.get("frames_sent"), notes.get("frames_dropped"), *(activity or (None, None))))
 
 
 def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float]]:

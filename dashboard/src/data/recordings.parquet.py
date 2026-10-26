@@ -5,7 +5,9 @@ from the end of a recording to its detections being stored; board_temp and board
 the recorder's own health (null where it didn't report them). packet_success is the share of
 audio frames the recorder recorded that it got onto wifi (the rest it dropped because its buffer
 filled while wifi was slow; TCP itself loses nothing); frames_sent and frames_dropped are the
-counts behind it, for pooling over a span.
+counts behind it, for pooling over a span. bird_windows counts the minute's 3 s windows where
+BirdNET thought some bird likely ("any bird" 0.5+), and unidentified_windows those of them where
+no species reached 0.6: birdsong it couldn't name.
 
 power_mw and tx_mw are estimates, not measurements (the PPK2 will measure them): the recorder's
 draw from its 5 V supply, and the part of it spent transmitting. The model: the ESP32 at 240 MHz
@@ -40,7 +42,7 @@ def link_mbps(rssi):
 
 
 COLUMNS = ["started_at", "seconds", "rms_dbfs", "rssi_dbm", "upload_s", "analyzed_at", "source", "board_temp_c",
-           "board_uptime_s", "frames_sent", "frames_dropped"]
+           "board_uptime_s", "frames_sent", "frames_dropped", "bird_windows", "unidentified_windows"]
 with sqlite3.connect(DB) as conn:
     try:
         df = pd.read_sql("SELECT * FROM recordings", conn)
@@ -64,6 +66,8 @@ out = pd.DataFrame({
     "board_temp": df.board_temp_c.astype("float32"),
     "board_uptime": df.board_uptime_s.astype("float32"),
 }).sort_values("time")
+out["bird_windows"] = df.bird_windows.astype("float32")  # float: null for minutes before it was counted
+out["unidentified_windows"] = df.unidentified_windows.astype("float32")
 out["frames_sent"] = df.frames_sent.astype("float32")  # float: null before the board reported them
 out["frames_dropped"] = df.frames_dropped.astype("float32")
 frames = df.frames_sent + df.frames_dropped

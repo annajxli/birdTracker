@@ -34,5 +34,7 @@ CREATE TABLE IF NOT EXISTS recordings (
     board_uptime_s REAL,            -- seconds since the recorder booted, at its start
     frames_sent  INTEGER,           -- audio frames the recorder sent meanwhile (its own count)
     frames_dropped INTEGER,         -- ...and had to drop (its buffer was full: wifi too slow)
+    bird_windows INTEGER,           -- 3 s windows where some bird was likely (BirdNET "any bird" >= 0.5)
+    unidentified_windows INTEGER,   -- ...of those, ones where no species reached 0.6
     UNIQUE (station_id, started_at)
 );

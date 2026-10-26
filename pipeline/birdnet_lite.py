@@ -12,6 +12,11 @@ the location filter hides them (they have no range), so a bark could only come o
 nearest bird (a Canada Goose). Here they always count: a bird scoring below one of them in the
 same 3 s is dropped, and the confident ones go in <stem>.BirdNET.sounds.csv for the Live page.
 
+And one more: <stem>.BirdNET.activity.csv has, for every 3 s window, an "any bird" score (the
+chance that at least one of the expected species is there, 1 - prod(1 - score)) and the best
+single species' score, so birdsong that BirdNET can't pin to a species still counts as birdsong.
+It's 0 where a non-bird sound outscores every bird.
+
 The model files ship inside the birdnet-analyzer package; on the Pi they're copied to
 models/ by deploy/pi/install.sh, and BIRDNET_MODELS points at that folder.
 """
@@ -105,10 +110,12 @@ class BirdNET:
         allowed = self.species_mask(lat, lon, week)
 
         out = out_dir / f"{audio.stem}.BirdNET.results.csv"
-        with out.open("w", newline="") as f, (out_dir / f"{audio.stem}.BirdNET.sounds.csv").open("w", newline="") as g:
-            w, ws = csv.writer(f), csv.writer(g)
+        with out.open("w", newline="") as f, (out_dir / f"{audio.stem}.BirdNET.sounds.csv").open("w", newline="") as g, \
+                (out_dir / f"{audio.stem}.BirdNET.activity.csv").open("w", newline="") as h:
+            w, ws, wa = csv.writer(f), csv.writer(g), csv.writer(h)
             w.writerow(["Start (s)", "End (s)", "Scientific name", "Common name", "Confidence", "File"])
             ws.writerow(["Start (s)", "Sound", "Confidence"])
+            wa.writerow(["Start (s)", "Any bird", "Best species"])
             for b in range(0, len(chunks), BATCH):
                 for i, row in enumerate(self.scores(chunks[b:b + BATCH])):
                     start = starts[b + i] / RATE
@@ -118,4 +125,8 @@ class BirdNET:
                         w.writerow([f"{start:.1f}", f"{start + CHUNK:.1f}", sci, common, f"{row[k]:.4f}", str(audio)])
                     for k in self.sounds[row[self.sounds] >= SOUND_MIN_CONF]:
                         ws.writerow([f"{start:.1f}", SOUNDS[self.labels[k][0]], f"{row[k]:.4f}"])
+                    birds = row[allowed].astype(np.float64)
+                    best = birds.max() if len(birds) else 0.0
+                    any_bird = 0.0 if loudest > best else 1 - np.prod(1 - birds)
+                    wa.writerow([f"{start:.1f}", f"{any_bird:.4f}", f"{best:.4f}"])
         return out

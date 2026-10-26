@@ -14,7 +14,7 @@ def connect(path: Path = DEFAULT_DB) -> sqlite3.Connection:
     conn.executescript(SCHEMA.read_text())
     # Columns added since a database was made (CREATE TABLE IF NOT EXISTS leaves an old table as is).
     added = {"recordings": (("board_temp_c", "REAL"), ("board_uptime_s", "REAL"), ("frames_sent", "INTEGER"),
-                            ("frames_dropped", "INTEGER")),
+                            ("frames_dropped", "INTEGER"), ("bird_windows", "INTEGER"), ("unidentified_windows", "INTEGER")),
              "detections": (("review", "TEXT"), ("reviewed_at", "TEXT"))}
     for table, columns in added.items():
         have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
