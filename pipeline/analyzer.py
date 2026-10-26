@@ -39,6 +39,7 @@ Usage:
 """
 
 import argparse
+import csv
 import errno
 import fcntl
 import json
@@ -183,11 +184,12 @@ def current_clip(conn, station: str, scientific_name: str, hour: str):
 
 
 def process(audio: Path, args, conn) -> int:
+    start = recording_start(audio.name, None)
     with tempfile.TemporaryDirectory() as tmp:
         csv_path = run_birdnet(audio, Path(tmp), args)
         rows = list(read_results(csv_path, args.station, None))
+        sounds = read_sounds(csv_path.with_name(f"{audio.stem}.BirdNET.sounds.csv"), start)
 
-    start = recording_start(audio.name, None)
     for r in rows:
         r["source_file"] = audio.name  # BirdNET reports the full path; keep just the name
 
@@ -231,14 +233,24 @@ def process(audio: Path, args, conn) -> int:
             (args.data / old_path).unlink(missing_ok=True)
             (args.data / old_path).with_suffix(".webp").unlink(missing_ok=True)
     if args.live_hours > 0:
-        queue_live(audio, rows, args)
+        queue_live(audio, rows, sounds, args)
     return inserted
 
 
 _live_worker = None  # one background thread for the near-live view, started on first use
 
 
-def queue_live(audio: Path, rows: list[dict], args) -> None:
+def read_sounds(path: Path, start: datetime) -> list[dict]:
+    """The non-bird sounds birdnet_lite heard (a dog, a voice, an engine), for the Live page only:
+    they're never stored as detections. birdnet-analyzer doesn't write this file."""
+    if not path.exists():
+        return []
+    with path.open(newline="") as f:
+        return [{"at": (start + timedelta(seconds=float(r["Start (s)"]))).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "sound": r["Sound"], "confidence": round(float(r["Confidence"]), 3)} for r in csv.DictReader(f)]
+
+
+def queue_live(audio: Path, rows: list[dict], sounds: list[dict], args) -> None:
     """Hand the near-live view's work (spectrogram, cleaned copy, two MP3s: ~40 s a minute on a
     Pi 3B+) to a background thread, so BirdNET starts on the next minute meanwhile on the other
     cores; in turn, a minute took longer than a minute. The thread gets its own hard link to the
@@ -254,12 +266,12 @@ def queue_live(audio: Path, rows: list[dict], args) -> None:
         shutil.copy2(audio, copy)
     if _live_worker is None:
         _live_worker = ThreadPoolExecutor(1, thread_name_prefix="live")
-    _live_worker.submit(live_job, copy, rows, args)
+    _live_worker.submit(live_job, copy, rows, sounds, args)
 
 
-def live_job(copy: Path, rows: list[dict], args) -> None:
+def live_job(copy: Path, rows: list[dict], sounds: list[dict], args) -> None:
     try:
-        update_live(copy, rows, args)
+        update_live(copy, rows, args, sounds)
     except Exception:  # the near-live view is a nicety; the detections are already stored
         log.exception("couldn't add %s to the live view", copy.name)
     finally:
@@ -307,7 +319,7 @@ def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float
     return [[round(float(a) / rate, 2), round(float(b) / rate, 2)] for a, b in zip(edges[::2], edges[1::2]) if b - a >= min_seconds * rate]
 
 
-def update_live(audio: Path, rows: list[dict], args) -> None:
+def update_live(audio: Path, rows: list[dict], args, sounds: list[dict] = ()) -> None:
     """Add the recording's spectrogram strip and MP3s to live/, list it in live/live.json and its
     day's file, and drop strips older than --live-hours. Strip lists are oldest first, each strip
     with its detections."""
@@ -338,6 +350,7 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
         "audio": sound.name,
         "clean": cleaned.name,
         **({"gaps": gaps} if gaps else {}),
+        **({"sounds": sorted(sounds, key=lambda s: s["at"])} if sounds else {}),
         "detections": [
             {"at": r["detected_at"], "common_name": r["common_name"], "scientific_name": r["scientific_name"],
              "confidence": round(r["confidence"], 3)}

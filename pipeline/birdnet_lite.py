@@ -7,6 +7,11 @@ location filter) with ai-edge-litert instead, mirroring birdnet-analyzer 2.4's d
 sigmoid on the scores, and only the species the location model expects at the station that
 week (score >= 0.03). It writes the same CSV columns, so ingest.read_results reads it unchanged.
 
+One addition: BirdNET also knows some sounds that aren't birds (a dog, a voice, an engine), but
+the location filter hides them (they have no range), so a bark could only come out as the
+nearest bird (a Canada Goose). Here they always count: a bird scoring below one of them in the
+same 3 s is dropped, and the confident ones go in <stem>.BirdNET.sounds.csv for the Live page.
+
 The model files ship inside the birdnet-analyzer package; on the Pi they're copied to
 models/ by deploy/pi/install.sh, and BIRDNET_MODELS points at that folder.
 """
@@ -30,6 +35,9 @@ LOCATION_THRESHOLD = 0.03
 MODEL = "BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite"
 META_MODEL = "BirdNET_GLOBAL_6K_V2.4_MData_Model_V2_FP16.tflite"
 LABELS = "BirdNET_GLOBAL_6K_V2.4_Labels.txt"
+SOUNDS = {"Dog": "Dog", "Human vocal": "Voice", "Human non-vocal": "People", "Human whistle": "Whistle", "Engine": "Engine",
+          "Siren": "Siren", "Gun": "Gunshot", "Fireworks": "Fireworks", "Power tools": "Power tool"}  # label -> shown name
+SOUND_MIN_CONF = 0.5  # listed on the Live page from here
 
 
 def models_dir() -> Path:
@@ -54,6 +62,7 @@ class BirdNET:
         self.meta = Interpreter(model_path=str(d / META_MODEL))
         self.meta.allocate_tensors()
         self.labels = [line.split("_", 1) for line in (d / LABELS).read_text(encoding="utf-8").splitlines()]
+        self.sounds = np.array([i for i, (sci, _) in enumerate(self.labels) if sci in SOUNDS])
         self.batch = None
         self.allowed = {}  # (lat, lon, week) -> boolean mask over species
 
@@ -80,7 +89,8 @@ class BirdNET:
         return 1 / (1 + np.exp(-np.clip(logits, -20, 20)))
 
     def analyze(self, audio: Path, out_dir: Path, lat: float, lon: float, week: int, min_conf: float) -> Path:
-        """Write <stem>.BirdNET.results.csv in out_dir (birdnet-analyzer's name and columns)."""
+        """Write <stem>.BirdNET.results.csv in out_dir (birdnet-analyzer's name and columns), and
+        <stem>.BirdNET.sounds.csv with the non-bird sounds."""
         sig, rate = sf.read(audio, dtype="float32", always_2d=True)
         sig = sig.mean(axis=1)
         if rate != RATE:
@@ -95,13 +105,17 @@ class BirdNET:
         allowed = self.species_mask(lat, lon, week)
 
         out = out_dir / f"{audio.stem}.BirdNET.results.csv"
-        with out.open("w", newline="") as f:
-            w = csv.writer(f)
+        with out.open("w", newline="") as f, (out_dir / f"{audio.stem}.BirdNET.sounds.csv").open("w", newline="") as g:
+            w, ws = csv.writer(f), csv.writer(g)
             w.writerow(["Start (s)", "End (s)", "Scientific name", "Common name", "Confidence", "File"])
+            ws.writerow(["Start (s)", "Sound", "Confidence"])
             for b in range(0, len(chunks), BATCH):
                 for i, row in enumerate(self.scores(chunks[b:b + BATCH])):
                     start = starts[b + i] / RATE
-                    for k in np.flatnonzero((row >= min_conf) & allowed):
+                    loudest = row[self.sounds].max() if len(self.sounds) else 0.0  # the likeliest non-bird sound
+                    for k in np.flatnonzero((row >= min_conf) & allowed & (row > loudest)):
                         sci, common = self.labels[k]
                         w.writerow([f"{start:.1f}", f"{start + CHUNK:.1f}", sci, common, f"{row[k]:.4f}", str(audio)])
+                    for k in self.sounds[row[self.sounds] >= SOUND_MIN_CONF]:
+                        ws.writerow([f"{start:.1f}", SOUNDS[self.labels[k][0]], f"{row[k]:.4f}"])
         return out
