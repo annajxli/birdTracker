@@ -30,5 +30,7 @@ CREATE TABLE IF NOT EXISTS recordings (
     source       TEXT,              -- "simulated" for generated rows
     board_temp_c REAL,              -- the recorder's chip temperature during it, deg C
     board_uptime_s REAL,            -- seconds since the recorder booted, at its start
+    frames_sent  INTEGER,           -- audio frames the recorder sent meanwhile (its own count)
+    frames_dropped INTEGER,         -- ...and had to drop (its buffer was full: wifi too slow)
     UNIQUE (station_id, started_at)
 );

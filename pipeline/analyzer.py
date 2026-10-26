@@ -281,7 +281,7 @@ def background_dbfs(data, rate: int) -> float | None:
 def record_telemetry(audio: Path, start: datetime, args, conn) -> None:
     """The recording's row in the recordings table (Hardware analytics): its length less any
     filled-in silence, background level, and the receiver's notes in <name>.json, when there
-    (wifi signal, board temperature and uptime)."""
+    (wifi signal, board temperature and uptime, audio frames sent and dropped)."""
     try:
         notes = json.loads(audio.with_suffix(".json").read_text())
     except (FileNotFoundError, ValueError):
@@ -291,10 +291,11 @@ def record_telemetry(audio: Path, start: datetime, args, conn) -> None:
         data = data.mean(axis=1)
     conn.execute(
         "INSERT OR REPLACE INTO recordings (station_id, started_at, seconds, rms_dbfs, rssi_dbm, upload_s, received_at,"
-        " analyzed_at, source, board_temp_c, board_uptime_s) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        " analyzed_at, source, board_temp_c, board_uptime_s, frames_sent, frames_dropped) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (args.station, start.strftime("%Y-%m-%dT%H:%M:%SZ"), round(len(data) / rate - notes.get("gap_seconds", 0), 2),
          background_dbfs(data, rate), notes.get("rssi_dbm"), None, notes.get("received_at"),
-         datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "recorder", notes.get("board_temp_c"), notes.get("board_uptime_s")))
+         datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "recorder", notes.get("board_temp_c"), notes.get("board_uptime_s"),
+         notes.get("frames_sent"), notes.get("frames_dropped")))
 
 
 def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float]]:

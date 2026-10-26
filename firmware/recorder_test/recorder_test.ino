@@ -497,12 +497,15 @@ bool streamConnect() {
 }
 
 // The board's own health, sent in the stream as a frame with index UINT64_MAX: its count is the
-// length of a text payload in 16-bit words ("temp_c=41.2 uptime_s=5321 rssi_dbm=-61", padded
-// with a space to an even length). Sent after connecting and then once a minute.
+// length of a text payload in 16-bit words ("temp_c=41.2 uptime_s=5321 rssi_dbm=-61
+// frames_sent=... frames_dropped=...", padded with a space to an even length; the frame counts
+// run since streaming started). Sent after connecting and then once a minute.
 void streamHealth() {
-  char text[64];
-  int n = snprintf(text, sizeof text, "temp_c=%.1f uptime_s=%llu rssi_dbm=%d", temperatureRead(),
-                   (unsigned long long)(esp_timer_get_time() / 1000000), (int)WiFi.RSSI());
+  char text[128];
+  int n = snprintf(text, sizeof text - 1, "temp_c=%.1f uptime_s=%llu rssi_dbm=%d frames_sent=%lu frames_dropped=%lu",
+                   temperatureRead(), (unsigned long long)(esp_timer_get_time() / 1000000), (int)WiFi.RSSI(),
+                   (unsigned long)framesSent, (unsigned long)framesDropped);
+  if (n > (int)sizeof text - 2) n = sizeof text - 2;  // snprintf reports what it would have written
   if (n & 1) text[n++] = ' ';
   uint8_t head[FRAME_HEADER_BYTES];
   uint64_t index = UINT64_MAX;

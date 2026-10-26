@@ -26,15 +26,17 @@ A recorder can instead stream continuously, on one long connection:
 Each frame is a little-endian uint64 sample index, a uint32 sample count, then
 that many 16-bit mono samples. A frame with index 2^64-1 is the recorder's
 health instead: `count` 16-bit words of text like "temp_c=41.2 uptime_s=5321
-rssi_dbm=-61" (sent after connecting, then once a minute). The index counts every sample since the
+rssi_dbm=-61 frames_sent=3750 frames_dropped=2" (sent after connecting, then once
+a minute; the frame counts run since the recorder started streaming). The index counts every sample since the
 recorder started streaming, including ones it had to drop, so a gap in the
 indexes is a gap in the audio. The stream is cut into one WAV per UTC minute,
 named by its first sample's time; short gaps are filled with silence so the
 timing stays right, and a longer gap or a disconnect ends the file. The
 recorder reconnects now and then, which re-anchors the index to the clock.
 Next to each minute's WAV goes <name>.json, written just before the WAV appears:
-the wifi signal, the board's temperature and uptime (from its health frames),
-when the minute was finished, and how much of it was silence filling gaps. analyzer.py stores it as that minute's row in the recordings table.
+the wifi signal, the board's temperature and uptime, how many audio frames it
+sent and had to drop meanwhile (from its health frames), when the minute was
+finished, and how much of it was silence filling gaps. analyzer.py stores it as that minute's row in the recordings table.
 
 With --live-port, the stream is also forwarded to pipeline/live.py on
 localhost: a `BIRDSTREAM 1 rate=... format=s16le channels=1 station=...` line,
@@ -73,6 +75,7 @@ MAX_BYTES = 2 * 1024**3  # 2 GB: far more than a few minutes of audio
 CHUNK = 64 * 1024
 FRAME_HEADER = struct.Struct("<QI")  # sample index, sample count
 HEALTH_INDEX = 2**64 - 1  # a frame with this index carries the recorder's health, not audio
+last_counts = {}  # recorder address -> its last (frames_sent, frames_dropped), across reconnects
 MAX_FRAME_SAMPLES = 8192
 MAX_FILL_SECONDS = 10  # gaps up to this long become silence; longer ones end the file
 MIN_FILE_SECONDS = 3   # BirdNET's window: shorter leftovers aren't worth keeping
@@ -151,6 +154,7 @@ class MinuteFiles:
         self.temps = []  # board temperatures reported during the open file
         self.temp = None  # ...and the latest one, for a file that gets none
         self.boot = None  # when the board booted (epoch seconds), from its uptime
+        self.sent = self.dropped = None  # audio frames the board sent / dropped since the last file
 
     def health(self, text: str) -> None:
         """A health frame: keep its temperature, signal and boot time for the minute files."""
@@ -163,6 +167,14 @@ class MinuteFiles:
                 self.boot = time.time() - float(fields["uptime_s"])
             if "rssi_dbm" in fields:
                 self.rssi = int(fields["rssi_dbm"])
+            if "frames_sent" in fields and "frames_dropped" in fields:
+                now = int(fields["frames_sent"]), int(fields["frames_dropped"])
+                was = last_counts.get(self.source, (0, 0))
+                if now[0] < was[0] or now[1] < was[1]:
+                    was = (0, 0)  # the board restarted streaming: its counts began again
+                self.sent = (self.sent or 0) + now[0] - was[0]
+                self.dropped = (self.dropped or 0) + now[1] - was[1]
+                last_counts[self.source] = now
         except ValueError:
             log.warning("stream from %s: bad health frame %r", self.source, text)
 
@@ -203,7 +215,9 @@ class MinuteFiles:
         (self.incoming / (final.stem + ".json")).write_text(json.dumps({
             "rssi_dbm": self.rssi, "received_at": received, "gap_seconds": round(self.gap_samples / self.rate, 2),
             "board_temp_c": None if temp is None else round(temp, 1),
-            "board_uptime_s": None if self.boot is None else round(max(0.0, self.start - self.boot))}))
+            "board_uptime_s": None if self.boot is None else round(max(0.0, self.start - self.boot)),
+            "frames_sent": self.sent, "frames_dropped": self.dropped}))
+        self.sent = self.dropped = None
         os.replace(self.part, final)
         gap = f", {self.gap_samples / self.rate:.2f} s of it silence filling gaps" if self.gap_samples else ""
         log.info("stream from %s: %s, %.1f s%s", self.source, self.name, seconds, gap)
