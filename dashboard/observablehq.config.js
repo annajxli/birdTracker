@@ -123,53 +123,27 @@ const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 // Favicon (src/favicon.svg): a perched songbird with song waves, in the dashboard's olive and cream.
 const icon = `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
 
-// Page menu: a hamburger button that opens a small panel (replaces Framework's sidebar).
-const menuPages = [
-  ["Overview", "./"],
-  ["Live", "./live"],
-  ["Species", "./species"],
-  ["Display", "./display"],
-  ["Hardware analytics", "./hardware"],
-  ["Detections", "./detections"]
-];
-
+// Page links: one icon button per page in the header; mark the current one.
 const menuScript = `<script>
-(() => {
-  const root = document.documentElement;
-  const setOpen = (open) => {
-    root.toggleAttribute("data-menu-open", open);
-    document.querySelector(".menu-toggle")?.setAttribute("aria-expanded", String(open));
-  };
-  document.addEventListener("click", (event) => {
-    if (event.target.closest(".menu-toggle")) return setOpen(!root.hasAttribute("data-menu-open"));
-    if (!event.target.closest(".site-menu")) setOpen(false);
-  });
-  addEventListener("keydown", (event) => { if (event.key === "Escape") setOpen(false); });
-  // Mark the current page in the menu.
-  addEventListener("DOMContentLoaded", () => {
-    const here = location.pathname.replace(/\\.html$/, "").replace(/\\/$/, "").split("/").pop() || "index";
-    for (const a of document.querySelectorAll(".site-menu a, .page-icons a")) {
-      const page = a.getAttribute("href").replace("./", "") || "index";
-      if (page === here) a.setAttribute("aria-current", "page");
-    }
-  });
-})();
+addEventListener("DOMContentLoaded", () => {
+  const here = location.pathname.replace(/\\.html$/, "").replace(/\\/$/, "").split("/").pop() || "index";
+  for (const a of document.querySelectorAll(".page-icons a")) {
+    const page = a.getAttribute("href").replace("./", "") || "index";
+    if (page === here) a.setAttribute("aria-current", "page");
+  }
+});
 </script>`;
 
 const header = `<div class="site-header">
   <div class="header-left">
-    <button class="menu-toggle" type="button" aria-label="Pages" aria-expanded="false" aria-controls="site-menu">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-    </button>
     <span class="eyebrow">Seattle, WA</span>
-    <nav class="site-menu" id="site-menu">${menuPages.map(([name, href]) => `<a href="${href}">${name}</a>`).join("")}</nav>
   </div>
   <div class="header-buttons">
   ${dev ? `<button class="phone-toggle" type="button" aria-label="Preview this page at phone size" title="Preview at phone size">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="2.5" width="11" height="19" rx="2.5"/><path d="M10.5 18.5h3"/></svg>
     <span>Phone</span>
   </button>` : ""}
-  <nav class="page-icons" aria-label="Quick links">
+  <nav class="page-icons" aria-label="Pages">
     <a class="icon-link" href="./" aria-label="Overview" title="Overview">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10v9h11v-9"/><path d="M10.5 19v-5h3v5"/></svg>
     </a>
@@ -178,6 +152,15 @@ const header = `<div class="site-header">
     </a>
     <a class="icon-link" href="./display" aria-label="Display" title="Display">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M9 20h6M12 16.5V20"/></svg>
+    </a>
+    <a class="icon-link" href="./species" aria-label="Species" title="Species">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16c3 0 5-1.2 6-4 .9-2.6 3-4.5 5.5-4.5 1.6 0 2.8.9 3.3 2.2L21 10l-2.2 1c0 3.6-3 6.5-7 6.5H7z"/><path d="M10.5 17.5 9 20.5M13.5 17.5l.5 3"/><circle cx="16.2" cy="9.6" r="0.4" fill="currentColor"/></svg>
+    </a>
+    <a class="icon-link" href="./detections" aria-label="Detections" title="Detections">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7h11M9 12h11M9 17h11"/><circle cx="5" cy="7" r="0.6" fill="currentColor"/><circle cx="5" cy="12" r="0.6" fill="currentColor"/><circle cx="5" cy="17" r="0.6" fill="currentColor"/></svg>
+    </a>
+    <a class="icon-link" href="./hardware" aria-label="Hardware analytics" title="Hardware analytics">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3"/></svg>
     </a>
   </nav>
   <button class="refresh-button" type="button" aria-label="Refresh: load the latest detections" title="Load the latest detections" onclick="location.reload()">
