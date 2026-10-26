@@ -23,7 +23,7 @@ import {speciesHref} from "./components/birds.js";
 ```js
 const POLL_SECONDS = 30, MIN_CONF = 0.6, HOUR = 3600e3;
 // How much fits across the screen; the viewer's choice is remembered.
-const SPANS = [[30, "30 sec"], [60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 hour"]];
+const SPANS = [[60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 hour"]];
 const SPAN_KEY = "birdtracker-live-span";
 const LIVE = "/api/live/";
 const STALE_MINUTES = 10; // no new strip for this long: say the recorder is quiet
@@ -34,9 +34,18 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
-  <div class="live-controls">
+</div>
+
+<div class="live-overview-row" id="live-overview-row" hidden>
+  <button type="button" class="live-button live-icon" id="live-days-back" title="Earlier days (shift ←)" aria-label="Earlier days"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <div class="live-overview" id="live-overview"><div class="live-overview-dates" id="live-overview-dates"></div><div class="live-overview-bars" id="live-overview-bars"></div><div class="live-overview-days" id="live-overview-days"></div><div class="live-overview-view" id="live-overview-view"></div><div class="live-overview-head" id="live-overview-head"></div></div>
+  <button type="button" class="live-button live-icon" id="live-days-fwd" title="Later days (shift →)" aria-label="Later days"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+</div>
+
+<div class="live-controls">
     <div class="live-transport" id="live-transport" hidden>
       <button type="button" class="live-button live-icon" id="live-back" title="Back 10 seconds (←)" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/></svg></button>
+      <button type="button" class="live-button live-icon live-pause" id="live-pause" title="Pause (K)" aria-label="Pause" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="icon-pause" d="M9 6v12M15 6v12"/><path class="icon-play" d="M8 5.5v13l10-6.5z"/></svg></button>
       <button type="button" class="live-button live-follow" id="live-follow" title="Back to live (L)">Back to live</button>
       <button type="button" class="live-button live-icon" id="live-fwd" title="Forward 10 seconds (→)" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg></button>
     </div>
@@ -47,15 +56,12 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
     <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
   </div>
-</div>
-
 <div class="live-frame">
   <div class="live-freq" id="live-freq" aria-hidden="true"></div>
   <div class="live-scroller" id="live-scroller" tabindex="0" aria-label="Spectrogram of the recorder's recent audio, newest at the right">
     <div class="live-track" id="live-track"></div>
   </div>
 </div>
-<div class="live-earlier"><button type="button" id="live-earlier" hidden>Show an earlier hour</button></div>
 
 <div id="live-heard"></div>
 
@@ -63,7 +69,6 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 const scroller = document.getElementById("live-scroller");
 const track = document.getElementById("live-track");
 const status = document.getElementById("live-status");
-const earlier = document.getElementById("live-earlier");
 const heard = document.getElementById("live-heard");
 const followButton = document.getElementById("live-follow");
 const transport = document.getElementById("live-transport");
@@ -72,7 +77,10 @@ const fwdButton = document.getElementById("live-fwd");
 const soundButton = document.getElementById("live-sound");
 const fullButton = document.getElementById("live-full");
 
-let strips = []; // from live.json, oldest first
+let strips = []; // from live.json (the last 24 h) plus any older days loaded, oldest first
+let older = []; // strips from earlier days' files (live/days/), kept across polls
+let stripObserver = null;
+const mergeStrips = (a, b) => [...new Map([...a, ...b].map((s) => [s.start, s])).values()].sort((p, q) => p.start.localeCompare(q.start));
 let shownFrom = null; // start of the earliest strip drawn (ms)
 let updated = null;
 let geo = null; // {t0, pps}: the drawn track's time at x = 0 and its scale
@@ -84,6 +92,7 @@ const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
 // it's the sound's own position, otherwise the wall clock minus `lag` (held at the newest audio
 // if the next strip is late). Live means it's just behind the newest audio.
 let live = true, lag = null, playhead = null;
+let paused = false; // time stops: the playhead holds still (and the sound, if on, pauses)
 // Tracking: the view scrolls to keep the playhead `anchor` of the way across it (where it was
 // clicked, or PLAYHEAD_AT); scrolling by hand stops that until the next seek, step or Live.
 // While live the playhead keeps to the right edge (LIVE_INSET px in), with nothing newer shown.
@@ -224,16 +233,26 @@ function draw() {
   if (specHeight() !== SPEC_H) { SPEC_H = specHeight(); drawFreqLabels(); }
   track.style.height = SPEC_TOP + SPEC_H + AXIS_H + "px";
 
+  // Strips are painted only as they come near the view, so days of them stay light.
+  stripObserver?.disconnect();
+  stripObserver = new IntersectionObserver((entries) => {
+    for (const {target: el, isIntersecting} of entries) {
+      if (!isIntersecting) continue;
+      stripObserver.unobserve(el);
+      el.width = el.dataset.w; el.height = SPEC_H;
+      paintStrip(el, LIVE + el.strip.image, el.strip);
+    }
+  }, {root: scroller, rootMargin: "0px 1500px"});
   for (const s of shown) {
     const el = document.createElement("canvas");
     el.className = "live-strip";
     // Whole pixels at both ends, so neighbouring strips meet without a hairline between them.
     const left = Math.round(x(Date.parse(s.start)));
-    el.width = Math.max(1, Math.round(x(endOf(s))) - left);
-    el.height = SPEC_H;
-    Object.assign(el.style, {left: left + "px", width: el.width + "px", top: SPEC_TOP + "px", height: SPEC_H + "px"});
-    paintStrip(el, LIVE + s.image, s);
+    const w = Math.max(1, Math.round(x(endOf(s))) - left);
+    el.width = 1; el.height = 1; el.dataset.w = w; el.strip = s;
+    Object.assign(el.style, {left: left + "px", width: w + "px", top: SPEC_TOP + "px", height: SPEC_H + "px"});
     track.append(el);
+    stripObserver.observe(el);
   }
   // No audio at all between strips (the recorder was offline, or reconnecting for over 10 s):
   // hatched like the dropouts inside them.
@@ -283,7 +302,162 @@ function draw() {
   track.append(playheadLine);
   if (!tracking && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
   else if (rightEdge === null) scroller.scrollLeft = scroller.scrollWidth;
+  drawOverview();
 }
+
+// An overview above the spectrogram whose range follows the span: 1 min shows an hour in minute
+// bars, 5 min six hours in 5-minute bars, 15 min a day in 15-minute bars, 1 hour three days
+// (Pacific midnights) in half hours. Bars are taller the more of their time had a bird at the
+// dashboard's threshold, short for audio with none, a stub where there's no audio. The window
+// follows the playhead until ‹ › (or shift ← →) move it, a window (or, for three days, a day) at
+// a time, back through the KEEP_DAYS kept; going live lets it follow again. Times in the strips
+// loaded come from them; three-day views fill older hours from live/days.json's hourly counts.
+// The spectrogram's view is outlined and the playhead marked; click to jump there.
+const overview = document.getElementById("live-overview");
+const overviewRow = document.getElementById("live-overview-row");
+const KEEP_DAYS = 7;
+const OV_FOR = {60: [HOUR, 60e3], 300: [6 * HOUR, 5 * 60e3], 900: [24 * HOUR, 15 * 60e3], 3600: [72 * HOUR, 30 * 60e3]};
+let ov = null, daysIndex = null, ovEnd = null; // ovEnd: where ‹ › left the window; null: following
+const pacificDate = (t) => new Date(t).toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
+const midnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - pacificHour(t) * HOUR; };
+const dayShift = (date, n) => new Date(Date.parse(date + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
+const loadedDays = new Set();
+async function loadDay(date) { // the UTC-dated files covering a Pacific day
+  const [w0, w1] = [midnight(date), midnight(dayShift(date, 1))];
+  const files = [...new Set([new Date(w0).toISOString().slice(0, 10), new Date(w1 - 1).toISOString().slice(0, 10)])].filter((f) => !loadedDays.has(f));
+  for (const f of files) {
+    loadedDays.add(f);
+    try {
+      const r = await fetch(`${LIVE}days/${f}.json`, {cache: "no-store"});
+      if (r.ok) older = mergeStrips(older, (await r.json()).strips ?? []);
+    } catch {}
+  }
+  if (files.length) { strips = mergeStrips(older, strips); draw(); summarize(); }
+}
+const loadIndex = () => fetch(LIVE + "days.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).then((j) => { daysIndex = j; drawOverview(); }).catch(() => {});
+loadIndex();
+setInterval(loadIndex, 10 * 60e3);
+// The window for the span: following the playhead (a quarter of the window ahead of it, up to
+// now), or where ‹ › put it.
+function ovWindow() {
+  const [len, bin] = OV_FOR[span] ?? OV_FOR[3600], days = len >= 72 * HOUR;
+  const now = Date.now(), p = Math.min(playhead ?? now, now);
+  const w1 = ovEnd ?? (days ? midnight(dayShift(pacificDate(p), 1)) : Math.min(Math.ceil(now / bin) * bin, Math.ceil((p + len / 4) / bin) * bin));
+  return {w0: w1 - len, w1, len, bin, days};
+}
+function drawOverview() {
+  overviewRow.hidden = !strips.length && !daysIndex?.length;
+  if (overviewRow.hidden) return;
+  ov = ovWindow();
+  const {w0, w1, bin, days} = ov, now = Date.now();
+  const oldest = Math.min(daysIndex?.[0]?.start ? Date.parse(daysIndex[0].start) : Infinity, Date.parse(strips[0]?.start ?? now));
+  document.getElementById("live-days-back").disabled = w0 <= oldest || w0 <= now - KEEP_DAYS * 864e5;
+  document.getElementById("live-days-fwd").disabled = ovEnd === null;
+  if (!days && strips.length && w0 < Date.parse(strips[0].start) && w1 > oldest) for (const t of [w0, w1 - 1]) loadDay(pacificDate(t));
+  // Seconds of audio and of birds per bar, from the strips loaded: birds as distinct minutes
+  // with a detection for bars of 15 minutes or more, else as 3-second detections...
+  const audio = new Map(), birds = new Map(), byMinute = bin >= 15 * 60e3;
+  for (const st of strips) {
+    const t0 = Date.parse(st.start);
+    if (endOf(st) < w0 || t0 >= w1) continue;
+    const k = Math.floor(t0 / bin) * bin;
+    audio.set(k, (audio.get(k) ?? 0) + st.seconds - d3.sum(st.gaps ?? [], ([a, b]) => b - a));
+    for (const d of st.detections) if (d.confidence >= MIN_CONF) {
+      const t = Date.parse(d.at), kd = Math.floor(t / bin) * bin;
+      if (!birds.has(kd)) birds.set(kd, new Set());
+      birds.get(kd).add(byMinute ? Math.floor(t / 6e4) : t);
+    }
+  }
+  const birdSeconds = (k) => (birds.get(k)?.size ?? 0) * (byMinute ? 60 : 3);
+  // ...and, for three-day views, older hours from the day index (split between half hours).
+  const indexed = new Map();
+  if (days) for (const d of daysIndex ?? []) (d.audio ?? []).forEach((m, i) => {
+    const t = Date.parse(d.date + "T00:00:00Z") + i * HOUR;
+    for (const half of [t, t + bin]) indexed.set(half, [m * 30, (d.birds?.[i] ?? 0) * 30]);
+  });
+  document.getElementById("live-overview-bars").replaceChildren(...d3.range(w0, w1, bin).map((t) => {
+    const el = document.createElement("span");
+    if (t > now) { el.className = "is-future"; return el; }
+    const [a, b] = audio.has(t) ? [audio.get(t), birdSeconds(t)] : indexed.get(t) ?? [0, 0];
+    el.className = a < (bin / 1e3) * 0.05 ? "is-empty" : b ? "has-birds" : "is-quiet";
+    if (b) el.style.height = 30 + 70 * Math.min(1, (2 * b * 1e3) / bin) + "%";
+    if (days && pacificHour(t) === 0 && t % HOUR === 0) el.classList.add("is-midnight");
+    const what = el.className === "is-empty" ? "no audio" : byMinute ? `${Math.round(b / 60)} min with birds, ${Math.round(a / 60)} min of audio` : `${Math.round(b / 3)} detections, ${Math.round(a / 60)} min of audio`;
+    el.title = `${new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", weekday: "short", hour: "numeric", minute: "2-digit"})}–${time(new Date(t + bin))}: ${what}`;
+    return el;
+  }));
+  // Labels: the days for three-day views, else times every 15 min, 1 hour or 3 hours.
+  const pos = (t) => (100 * (t - w0)) / (w1 - w0), today = pacificDate(now);
+  const dayDate = (t) => new Date(t).toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", weekday: "short", month: "short", day: "numeric"});
+  let labels;
+  if (days) {
+    labels = d3.range(3).map((i) => {
+      const date = dayShift(pacificDate(w0 + 12 * HOUR), i), a = midnight(date), b = midnight(dayShift(date, 1));
+      const text = date === today ? "Today" : dayDate(a + 12 * HOUR);
+      return Object.assign(document.createElement("span"), {textContent: text, style: `left: ${pos(a)}%; width: ${pos(b) - pos(a)}%`});
+    });
+  } else {
+    const every = ov.len <= HOUR ? 15 * 60e3 : ov.len <= 6 * HOUR ? HOUR : 3 * HOUR;
+    const step = Math.min(every, HOUR); // whole hours are stepped hourly, then picked in Pacific time
+    labels = d3.range(Math.ceil(w0 / step) * step, w1, step).filter((t) => every < HOUR || (t % HOUR === 0 && pacificHour(t) % (every / HOUR) === 0))
+      .filter((t) => pos(t) > 3 && pos(t) < 97)
+      .map((t) => Object.assign(document.createElement("span"), {className: "is-tick", textContent: time(new Date(t)).replace(":00 ", " "), style: `left: ${pos(t)}%`}));
+  }
+  document.getElementById("live-overview-days").replaceChildren(...labels);
+  // Shorter views: the date above the bars, held at the left, and again at each midnight
+  // inside; a midnight too close to the left drops the left one.
+  const dates = [];
+  if (!days) {
+    const mids = d3.range(Math.ceil(w0 / HOUR) * HOUR, w1, HOUR).filter((t) => pacificHour(t) === 0);
+    const room = (pos(mids[0] ?? w1) / 100) * overview.clientWidth; // px before the first midnight
+    if (!mids.length || room > 95) dates.push(Object.assign(document.createElement("span"), {textContent: dayDate(w0), style: "left: 0"}));
+    for (const m of mids) dates.push(Object.assign(document.createElement("span"), {className: "is-midnight", textContent: dayDate(m), style: `left: ${pos(m)}%`}));
+  }
+  document.getElementById("live-overview-dates").replaceChildren(...dates);
+}
+// Each frame: the outline and playhead marker follow the spectrogram.
+function showOverviewView() {
+  if (!geo || !ov) return;
+  if (ovEnd === null && ovWindow().w1 !== ov.w1) drawOverview(); // following: slide along
+  const {w0, w1} = ov, pct = (t) => (100 * (t - w0)) / (w1 - w0);
+  const clamp = (v) => Math.max(0, Math.min(100, v));
+  const view = document.getElementById("live-overview-view"), head = document.getElementById("live-overview-head");
+  const a = pct(tAt(scroller.scrollLeft)), b = pct(tAt(scroller.scrollLeft + scroller.clientWidth));
+  view.hidden = b < 0 || a > 100;
+  view.style.left = clamp(a) + "%";
+  view.style.width = clamp(b) - clamp(a) + "%";
+  const h = playhead === null ? -1 : pct(playhead);
+  head.hidden = h < 0 || h > 100;
+  head.style.left = h + "%";
+}
+function stepDays(n) {
+  const b = document.getElementById(n < 0 ? "live-days-back" : "live-days-fwd");
+  if (b.disabled || !ov) return;
+  const end = ov.w1 + n * (ov.days ? 864e5 : ov.len);
+  ovEnd = null;
+  ovEnd = end >= ovWindow().w1 ? null : end; // back at (or past) where it would follow: follow again
+  drawOverview();
+}
+document.getElementById("live-days-back").onclick = () => stepDays(-1);
+document.getElementById("live-days-fwd").onclick = () => stepDays(1);
+document.getElementById("live-overview-bars").onclick = async (e) => {
+  if (!ov) return;
+  const r = e.currentTarget.getBoundingClientRect(), {w0, w1, bin: OV_BIN} = ov;
+  const t = Math.min(Date.now(), w0 + ((e.clientX - r.left) / r.width) * (w1 - w0));
+  if (!strips.length || t < Date.parse(strips[0].start)) await loadDay(pacificDate(t));
+  // In a half hour with birds, land on its busiest minute (the start of its first detection
+  // there), which is what a short span can show; elsewhere, where clicked.
+  const bin = Math.floor(t / OV_BIN) * OV_BIN;
+  const inBin = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= bin && Date.parse(d.at) < bin + OV_BIN);
+  if (inBin.length) {
+    const [, busiest] = d3.greatest(d3.groups(inBin, (d) => Math.floor(Date.parse(d.at) / 6e4)), ([, v]) => v.length);
+    return seek(d3.min(busiest, (d) => Date.parse(d.at)) - 2e3, PLAYHEAD_AT);
+  }
+  // A click where there's no audio lands on the nearest audio instead.
+  const near = d3.least(strips, (s) => (t < Date.parse(s.start) ? Date.parse(s.start) - t : t > endOf(s) ? t - endOf(s) : 0));
+  if (near) seek(Math.max(Date.parse(near.start), Math.min(t, endOf(near) - 1e3)), PLAYHEAD_AT);
+};
 
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
 function frame() {
@@ -291,13 +465,15 @@ function frame() {
     const newest = endOf(strips.at(-1));
     if (playhead === null) { playhead = newest - FOLLOW_MARGIN; lag = Date.now() - playhead; }
     // The sound's position, once it has loaded and found its place (until then, where it was sent).
-    if (soundOn && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
+    if (paused) {} // held where it is
+    else if (soundOn && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
     else if (!(soundOn && waitingFor !== null)) playhead = Math.min(Date.now() - lag, newest);
-    lag = Date.now() - playhead; // so muting or a late strip doesn't jump
+    lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
   showView();
+  showOverviewView();
   updateDuck();
   raf = requestAnimationFrame(frame);
 }
@@ -307,6 +483,9 @@ function markLive() {
   followButton.classList.toggle("is-live", live);
   fwdButton.disabled = live; // nothing newer to step to
   followButton.textContent = live ? "Live" : "Back to live";
+  pauseButton.setAttribute("aria-pressed", String(paused));
+  pauseButton.title = paused ? "Play (K)" : "Pause (K)";
+  pauseButton.setAttribute("aria-label", paused ? "Play" : "Pause");
   followButton.setAttribute("aria-pressed", String(live));
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.title = soundOn ? "Mute (space)" : "Unmute (space)";
@@ -448,13 +627,17 @@ function seek(t, at = anchor) {
   if (!strips.length) return;
   const newest = endOf(strips.at(-1));
   t = Math.max(Date.parse(strips[0].start), Math.min(t, newest));
-  if (t < shownFrom) { shownFrom = t - 60e3; draw(); }
+  if (t < shownFrom) { // draw from the strip holding t (or the last before it), so the view starts there
+    const before = strips.findLast((s) => Date.parse(s.start) <= t);
+    shownFrom = Math.min(t, before ? Date.parse(before.start) : t) - 60e3;
+    draw();
+  }
   playhead = t;
   lag = Date.now() - t;
   live = false;
   tracking = true;
   anchor = at;
-  if (soundOn) playFrom(t); else waitingFor = null;
+  if (soundOn && !paused) playFrom(t); else waitingFor = null;
   markLive();
   showStatus();
 }
@@ -476,7 +659,7 @@ function toggleSound() {
     waitingFor = null;
   } else {
     soundOn = true;
-    playFrom(playhead ?? endOf(strips.at(-1)) - FOLLOW_MARGIN);
+    if (!paused) playFrom(playhead ?? endOf(strips.at(-1)) - FOLLOW_MARGIN);
   }
   markLive();
   showStatus();
@@ -485,6 +668,8 @@ function toggleSound() {
 // Back to live: just behind the newest audio, the view tracking it (and the sound, if on).
 function goLive() {
   if (!strips.length) return;
+  ovEnd = null; // the overview follows again
+  paused = false;
   live = true;
   tracking = true;
   playhead = endOf(strips.at(-1)) - FOLLOW_MARGIN;
@@ -494,12 +679,23 @@ function goLive() {
   showStatus();
 }
 
+// Pause and resume: the playhead (and the sound, if on) stops where it is; pausing leaves live.
+const pauseButton = document.getElementById("live-pause");
+function togglePause() {
+  if (!strips.length) return;
+  paused = !paused;
+  if (paused) { live = false; player?.pause(); waitingFor = null; }
+  else { lag = Date.now() - playhead; if (soundOn) playFrom(playhead); }
+  markLive();
+  showStatus();
+}
+pauseButton.onclick = togglePause;
 followButton.onclick = () => { if (!live) goLive(); };
 soundButton.onclick = toggleSound;
 document.getElementById("live-back").onclick = () => step(-STEP);
 fwdButton.onclick = () => step(STEP);
 // Clicking these shouldn't leave them focused, where space would press them again.
-for (const b of [followButton, soundButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
+for (const b of [pauseButton, followButton, soundButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
 
 // Clicking the spectrogram moves the playhead there (the names above it are links to the species).
 track.addEventListener("click", (event) => {
@@ -540,10 +736,12 @@ function header(by, label, className = "") {
 }
 
 function summarize() {
-  // The hour ends at the moment shown while live (so the chart never gets ahead of the
-  // spectrogram), else at the newest audio.
+  // While live, the hour ends at the moment shown (so the chart never gets ahead of the
+  // spectrogram); otherwise it's the hour around the playhead, so a jump back fills it in.
   const newest = strips.length ? endOf(strips.at(-1)) : Date.now();
-  const w1 = live && playhead !== null ? Math.min(playhead, newest) : newest, w0 = w1 - HOUR;
+  const w1 = playhead === null ? newest : live ? Math.min(playhead, newest) : Math.min(playhead + HOUR / 2, newest);
+  const w0 = w1 - HOUR;
+  const hourLabel = live || playhead === null ? "the last hour" : `${time(new Date(w0))}–${time(new Date(w1))}`;
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
   const confident = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
@@ -560,14 +758,14 @@ function summarize() {
   }).sort((a, b) => sort.dir * (SORTS[sort.by](a) - SORTS[sort.by](b)) || a.first - b.first);
 
   if (!rows.length) {
-    heard.replaceChildren(html`<p class="sub">No birds named in the last hour.</p>`);
+    heard.replaceChildren(html`<p class="sub">No birds named in ${hourLabel}.</p>`);
   } else {
     const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
     const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 2}`}>${r.bars.map((b, j) =>
         html`<span class=${j === r.bars.length - 1 ? "live-gantt-bar is-last" : "live-gantt-bar"} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · best ${Math.round(b.best * 100)}%`}
           style=${{left: pct(Math.max(b.start, w0)), width: `calc(${pct(Math.min(b.end, w1))} - ${pct(Math.max(b.start, w0))})`}}></span>`)}</div>`);
     heard.replaceChildren(html`<div class="live-gantt">
-      <p class="eyebrow">Heard in the last hour</p>
+      <p class="eyebrow">Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}</p>
       <div class="live-gantt-grid">
         ${header("first", "First heard", "live-gantt-sort-first")}
         <span class="live-gantt-total live-gantt-head">${header("minutes", "Total")}${header("last", "Last")}</span>
@@ -605,7 +803,6 @@ function summarize() {
     grid.onpointerleave = () => { ganttTip.hidden = true; };
     showView();
   }
-  earlier.hidden = !strips.length || Date.parse(strips[0].start) >= shownFrom;
 }
 
 // Shade, on the hour chart, the stretch the spectrogram shows now (called every frame).
@@ -644,7 +841,7 @@ function showStatus() {
     : soundOn && waitingFor !== null
     ? "Waiting for the next minute of audio…"
     : playhead !== null
-    ? `${soundOn ? "Listening to" : "Showing"} ${time(new Date(playhead), true)}`
+    ? `${paused ? "Paused at" : soundOn ? "Listening to" : "Showing"} ${time(new Date(playhead), true)}`
     : `Latest audio ${time(end)}`;
   status.classList.toggle("is-quiet", quiet);
 }
@@ -658,7 +855,7 @@ async function poll() {
       const j = await r.json();
       if (j.updated === updated) return;
       updated = j.updated;
-      strips = j.strips ?? [];
+      strips = mergeStrips(older, j.strips ?? []);
     }
     if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
     transport.hidden = !strips.length;
@@ -689,9 +886,12 @@ const keys = (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, textarea, select")) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if ((k === " " && !e.target.closest?.("a")) || k === "m") toggleSound(); // space even with a button focused
+  else if (k === "ArrowLeft" && e.shiftKey) stepDays(-1);
+  else if (k === "ArrowRight" && e.shiftKey) stepDays(1);
   else if (k === "ArrowLeft") step(-STEP);
   else if (k === "ArrowRight") step(STEP);
   else if (k === "l") goLive();
+  else if (k === "k") togglePause();
   else if (k === "b") setBoost(!boost);
   else if (k === "f") toggleFull();
   else return;
@@ -700,14 +900,6 @@ const keys = (e) => {
 document.addEventListener("keydown", keys);
 document.addEventListener("fullscreenchange", markFull);
 
-earlier.onclick = () => {
-  tracking = false;
-  const keep = scroller.scrollWidth - scroller.scrollLeft;
-  shownFrom -= HOUR;
-  draw();
-  scroller.scrollLeft = scroller.scrollWidth - keep; // stay on the same audio
-  summarize();
-};
 
 poll();
 const timer = setInterval(poll, POLL_SECONDS * 1e3);

@@ -1636,16 +1636,6 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   color: var(--theme-foreground-muted);
 }
 .live-name.is-unsure::after { background: var(--theme-foreground-faint); }
-.live-earlier { margin: 0.5rem 0 1.5rem; }
-.live-earlier button {
-  padding: 0.3rem 0.75rem;
-  border: 1px solid var(--rule);
-  border-radius: 6px;
-  background: var(--theme-background);
-  color: var(--theme-foreground);
-  font: 14px var(--sans-serif);
-  cursor: pointer;
-}
 .live-gantt { position: relative; }
 .live-gantt-grid { /* name | the hour | minutes and last heard */
   display: grid;
@@ -1987,3 +1977,90 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 
 .picker-random:hover { border-color: var(--theme-foreground-muted); }
 .picker-random svg { width: 14px; height: 14px; }
+
+/* Live: the last 24 hours as 10-minute bars above the spectrogram; click to jump. */
+.live-overview-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+}
+
+.live-overview-row[hidden] { display: none; }
+.live-overview-row > .live-button { flex: none; margin-top: 2px; }
+
+.live-overview {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.live-overview-bars { cursor: pointer; }
+.live-overview-bars > .is-future { height: 0; }
+
+.live-overview-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0;
+  height: 28px;
+}
+
+.live-overview-bars > span { flex: 1; border-right: 1px solid var(--theme-background); }
+.live-overview-bars > .is-empty { height: 2px; background: var(--theme-foreground-faintest); }
+.live-overview-bars > .is-quiet { height: 18%; background: var(--theme-foreground-faint); }
+.live-overview-bars > .has-birds { background: #2ab610; }
+.live-overview-bars > span:hover { outline: 1px solid var(--theme-foreground-muted); }
+
+.live-overview-view {
+  position: absolute;
+  bottom: 13px;
+  height: 34px;
+  min-width: 2px;
+  border: 1px solid var(--theme-foreground);
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.live-overview-head {
+  position: absolute;
+  bottom: 11px;
+  height: 38px;
+  border-left: 1px dashed var(--theme-foreground);
+  pointer-events: none;
+}
+
+.live-overview-days {
+  position: absolute;
+  inset: auto 0 0;
+  height: 14px;
+  font-size: 0.72rem;
+  color: var(--theme-foreground-muted);
+}
+
+.live-overview-days > span { position: absolute; text-align: center; white-space: nowrap; }
+.live-overview-bars > .is-midnight { box-shadow: -1px 0 0 var(--theme-foreground-faint); }
+
+/* The controls sit right above the spectrogram they drive. */
+.live-frame { margin-top: 0.4rem; }
+
+/* Pause: two bars; once paused, a play triangle. */
+.live-pause .icon-play { display: none; fill: currentColor; stroke: none; }
+.live-pause[aria-pressed="true"] .icon-pause { display: none; }
+.live-pause[aria-pressed="true"] .icon-play { display: inline; }
+.live-pause[aria-pressed="true"] { border-color: var(--theme-foreground-focus); color: var(--theme-foreground-focus); }
+
+.live-overview-days > span.is-tick { transform: translateX(-50%); }
+
+/* Shorter overview views: the date above the bars (at the left, and at each midnight). */
+.live-overview-dates {
+  position: relative;
+  height: 15px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--theme-foreground-muted);
+}
+
+.live-overview-dates:empty { display: none; }
+.live-overview-dates > span { position: absolute; white-space: nowrap; }
+.live-overview-dates > span.is-midnight { padding-left: 4px; border-left: 1px solid var(--theme-foreground-faint); }
