@@ -80,6 +80,9 @@ const fullButton = document.getElementById("live-full");
 let strips = []; // from live.json (the last 24 h) plus any older days loaded, oldest first
 let older = []; // strips from earlier days' files (live/days/), kept across polls
 let stripObserver = null;
+// Opened from a detection elsewhere (live?t=2026-10-26T14:35:39Z): go there once the audio list
+// is in, loading that day's strips if it's older than the last 24 hours.
+let pendingJump = Date.parse(new URLSearchParams(location.search).get("t") ?? "") || null;
 // Listeners' verdicts on detections: the Pi's (live/reviews.json, refreshed with each poll) and
 // this page's own, shown at once while the Pi catches up. A rejected detection counts nowhere.
 let serverReviews = {};
@@ -951,6 +954,12 @@ async function poll() {
     audioControls.hidden = !strips.some((s) => s.audio);
     draw();
     markLive();
+    if (pendingJump && strips.length) {
+      const t = pendingJump;
+      pendingJump = null;
+      if (t < Date.parse(strips[0].start)) await loadDay(pacificDate(t));
+      seek(t - 2e3, PLAYHEAD_AT);
+    }
     if (soundOn && waitingFor !== null) playFrom(waitingFor);
     summarize();
     showStatus();

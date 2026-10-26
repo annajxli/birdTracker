@@ -90,7 +90,8 @@ const clock = (t) => t.toLocaleString("en-US", {timeZone: "America/Los_Angeles",
     header: {time: "Time", species: "Species", confidence: narrow ? "Conf." : "Confidence", clip: "Clip", review: "Review"},
     ...(narrow ? {layout: "fixed", width: {time: 104, confidence: 40}} : {layout: "auto"}),
     format: {
-      time: clock,
+      // Within the week Live keeps, the time opens Live at that moment.
+      time: (t) => (Date.now() - t < 7 * 864e5 ? htl.html`<a href=${`./live?t=${reviewAt(t)}`} title="Play this in Live">${clock(t)}</a>` : clock(t)),
       species: (s) => htl.html`<a href=${speciesHref(s)}>${s}</a>`,
       confidence: d3.format(".0%"),
       clip: clipPlayer,
