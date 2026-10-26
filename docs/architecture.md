@@ -1,0 +1,279 @@
+# Architecture
+
+This page describes how Bird Tracker works on `main`: the components, how audio
+and data move between them, and where each piece of data lives. For what is
+deployed and what work is in progress, see [Status](status.md).
+
+## System overview
+
+Bird Tracker has four parts:
+
+- **Recorder.** An outdoor microcontroller board with a microphone. It streams
+  audio over Wi-Fi to the indoor computer. It doesn't identify birds. For the
+  hardware, see [Recorder hardware](hardware.md).
+- **Indoor computer.** An always-on computer on wall power, such as a
+  Raspberry Pi or a laptop, that runs the Python services in `pipeline/`. It
+  turns audio into detections, clips, and spectrograms, and publishes them to
+  Cloudflare R2.
+- **Cloudflare.** An R2 bucket holds the published data. A Worker checks a
+  shared password, serves the built dashboard, and serves the R2 data to
+  signed-in visitors.
+- **Dashboard.** An Observable Framework static site in `dashboard/`. GitHub
+  Actions builds it and deploys it to the Worker.
+
+The following diagram shows how audio and data flow between the parts:
+
+```
+recorder ──HTTP stream──> receiver.py ──1-minute WAVs──> analyzer.py ──> SQLite database
+                              │                              │
+                              └──TCP──> live.py              └──> clips/, live/
+                                       (local live view)              │
+                                                                      v
+browser <── password Worker <── R2 bucket <────────────────────── publish.py
+                │                   ^
+                └── POST /api/reviews ┘
+```
+
+## Pipeline on the indoor computer
+
+The indoor computer runs three long-lived services. The
+[`deploy/pi/`](../deploy/pi/) folder installs them as systemd services. Each
+script's module docstring and `--help` output are the reference for its
+behavior and flags.
+
+### Receiver
+
+`pipeline/receiver.py` accepts audio from the recorder over plain HTTP,
+authenticated by a shared token. Use it only on the home network. It supports
+two modes:
+
+- **Stream** (`POST /stream`). The recorder keeps one connection open and
+  sends numbered audio frames and periodic health frames. The receiver cuts the
+  stream into one WAV file per UTC minute, fills short gaps with silence, and
+  writes a JSON file of recorder telemetry next to each WAV.
+- **Upload** (`POST /upload`). The recorder sends one finished file per
+  request.
+
+In both modes, the receiver writes to a `.part` file in `data/incoming/` and
+renames it when the file is complete. It accepts only filenames that look like
+a UTC start time plus an audio extension, such as `20260512T131500Z.wav`.
+
+The receiver can also forward the stream to `pipeline/live.py` on a local TCP
+port. This forwarding is best effort and never delays the minute files.
+
+### Analyzer
+
+`pipeline/analyzer.py` watches `data/incoming/`. A file counts as finished
+when its size and modification time stay the same across two checks. For each
+finished recording, the analyzer does the following:
+
+1. Runs BirdNET with the station's location and the week of the year.
+2. Adds the detections to the `detections` table, and the recorder telemetry
+   to the `recordings` table.
+3. Cuts a short Opus clip of the most confident detection of each species per
+   hour into `data/clips/`, with a spectrogram image next to it.
+4. Renders a spectrogram strip and MP3 copies of the minute into
+   `data/live/`, and lists them with their detections in `live.json` for the
+   dashboard's **Live** page.
+5. Deletes the recording. If you set `--keep-days`, the analyzer moves the
+   recording to `data/processed/` instead.
+
+If analysis of a file fails repeatedly, the analyzer moves the file to
+`data/failed/`. Failures that aren't caused by the file, such as a locked
+database or a full disk, don't count against it. Only one analyzer runs per
+data folder.
+
+The analyzer has two BirdNET engines:
+
+- `lite` (default): `pipeline/birdnet_lite.py` runs BirdNET's TFLite model on
+  `ai-edge-litert`, without TensorFlow. A Raspberry Pi 3B+ can run it.
+- `analyzer`: runs the `birdnet-analyzer` package, which needs TensorFlow.
+
+### Publisher
+
+`pipeline/publish.py` keeps the R2 bucket synchronized with the indoor
+computer. It
+mirrors `data/live/` and `data/clips/`: it uploads new and changed files and
+deletes remote files that the analyzer deleted. It also uploads Parquet
+exports and database snapshots when the database changes. For the R2 layout,
+see [R2 bucket](#r2-bucket).
+
+The publisher also applies reviews. When a signed-in visitor marks a detection
+as confirmed or rejected, the Worker saves the verdict to `reviews/` in R2. On
+its next pass, the publisher writes the verdict to the database.
+
+If you set the `GITHUB_TOKEN` environment variable, the publisher starts the
+deploy workflow after each snapshot, so the built site includes the newest
+data.
+
+### Live view on the home network
+
+`pipeline/live.py` serves a local page with a scrolling spectrogram and
+BirdNET's identifications, about half a second behind the microphone. It reads
+the stream that the receiver forwards. It stores nothing. It's separate from
+the dashboard's **Live** page, which shows published minutes from R2 a minute
+or two behind. The Raspberry Pi services run the receiver with forwarding
+off, so `live.py` isn't part of the Pi deployment.
+
+To try `live.py` without a recorder, replay a recording into it with
+`pipeline/live_fake_stream.py`.
+
+## Data
+
+### Database
+
+The pipeline stores data in one SQLite database. `pipeline/schema.sql` defines
+the tables:
+
+- `detections`: one row per 3-second audio segment in which BirdNET detected
+  a species. A row also holds the clip path and a person's review, if any.
+- `recordings`: one row per recorded minute, with recorder telemetry such as
+  background level, Wi-Fi signal, and dropped frames. The **Hardware
+  analytics** page reads it.
+
+The database path depends on the setup:
+
+- Simulated data on a development computer: `data/detections.sqlite`, the
+  default in `pipeline/db.py`.
+- Real data on the indoor computer: `data/recorder.sqlite`, set by `--db` in
+  the systemd services. A separate file keeps real data apart from simulated
+  data on the same computer.
+
+### Local folders
+
+The pipeline generates the following folders under `data/`, and Git ignores
+them:
+
+| Folder | Contents | Written by |
+| --- | --- | --- |
+| `incoming/` | Recordings waiting for analysis | Receiver |
+| `processed/` | Analyzed recordings kept by `--keep-days` | Analyzer |
+| `failed/` | Recordings that failed analysis repeatedly | Analyzer |
+| `clips/` | Detection clips and their spectrograms | Analyzer |
+| `live/` | Minute strips, MP3s, `live.json`, `days/`, `reviews.json`, and `status.json` | Analyzer and publisher |
+
+The repository includes the following files in `data/`. To regenerate them,
+see
+[Regenerate reference data](development.md#regenerate-reference-data).
+
+| File | Contents |
+| --- | --- |
+| `occurrence.csv` | Species by week likelihoods for the station location, from BirdNET's location model |
+| `species_images.json` | A photo URL, credit, and license for each species |
+| `species_categories.csv` | A rough category for each species, such as songbirds or raptors |
+| `photo_focus.json` | The focal point of each species photo, for cropping |
+| `weather.csv`, `weather_hourly.csv` | Daily and hourly weather from Open-Meteo |
+
+### R2 bucket
+
+The publisher writes the following keys to the R2 bucket. The bucket name
+comes from the `R2_BUCKET` environment variable, and the default is
+`birdtracker-media`.
+
+| Key | Contents |
+| --- | --- |
+| `live/` | Mirror of `data/live/` |
+| `clips/` | Mirror of `data/clips/` |
+| `data/detections.parquet` | Detections, as the dashboard reads them |
+| `data/recordings.parquet` | Recorder telemetry |
+| `data/detections.sqlite` | A database snapshot that the site build downloads |
+
+The Worker writes visitors' review verdicts to `reviews/`.
+
+## Website
+
+### Build
+
+The workflow in `.github/workflows/pages.yml` builds and deploys the site. It
+runs on every push to `main`, on a schedule, on demand, and when the
+publisher starts it. During the build, it does the following:
+
+1. Updates `data/weather.csv` from Open-Meteo. If the fetch fails, the build
+   keeps the checked-in copy.
+2. Downloads the database snapshot from R2. If no snapshot exists, it
+   simulates a year of detections instead.
+3. Builds the site. The Python data loaders in `dashboard/src/data/` export
+   the database to Parquet and JSON files that the build adds to the site.
+4. Deploys the site as the Worker's static assets.
+
+### Password Worker
+
+`deploy/password-worker.js` runs on the dashboard's subdomain. It serves the
+built site only to visitors with a valid session cookie, so no public copy of
+the site exists. It also serves the following routes to signed-in visitors:
+
+| Route | Serves |
+| --- | --- |
+| `/api/live/NAME` | `live/NAME` from R2 |
+| `/api/clips/KEY` | The clip at `KEY` from R2 |
+| `/api/data/detections.parquet`, `/api/data/recordings.parquet` | The newest exports from R2 |
+| `POST /api/reviews` | Saves a review verdict to R2 |
+| `/__signout` | Signs out the current device |
+
+In these routes, `NAME` is a file in `live/`, and `KEY` is a clip's key, which
+starts with `clips/`.
+
+For setup steps, see [Deploy](deploy.md).
+
+### Pages
+
+When a page opens, it loads the newest Parquet exports from `/api/data/`. If
+that request fails, the page uses the copy built into the site. Pages also
+fetch the most recent weather directly from Open-Meteo. New data therefore
+appears without a rebuild. The site has the following pages:
+
+- **Overview**: daily activity, species, and weather.
+- **Live**: published minutes with spectrograms, audio, and detections, where
+  you can confirm or reject detections.
+- **Species**: every species heard, with photos and counts.
+- **Display**: a slideshow of the Overview charts for a wall screen.
+- **Hardware analytics**: recorder coverage, background level, Wi-Fi signal,
+  pipeline delay, and the indoor computer's health.
+- **Detections**: a table of every detection, including rejected ones, where
+  you can also confirm or reject detections.
+
+### How the dashboard counts
+
+BirdNET scores every 3-second segment, so the database holds one row per
+segment in which BirdNET detected a species. The dashboard converts rows into
+easier numbers. Simulated data, not real recordings, set the following
+choices, so check them against real recordings:
+
+- **Minutes heard.** The dashboard counts clock minutes, not detections. A
+  bird that calls for 20 minutes counts as about 20, not about 400.
+- **Bouts on the daily timeline.** The dashboard draws a species' detections
+  as one bar when they're closer together than `BOUT_GAP_MINUTES` in
+  `dashboard/src/components/birds.js`. If birds that call every few minutes
+  appear as strings of thin bars, raise the value. If separate visits merge
+  into one long bar, lower it.
+- **Default confidence threshold.** To find false positives, listen to a
+  sample of clips near the Overview's default threshold.
+- **Simulated bout lengths.** The bout lengths in `pipeline/simulate.py` are
+  an estimate of real singing. Compare them with several real mornings.
+
+The dashboard links species photos from Wikimedia Commons instead of copying
+them. Most photos are licensed CC BY-SA, so the dashboard shows each photo's
+credit and license next to it. If you change the layout, keep the credit and
+license visible.
+
+## Design decisions
+
+This section records decisions that shape the system and the reasons that the
+repository documents for them.
+
+- **Identify birds indoors.** Running BirdNET continuously outdoors on solar
+  power through a Seattle winter needs a much larger panel and battery than
+  recording does. The recorder records and sends audio, and the indoor
+  computer runs BirdNET. For the power estimates, see the
+  [recorder hardware options](design/hardware-design.html).
+- **Serve the site from the Worker, not GitHub Pages.** GitHub Pages sites are
+  public whatever the repository's visibility, so anyone who knows the address
+  can bypass a password Worker placed in front of Pages. The Worker serves the
+  site from its own static assets instead.
+- **Run BirdNET without TensorFlow by default.** `birdnet-analyzer` imports
+  TensorFlow on every start, which a 1 GB Raspberry Pi 3B+ can't afford. The
+  `lite` engine runs the same model. In a comparison on five test recordings,
+  it found the same 32 detections as `birdnet-analyzer`, with scores within
+  0.005, and ran about six times faster.
+- **Plain SQLite schema.** The schema avoids SQLite-specific features so that
+  the same tables could move to Cloudflare D1. The pipeline doesn't use D1.

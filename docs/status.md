@@ -1,0 +1,65 @@
+# Status
+
+This page is the only place in the repository that records what is deployed,
+what is in progress, and what is unverified. Other pages describe how the
+system works and link here for status. When you deploy, merge, or finish a
+check, update this page in the same commit.
+
+Last reviewed: October 26, 2026.
+
+## Deployed
+
+The following table lists the deployed components:
+
+| Component | State | Source |
+| --- | --- | --- |
+| Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
+| R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
+| Indoor computer | Not recorded. Add the host, the deployed commit, and the date. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Recorder | Not recorded. Add the board, the firmware commit, and where it's mounted. | [Recorder hardware](hardware.md) |
+
+## Deployment log
+
+Add one dated line per deployment, newest first. Include the commit and the
+host alias. Don't include secrets.
+
+- No entries yet.
+
+## Open checks
+
+### Indoor computer on a Raspberry Pi 3B+
+
+- **Speed.** The analyzer must process each minute of audio, including its
+  spectrogram and MP3 copies, in well under a minute. If the Pi can't keep up,
+  reduce the threads that compete with the receiver. A smaller model is
+  another option, but `birdnet_lite.py` supports only the FP32 model.
+- **Temperature.** The 3B+ slows down when it's hot. Check
+  `vcgencmd measure_temp` under load.
+- **SD card wear.** The analyzer writes the database and live strips
+  constantly. A high-endurance card or a USB SSD for `data/` lasts longer.
+
+### Dashboard counting
+
+Simulated data, not real recordings, set the counting choices. Check them
+against real recordings. For details, see
+[How the dashboard counts](architecture.md#how-the-dashboard-counts).
+
+### Recorder hardware
+
+Bench test 2 measures power and decides the board. For its plan, see
+[Bench test 1](bench-test-1.md#plan-for-bench-test-2).
+
+## Work on other branches
+
+The following branches change documentation that isn't on `main`. When you
+merge one, move its documentation into the structure in
+[AGENTS.md](../AGENTS.md#documentation), as the migration column says, and then
+delete its row.
+
+The following table lists the branches and where their documentation goes:
+
+| Branch | State | Documentation migration |
+| --- | --- | --- |
+| `codex/publisher-usage-reduction` | Implemented, checked locally, not deployed. | `docs/publisher-handoff.md`: deployment steps into [Deploy](deploy.md); the deployment record into the [deployment log](#deployment-log). Additions to `docs/deploy.md` about publisher usage stay in `deploy.md`; the parts that describe behavior move to [Architecture](architecture.md). `docs/multi-station-plan.md`: see the next row. |
+| `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md` to `docs/plans/multi-station.md`. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
+| `codex/ui-live-polish` | Live page changes. | `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). |

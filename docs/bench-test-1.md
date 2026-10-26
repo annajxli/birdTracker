@@ -1,132 +1,135 @@
-# Bench test 1: mic, recording, wifi upload
+# Bench test 1: microphone, recording, and Wi-Fi upload
 
-**Goal for today:** on the FireBeetle 2 ESP32-E and the Pico 2 W, get audio
-from the INMP441 mic into a WAV file, upload it over wifi to the indoor
-computer, and run BirdNET on it. Power profiling waits for the PPK2; SD cards
-wait for the breakout (recordings go to the boards' own flash for now: 10 s at
-a time).
+This page is a record of the first bench test. Its results were committed on
+October 24, 2026. Don't update it to describe later changes. For the bench recorder as it is
+now, see [Recorder hardware](hardware.md#build-the-bench-recorder).
 
-Firmware: [`firmware/recorder_test/`](../firmware/recorder_test/).
-Receiver: [`pipeline/receiver.py`](../pipeline/receiver.py).
+## Goal
 
-## Equipment for today
+On the FireBeetle 2 ESP32-E and the Raspberry Pi Pico 2 W, get audio from an
+INMP441 microphone into a WAV file, upload it over Wi-Fi to the indoor
+computer, and run BirdNET on it.
 
-- FireBeetle 2 ESP32-E, Pico 2 W, INMP441 (+ spare), breadboard, jumper wires
-- **USB cables that carry data**, not charge-only ones (USB-C for the
-  FireBeetle, micro-USB for the Pico 2 W)
-- Laptop (the indoor computer for now), on the same wifi as the boards
-- Phone: a reference recording, and for playing a bird recording at a fixed
-  volume and distance
-- Multimeter: check the mic gets 3.3 V
-- Oscilloscope (only if there's no audio): look at the mic's clock and data
-  lines
+The following were out of scope for this test:
 
-Not today: PPK2, microSD breakout, nRF52840 dongle (it's for the BLE test).
+- Power profiling, which needs the Power Profiler Kit II (PPK2).
+- Recording to microSD, which needs the microSD breakout. The boards recorded
+  to their own flash, 10 seconds at a time.
 
-## Software to install
+## Boards
 
-1. **VS Code** with the **PlatformIO IDE** extension (Extensions → search
-   "PlatformIO IDE"). On first launch it installs its own toolchain; give it
-   a few minutes. The first build of each board downloads that board's
-   compiler and libraries automatically (`firmware/recorder_test/platformio.ini`
-   says which).
-2. **USB serial driver**, only if the FireBeetle doesn't show up as a port:
-   it uses a CH340/CH9102 USB chip; recent macOS includes the driver.
-3. **The repo's Python environment** (already set up): runs the receiver and
-   BirdNET.
-4. **Audacity** (optional): look at and listen to the recordings.
-5. **nRF Connect for Desktop** (optional today): needed later for the PPK2's
-   Power Profiler app and for flashing the nRF52840 dongle.
+The bench test series compares the following boards. Bench test 1 covered the
+first two.
 
-*Alternative to PlatformIO:* Arduino IDE 2 with the **esp32** (Espressif,
-3.x) and **Raspberry Pi Pico/RP2040/RP2350** (Earle Philhower) board
-packages, from these board-manager URLs:
-`https://espressif.github.io/arduino-esp32/package_esp32_index.json` and
-`https://github.com/earlephilhower/arduino-pico/releases/download/global/package_rp2040_index.json`.
-For the Pico 2 W pick Tools → Flash Size → **4MB (FS: 2MB)**.
-
-This Arduino-framework sketch is for bench testing only. If the recorder
-ends up on the Pico, its real firmware will be written with the Pico SDK
-(the VS Code Pico extension); on the ESP32, with ESP-IDF.
-
-## Wiring the INMP441
-
-| INMP441 | FireBeetle 2 ESP32-E | Pico 2 W |
+| Board | Chip | Reason to test it |
 | --- | --- | --- |
-| VDD | 3V3 | 3V3(OUT), pin 36 |
-| GND | GND | GND |
-| L/R | GND (left channel) | GND |
-| SCK | D3 (GPIO 26) | GP16 |
-| WS | D2 (GPIO 25) | GP17 (must be SCK + 1) |
-| SD | A2 (GPIO 34) | GP18 |
-| marker: recording | D6 (GPIO 14) | GP14 |
-| marker: uploading | D7 (GPIO 13) | GP15 |
+| Raspberry Pi Pico 2 W | RP2350 and CYW43439 | Baseline, with no PSRAM |
+| FireBeetle 2 ESP32-E | ESP32 | Low-power board design, with no PSRAM |
+| Seeed XIAO ESP32S3 | ESP32-S3 with 8 MB PSRAM | Has PSRAM. The Sense version was out of stock, so this board uses an INMP441 and the microSD breakout. |
+| Seeed XIAO nRF52840 Sense (optional) | nRF52840 | Lowest power class, with a BLE link to an nRF52840 USB dongle |
 
-FireBeetle pins show the board's silkscreen label (D3) with the GPIO number the
-sketch's `PIN_` constants use. Any free GPIO works on the FireBeetle (change the
-`PIN_` constants); on the Pico, WS must be the pin after SCK. Marker pins are
-optional today; they're for the scope and, later, the PPK2. Keep mic wires
-short (under ~15 cm).
+## Parts
+
+The test series uses the following parts. Prices are estimates from the
+planning stage.
+
+| Part | Purpose | Estimated price |
+| --- | --- | --- |
+| FireBeetle 2 ESP32-E | Board under test | $15 |
+| Seeed XIAO ESP32S3 | Board under test | $7 to $10 |
+| Seeed XIAO nRF52840 Sense (optional) | Board under test, for the BLE comparison | $16 |
+| Two INMP441 I²S microphone modules | One moves between boards so that every board uses the same microphone; one is a spare | $3 to $5 each |
+| Adafruit 4682 microSD breakout (3 V) | Moves between boards | $3.50 |
+| 32 GB microSD card | Moves between boards | $8 to $10 |
+| Breadboard, jumper wires, and header pins | Wiring. The Pico 2 W needs headers unless it's the WH version. | $15 |
+| Nordic Power Profiler Kit II (PPK2) | Powers a board and records its current from about 0.2 µA to 1 A, 100,000 times a second | $100 |
+| JST-PH 2.0 two-pin pigtails | Connect the PPK2 to the boards' battery inputs | $8 |
+| Inline USB-C power meter (optional) | Daily energy totals without a computer | $20 to $40 |
+| 3.3 V USB-to-serial adapter or Raspberry Pi Debug Probe (optional) | Serial logs while the PPK2 powers a board and USB is unplugged | $5 to $12 |
+| Foam microphone windscreens (optional) | Recording at an open window | $5 to $8 |
+
+The estimated total was $175 to $190 for the required parts and $240 to $255
+with the optional parts. The PPK2 is almost half of the cost, and it works
+with every board.
+
+The following notes explain some choices:
+
+- The PPK2 came from an authorized distributor, such as Digi-Key or Mouser,
+  because other marketplace listings are from third-party resellers.
+- The INMP441 has the same wiring and I²S interface as the ICS-43434, so the
+  final microphone is a drop-in replacement. The INMP441 is noisier, with an
+  SNR of 61 dB instead of 65 dB, and draws about 1.4 mA instead of 0.5 mA.
+  BirdNET picks up fewer distant birds with it.
+- The PPK2 feeds the boards' battery inputs, so that the measurement includes
+  each board's own regulator and charger.
+- While the PPK2 powers a board, the board's USB cable is unplugged. The
+  serial adapter connects only TX, RX, and ground, never its power pin.
+- The 4-channel oscilloscope on hand replaces a logic analyzer for this test.
+  I²S needs three channels and SPI needs four. The oscilloscope also shows
+  the 3.3 V rail dipping during Wi-Fi bursts, which can cause resets.
+- The PPK2 measures one board at a time, and the microphone and microSD
+  breakout move between boards. As a result, the test can't record on two
+  boards side by side.
+- An nRF52840 USB dongle, already owned, is the BLE receiver on the indoor
+  computer.
 
 ## Setup
 
-1. Copy `firmware/recorder_test/secrets.example.h` to `secrets.h` and fill
-   in the wifi name and password, the laptop's LAN address (System Settings →
-   Wi-Fi → Details → IP address), and a token of your choosing.
-2. Start the receiver on the laptop, with the same token:
-   ```
-   .venv/bin/python pipeline/receiver.py --token <token>
-   ```
-   If macOS asks whether Python may accept incoming connections, allow it.
-3. In VS Code, open the `firmware/recorder_test` folder. In PlatformIO's
-   environment switcher (bottom status bar), pick **env:firebeetle** or
-   **env:pico2w**.
-4. Plug in the board and click **Upload** (→). For the Pico 2 W, if it
-   isn't detected, hold BOOTSEL while plugging it in, then upload again.
-5. Open the **Serial Monitor** (plug icon; 115200 baud is set). Commands:
-   `l` level meter, `r` record + upload, `u` upload again, `i` info.
+The test used the steps in
+[Build the bench recorder](hardware.md#build-the-bench-recorder), with a
+laptop as the indoor computer. A phone made a reference recording and played a
+bird recording at a fixed volume and distance.
 
 ## Tests
 
-Do T1–T4 on each board.
+The test plan ran T1 to T4 on each board, and T5 as described in its row.
 
-| # | Test | How | Pass |
+| Test | What it checks | Method | Pass criteria |
 | --- | --- | --- | --- |
-| T1 | Boots and joins wifi | Reset; read the serial log | "wifi up", RSSI printed, "clock set from NTP" |
-| T2 | Mic alive, sensible level | `l`, then clap, whistle, stay quiet | RMS jumps 20+ dB with sound; quiet room roughly −70 to −50 dBFS; no "CLIPPED" on a clap at arm's length. Silence or a constant value: check wiring (L/R to GND, WS on the right pin) |
-| T3 | Record + upload | `r` | "recorded … in ~10 s", "HTTP 201"; the file appears in `data/incoming/`; it plays back cleanly in Audacity (no clicks, right speed) |
-| T4 | Throughput | Note the upload kbit/s from T3, at the bench and (if you can) carried near the planned mount spot | Bench: well over 1,000 kbit/s. Note the RSSI too |
-| T5 | BirdNET on the files | Play the same bird recording from the phone at ~1 m for each board, `r`, then run `analyzer.py --once` | Same species found on each board as on a phone recording of the same playback. Don't compare confidences across boards: hand-held playback can't match volume and position; that needs both boards recording one sound side by side |
+| T1 | The board starts and joins Wi-Fi | Reset the board and read the serial log | The log shows `wifi up`, the RSSI, and `clock set from NTP` |
+| T2 | The microphone works, with a sensible level | Run `l`, then clap, whistle, and stay quiet | RMS rises 20 dB or more with sound. A quiet room reads about −70 to −50 dBFS. A clap at arm's length doesn't print `CLIPPED`. |
+| T3 | Recording and upload | Run `r` | The log shows about 10 seconds of recording and an HTTP `201` status code. The file appears in `data/incoming/` and plays back cleanly in Audacity. |
+| T4 | Upload throughput | Note the upload rate from T3 at the bench and near the planned mount | Well over 1,000 kbit/s at the bench |
+| T5 | BirdNET on the recordings | Play the same bird recording from a phone at about 1 m, run `r`, and then run `analyzer.py --once` | Each board finds the same species as a phone recording of the same playback |
 
-Things to watch for:
-- **Recording takes much longer than 10 s:** the flash can't keep up with
-  the mic; note it (SD will fix this, and it matters for continuous use).
-- **Pitch or speed wrong in playback:** sample-rate setting or I²S timing.
-- **Clicks every so often:** samples dropped while writing to flash.
-- **Board resets during upload:** the USB port or the board's regulator
-  sagging under the wifi burst; the scope on 3V3 shows it.
+Don't compare confidence scores across boards in T5. Hand-held playback can't
+match volume and position. A fair comparison needs both boards to record one
+sound side by side.
+
+The test plan listed these symptoms to watch for:
+
+- **Recording takes much longer than 10 seconds.** Flash can't keep up with
+  the microphone.
+- **Pitch or speed is wrong in playback.** The sample rate setting or I²S
+  timing is wrong.
+- **Periodic clicks.** The board dropped samples while it wrote to flash.
+- **The board resets during upload.** The USB port or the board's regulator
+  sags under the Wi-Fi burst. An oscilloscope on 3V3 shows it.
 
 ## Results
 
-Fill in as you go.
-
-| | FireBeetle 2 ESP32-E | Pico 2 W |
+| Result | FireBeetle 2 ESP32-E | Pico 2 W |
 | --- | --- | --- |
-| T1 wifi join time, RSSI | 1.8 s, −55 dBm; NTP missed its 15 s window at boot but set later | 5.8–14 s, −50 to −60 dBm; NTP also sometimes misses the boot window |
-| T2 quiet / clap RMS (dBFS) | −55 to −64 / −15.6 (peak 20,689 of 32,767, no clip) | −55 to −65 / −14.6 (peak 12,421, no clip) |
-| T3 record time for 10 s, upload HTTP code | 9.99 s, HTTP 201; 32 kHz mono, no sample jumps found | 10 s to flash **hangs the board** (any flash write while I²S streams); recording 5 s to RAM, then saving with the mic stopped: 5.00 s, HTTP 201. 3 isolated full-scale samples in one file |
-| T4 upload kbit/s (bench / near mount) | 2,187 / not yet | 831 / not yet (arduino-pico's HTTPClient failed mid-file, HTTP −3; replaced by a hand-written POST) |
-| T5 BirdNET species + confidence vs phone | Merlin clip 2024-04-12 1632 played from a phone: Black-capped Chickadee 0.82 / 0.63 / 0.86 in 3 segments (original phone recording: 0.75 / 0.68 / 0.55 / …) | Same clip: Black-capped Chickadee 0.49 (one full 3 s window in 5 s) |
-| Problems / notes | Mac needed WCH's CH34x driver (USB ID 1a86:7522) | Flash writes freeze I²S (watchdog added); HTTPClient stream upload fails; slower wifi join and upload. For continuous recording the Pico needs SD (SPI) or RAM buffering, not internal flash |
+| T1 Wi-Fi join time, RSSI | 1.8 s, −55 dBm. NTP missed its 15-second window at startup but set the clock later. | 5.8 to 14 s, −50 to −60 dBm. NTP sometimes missed the startup window. |
+| T2 quiet and clap RMS (dBFS) | −55 to −64 quiet, −15.6 clap (peak 20,689 of 32,767, no clipping) | −55 to −65 quiet, −14.6 clap (peak 12,421, no clipping) |
+| T3 record time for 10 s, upload status | 9.99 s, HTTP `201` status code. 32 kHz mono, no sample jumps found. | Recording 10 s to flash made the board stop responding: any flash write while I²S streams. Recording 5 s to RAM and then saving with the microphone stopped: 5.00 s, HTTP `201` status code. Three isolated full-scale samples in one file. |
+| T4 upload rate, bench and near mount | 2,187 kbit/s at the bench. Not measured near the mount. | 831 kbit/s at the bench. Not measured near the mount. The arduino-pico `HTTPClient` failed partway through a file with HTTP `-3`, so a hand-written `POST` request replaced it. |
+| T5 BirdNET species and confidence | Merlin clip from April 12, 2024, played from a phone: Black-capped Chickadee at 0.82, 0.63, and 0.86 in three segments. The original phone recording: 0.75, 0.68, 0.55, and lower. | Same clip: Black-capped Chickadee at 0.49, in one full 3-second window within 5 seconds. |
+| Other notes | macOS needed WCH's CH34x driver (USB ID `1a86:7522`). | Flash writes freeze I²S, so the sketch adds a watchdog. Wi-Fi join and upload are slower. For continuous recording, the Pico needs SD (SPI) or RAM buffering instead of internal flash. |
 
-## Next (bench test 2)
+## Plan for bench test 2
 
-With the PPK2 and the microSD breakout: continuous recording to SD in 1–5
-minute files, batch uploads, and a power profile per state (recording,
-SD write, wifi connect, upload, deep sleep) using the marker pins, then the
-XIAO ESP32S3 Sense, and BLE to the nRF52840 dongle.
+Bench test 2 uses the PPK2 and the microSD breakout to do the following:
 
-The Pico 2 W stays in the running: its problems in this test came from
-recording to its own flash, which SD avoids. Bench test 2 retests it
-recording continuously to SD (full 10 s or longer files, mic streaming the
-whole time) and checks whether the isolated full-scale samples recur.
+- Record continuously to SD in files of 1 to 5 minutes, and upload them in
+  batches.
+- Measure a power profile for each state: recording, SD write, Wi-Fi connect,
+  upload, and deep sleep. The marker pins label each state in the trace.
+- Measure energy per uploaded MB over Wi-Fi, and over BLE on the nRF52840.
+- Test the XIAO ESP32S3, and BLE to the nRF52840 dongle.
+- Retest the Pico 2 W recording continuously to SD, and check whether the
+  isolated full-scale samples recur. Its problems in bench test 1 came from
+  recording to its own flash, which SD avoids.
+
+The measurements replace the energy estimates in
+[Recorder hardware options](design/hardware-design.html) and decide the board.

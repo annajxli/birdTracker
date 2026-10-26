@@ -1,145 +1,268 @@
-# Deploying the dashboard
+# Deploy
 
-The dashboard is a static site. GitHub Actions builds it and deploys it to a
-Cloudflare Worker as that Worker's **static assets**: the Worker checks the
-shared password and then serves the files itself. Nothing else hosts a copy,
-so there is no way around the password. Below, `birds.example.com` stands for
-the real subdomain and `example.com` for the domain.
+This page explains how to deploy Bird Tracker: the website on Cloudflare, the
+R2 bucket that holds recorder data, and the pipeline on the indoor computer.
+For how these parts fit together, see [Architecture](architecture.md). For
+what is deployed, see [Status](status.md).
 
+On this page, `birds.example.com` stands for the dashboard's subdomain and
+`example.com` for its domain. The repository's settings use
+`birds.annajxli.com`.
+
+## Deploy the website
+
+GitHub Actions builds the dashboard and deploys it to a Cloudflare Worker as
+the Worker's static assets. The Worker checks the shared password before it
+serves any file, and no other host has a copy of the site, so visitors can't
+bypass the password. The Worker's name, route, and bindings are in
+`deploy/wrangler.toml`.
+
+### Before you begin
+
+Make sure that you have the following:
+
+- A Cloudflare account that manages DNS for `example.com`
+- Owner access to the GitHub repository, to add secrets
+- In `deploy/wrangler.toml`, the Worker name and route that you want. The
+  repository's values are `birdtracker-password` and `birds.annajxli.com/*`.
+
+### Create a Cloudflare API token
+
+1. In the Cloudflare dashboard, go to **My Profile > API Tokens**, and then
+   click **Create Token**.
+2. Select the **Edit Cloudflare Workers** template.
+3. Under **Account Resources**, select your account. Under **Zone
+   Resources**, select `example.com`.
+4. Create the token and copy it.
+5. On the **Workers & Pages** overview page, copy your account ID.
+
+The template includes the **Workers R2 Storage: Edit** permission, which the
+build uses to download the database snapshot. If you create the token another
+way, add that permission.
+
+### Add the token to GitHub
+
+1. In the GitHub repository, go to **Settings > Secrets and variables >
+   Actions**, and then click **New repository secret**.
+2. Add the following secrets:
+   - `CLOUDFLARE_API_TOKEN`: the API token.
+   - `CLOUDFLARE_ACCOUNT_ID`: the account ID.
+
+### Add a DNS record for the subdomain
+
+The Worker answers every request to the subdomain, so the DNS record doesn't
+need to point to a real server.
+
+1. In the Cloudflare dashboard, go to `example.com` > **DNS > Records**.
+2. Add a record with the following values:
+   - **Type**: `AAAA`
+   - **Name**: `birds`
+   - **IPv6 address**: `100::`
+   - **Proxy status**: **Proxied**
+
+   `100::` is a reserved discard address. Because Cloudflare proxies the
+   record and the Worker handles the route, requests never reach it.
+
+3. Go to **SSL/TLS > Edge Certificates**, and turn on **Always Use HTTPS**.
+   This setting stops browsers from sending the password over plain HTTP.
+
+### Create the R2 bucket
+
+Create the bucket before the first deploy, because the Worker binds to it.
+
+1. In the Cloudflare dashboard, go to **R2 Object Storage**, and then click
+   **Create bucket**.
+2. For the name, enter `birdtracker-media`. For the location, select
+   **Automatic**.
+
+R2 requires a payment method on file, even for usage within the free tier.
+
+### Deploy and set the secrets
+
+1. In GitHub, go to **Actions > Deploy dashboard**, and then click **Run
+   workflow**. Wait for the `build` and `deploy` jobs to finish. A push to
+   `main` also starts a deploy.
+
+   The first deploy creates the Worker with the name and route from
+   `deploy/wrangler.toml`.
+
+2. In the Cloudflare dashboard, go to **Workers & Pages >
+   `birdtracker-password` > Settings > Variables and Secrets**.
+3. Add a secret named `PASSWORD`, set to the shared password. Until this
+   secret exists, the site returns an error instead of opening.
+4. Add a secret named `SESSION_KEY`, set to a long random string, such as the
+   output of `openssl rand -hex 32`. This key signs session cookies, so
+   someone who steals a cookie can't use it to guess the password. A session
+   lasts 30 days.
+5. To check the setup, open `https://birds.example.com` in a private browser
+   window. The sign-in page appears, and the password opens the site.
+
+Deploys replace the Worker's code and files but keep its secrets. The Worker
+limits sign-in attempts per IP address, as set by the `[[ratelimits]]` block in
+`deploy/wrangler.toml`.
+
+### Manage access
+
+To manage who is signed in, do one of the following:
+
+- To change the password, edit the `PASSWORD` secret. This signs out every
+  device.
+- To sign out every device without changing the password, change
+  `SESSION_KEY`.
+- To sign out one device, visit `/__signout` on that device.
+
+## Set up the indoor computer
+
+The indoor computer runs the receiver, analyzer, and publisher. The files in
+`deploy/pi/` install them on a Raspberry Pi 3B+ (four Cortex-A53 cores, 1 GB
+RAM) as systemd services that start at boot and restart after a crash. The
+Pi doesn't need GitHub access: `deploy/pi/push.sh` copies everything it needs
+from a development computer over SSH.
+
+### Before you begin
+
+Make sure that you have the following:
+
+- A development computer with the repository set up. For more information,
+  see [Development](development.md).
+- A Raspberry Pi 3B+ with a 5 V 2.5 A power supply and a heatsink.
+- The R2 bucket from [Create the R2 bucket](#create-the-r2-bucket).
+- A bench recorder with `firmware/recorder_test/secrets.h` filled in. For more
+  information, see [Recorder hardware](hardware.md#build-the-bench-recorder).
+
+### Create an R2 token for the publisher
+
+1. In the Cloudflare dashboard, go to **R2 Object Storage > Manage API
+   tokens**, and then click **Create API token**.
+2. For the permission, select **Object Read & Write**, and apply it to the
+   `birdtracker-media` bucket only.
+3. Copy the access key ID and the secret access key. Cloudflare shows the
+   secret only once.
+4. On the development computer, create `publish.env` in the repository root
+   with the following contents. Git ignores this file.
+
+   ```
+   R2_ACCOUNT_ID=ACCOUNT_ID
+   R2_ACCESS_KEY_ID=ACCESS_KEY_ID
+   R2_SECRET_ACCESS_KEY=SECRET_ACCESS_KEY
+   ```
+
+   Replace the following:
+
+   - `ACCOUNT_ID`: your Cloudflare account ID.
+   - `ACCESS_KEY_ID`: the access key ID.
+   - `SECRET_ACCESS_KEY`: the secret access key.
+
+   `push.sh` copies only the `R2_` lines of `publish.env` to the Pi.
+
+### Prepare the SD card
+
+1. In Raspberry Pi Imager, select **Raspberry Pi 3** and **Raspberry Pi OS
+   Lite (64-bit)**.
+2. In the OS customization settings, set the following values:
+   - **Hostname**: `birdtracker`
+   - **Username and password**: your choice
+   - **Wireless LAN**: your Wi-Fi network
+   - **Time zone**: `America/Los_Angeles`
+   - **SSH**: public-key authentication only. Imager fills in your public
+     key. If you don't have one, create it with `ssh-keygen -t ed25519`.
+3. Write the card, insert it in the Pi, and start the Pi. If Ethernet is
+   available, connect it.
+4. In your router, reserve the Pi's IP address. The recorder sends audio to
+   this address.
+
+### Install the services
+
+1. Optional: To keep data from a computer that ran the pipeline before, copy
+   its `data/recorder.sqlite`, `data/clips/`, and `data/live/` to
+   `~/birdtracker/data/` on the Pi. Then stop the receiver, analyzer, and
+   publisher on that computer.
+2. From the development computer, install the pipeline on the Pi:
+
+   ```bash
+   deploy/pi/push.sh USER@birdtracker.local
+   ```
+
+   Replace `USER` with the user name on the Pi.
+
+   The script copies the pipeline, the BirdNET model files, and the service
+   definitions, and then runs `deploy/pi/install.sh` on the Pi. The first time,
+   it also writes `~/birdtracker/birdtracker.env` on the Pi with the R2 keys
+   from `publish.env`, the receiver token from `secrets.h`, and
+   `BIRDNET_MODELS`. Later runs don't change that file; to change a setting,
+   edit it on the Pi.
+
+3. In `firmware/recorder_test/secrets.h`, set `RECEIVER_URL` to
+   `http://PI_ADDRESS:8765`, where `PI_ADDRESS` is the Pi's reserved IP
+   address. Then flash the recorder again.
+4. Optional: To rebuild the site after each database snapshot, and not only on
+   the schedule in `.github/workflows/pages.yml`, add a line to
+   `~/birdtracker/birdtracker.env` on the Pi:
+
+   ```
+   GITHUB_TOKEN=GITHUB_TOKEN_VALUE
+   ```
+
+   Replace `GITHUB_TOKEN_VALUE` with a GitHub token that can run this
+   repository's workflows. Then restart the publisher with
+   `sudo systemctl restart birdtracker-publish`.
+
+### Update the services
+
+To update the Pi after a pipeline change, run `deploy/pi/push.sh` again.
+
+**Caution:** `push.sh` restarts all three services, so recording stops for a
+short time. Before you run it, make sure that every change in your checkout is
+meant for the Pi.
+
+### Check the services
+
+To follow a service's log, on the Pi, run the following command:
+
+```bash
+journalctl -u birdtracker-analyzer -f
 ```
-browser ──> birds.example.com (Cloudflare) ──> password Worker ──> its own copy of the site
-```
 
-The workflow (`.github/workflows/pages.yml`) builds on every push to `main`,
-every morning, and on demand. Until the recorder runs, it simulates the
-detections on each build and fetches current weather. The Worker's settings
-(name, route, assets) are in `deploy/wrangler.toml`.
+The other services are `birdtracker-receiver` and `birdtracker-publish`.
 
-> **Why not GitHub Pages?** An earlier version served the site from GitHub
-> Pages with the Worker in front. Pages sites are public whatever the repo's
-> visibility, and anyone who knows the subdomain can ask GitHub's servers for
-> it directly, skipping Cloudflare and the password. If you set it up that way,
-> follow "Moving off GitHub Pages" below.
+The pages load the newest data from R2 when they open, so new detections
+appear without a rebuild. How often the publisher uploads each kind of data
+depends on its flags; for details, run `pipeline/publish.py --help`.
 
-## 1. Cloudflare: an API token for deploys
+## Migrate from a GitHub Pages setup
 
-1. Cloudflare dashboard → **My Profile → API Tokens → Create Token**, template
-   **Edit Cloudflare Workers**. Under *Account Resources* pick your account and
-   under *Zone Resources* pick `example.com`. Create it and copy the token.
-2. Copy your **Account ID** (Workers & Pages overview, right-hand side).
+An earlier version of this setup served the site from GitHub Pages with the
+password Worker in front. GitHub Pages sites are public, so visitors could
+bypass the Worker. To move such a setup to the Worker's static assets, do the
+following:
 
-## 2. GitHub: give the workflow the token
+1. Complete [Create a Cloudflare API token](#create-a-cloudflare-api-token)
+   and [Add the token to GitHub](#add-the-token-to-github), and then push to
+   `main`. The deploy reuses the existing Worker and its `PASSWORD` secret.
+   Check that the site works.
+2. In the GitHub repository, go to **Settings > Pages**. Remove the custom
+   domain, and set **Build and deployment > Source** to **GitHub Actions**. If
+   **Unpublish site** appears, click it.
+3. In Cloudflare DNS, replace the `CNAME` record for `birds` that points to
+   GitHub with the `AAAA` record from
+   [Add a DNS record for the subdomain](#add-a-dns-record-for-the-subdomain).
+   A `CNAME` record left pointing to GitHub after Pages is off lets someone
+   else claim the subdomain on GitHub.
+4. Optional: In your GitHub account, go to **Settings > Pages > Verified
+   domains**, and verify `example.com` so that no one else can use it with
+   GitHub Pages.
 
-Repo → **Settings → Secrets and variables → Actions → New repository secret**:
+## Troubleshoot
 
-- `CLOUDFLARE_API_TOKEN`: the token from step 1
-- `CLOUDFLARE_ACCOUNT_ID`: the account ID
+The following list describes common problems:
 
-(Only the repo owner can add these.)
-
-## 3. DNS for the subdomain
-
-Cloudflare → `example.com` → **DNS → Records**: one record for the subdomain,
-pointing nowhere in particular, because the Worker answers every request:
-
-- Type **AAAA**, name **birds**, IPv6 address **`100::`**, **Proxied** (orange cloud)
-
-`100::` is a reserved "discard" address; Cloudflare's proxy plus the Worker
-route mean requests never go there. Check **SSL/TLS → Edge Certificates →
-Always Use HTTPS** is on, so the password is never sent over plain HTTP.
-
-## 4. Deploy, then set the password
-
-1. Push to `main`, or **Actions → Deploy dashboard → Run workflow**. Wait for
-   `build` and `deploy` to go green. The first deploy creates the Worker
-   `birdtracker-password` with the route `birds.example.com/*` (both from
-   `deploy/wrangler.toml`; change them there if your names differ).
-2. Cloudflare → **Workers & Pages → birdtracker-password → Settings →
-   Variables and Secrets → Add**: type **Secret**, name **`PASSWORD`**, value
-   the shared password. Save. Until this exists the site answers with an error
-   rather than opening up.
-3. Add a second **Secret**, **`SESSION_KEY`**: a long random string nobody
-   needs to remember (e.g. the output of `openssl rand -hex 32`). It signs the
-   session cookies, so a stolen cookie can't be used to guess the password.
-   Changing it signs everyone out.
-4. Open `https://birds.example.com` in a private window: you should get the
-   sign-in page, and the password lets you in.
-
-Sign-in attempts are limited to 5 a minute per IP address by the Worker
-itself (the `[[ratelimits]]` block in `deploy/wrangler.toml`), so password
-guessing can't run at scale. Nothing to set up for that.
-
-Deploys replace the Worker's code and files but keep the secrets.
-To change the password, edit the secret; that signs everyone out. To sign out
-a single device, visit `/__signout`. The Worker's code is
-`deploy/password-worker.js`; run its checks with
-`node deploy/password-worker.test.mjs`.
-
-## 5. Recorder data: the R2 bucket
-
-The indoor computer publishes to an R2 bucket, `birdtracker-media`
-(`pipeline/publish.py`): the near-live spectrogram strips (`live/`), the
-detection clips (`clips/`) and a database snapshot every 3 hours. The Worker
-serves `live/` and `clips/` to signed-in visitors; the build downloads the
-snapshot. One step at a time:
-
-1. **Create the bucket.** Cloudflare → **R2 Object Storage → Create bucket**,
-   name **`birdtracker-media`**, location Automatic. (R2 needs a payment
-   method on file even on the free tier: 10 GB stored and millions of reads a
-   month are free; this uses well under 1 GB.)
-2. **Check the deploy token can reach it.** The "Edit Cloudflare Workers"
-   template from step 1 includes *Workers R2 Storage: Edit*; if yours was
-   made differently, add that permission. The build uses it to download the
-   snapshot and the deploy to bind the bucket.
-3. **A token for the indoor computer.** R2 → **Manage API tokens → Create API
-   token**: permission **Object Read & Write**, applied to **birdtracker-media**
-   only. Copy the Access Key ID and Secret Access Key (shown once).
-4. **Put them on the indoor computer** in `publish.env` at the repo root
-   (gitignored):
-   ```
-   R2_ACCOUNT_ID=<account ID from step 1>
-   R2_ACCESS_KEY_ID=<access key ID>
-   R2_SECRET_ACCESS_KEY=<secret access key>
-   ```
-5. **Run it** beside the analyzer:
-   ```
-   set -a; . ./publish.env; set +a
-   .venv/bin/python pipeline/publish.py --watch --db data/recorder.sqlite
-   ```
-
-The pages load the latest detections from the bucket when they open (within
-about 10 minutes of being heard, or press the refresh button); the near-live
-strips and clips appear within about a minute. No rebuild is needed for new
-data.
-
-## Status
-
-Set up for `birds.annajxli.com` on 2026-10-23/24: the Worker serves the site,
-GitHub Pages is off, DNS points at `100::`, Always Use HTTPS is on, and both
-`PASSWORD` and `SESSION_KEY` are set.
-
-## Moving off GitHub Pages
-
-For a setup that followed the older version of these docs (Pages + a Worker
-route in front):
-
-1. Do steps 1–2 above, then push. The deploy reuses the existing Worker
-   (same name) and its `PASSWORD` secret, and now serves the site itself.
-   Check the site still works.
-2. GitHub repo → **Settings → Pages**: remove the custom domain, then under
-   **Build and deployment → Source** pick **GitHub Actions** and unpublish the
-   site (**Unpublish site** at the top of the page, if shown).
-3. Cloudflare DNS: change the `birds` record from the `CNAME` to
-   `<owner>.github.io` to the `AAAA 100::` record in step 3. A CNAME left
-   pointing at GitHub after Pages is off lets someone else claim the subdomain
-   on GitHub.
-4. Optional: under GitHub account **Settings → Pages → Verified domains**,
-   verify `example.com` so no one else can ever use it with Pages.
-
-## Notes
-
-- **The repo stays private,** and the built site exists only inside Cloudflare.
-- **If a build fails**, the Actions tab shows which step. A failed weather
-  fetch doesn't stop the build; it falls back to `data/weather.csv`.
-- **Real data** comes from the R2 bucket (below); without a snapshot there,
-  the build simulates a year of detections.
+- **A build fails.** To see which step failed, on the **Actions** tab, open
+  the run. A failed weather fetch doesn't stop the build. Instead, the build
+  uses the checked-in `data/weather.csv`.
+- **The build simulates data.** The build log shows `No snapshot in R2 yet`
+  when it finds no database snapshot. Check that the publisher is running and
+  that the API token has the **Workers R2 Storage: Edit** permission.
+- **Pages show old or simulated data.** Pages load the newest data from
+  `/api/data/` and fall back to the copy built into the site only when that
+  request fails. In the browser's developer tools, check the requests to
+  `/api/data/`.
