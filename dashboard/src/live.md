@@ -265,11 +265,12 @@ function draw() {
   const shown = strips.filter((s) => endOf(s) > w.w0 && Date.parse(s.start) < w.w1);
   drawnWindow = [w.w0, w.w1];
   track.replaceChildren();
-  if (!shown.length) { track.style.width = "100%"; geo = null; return; }
+  if (!strips.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
-  const t1 = endOf(shown.at(-1));
+  // The whole window scrolls, loaded or not: older days load as the view nears them (loadNearView).
+  const t1 = Math.min(w.w1, endOf(strips.at(-1)));
   // At least one full span before the newest audio, so the view can always be filled.
-  const t0 = Math.min(Date.parse(shown[0].start), t1 - span * 1e3);
+  const t0 = Math.min(w.w0, t1 - span * 1e3);
   geo = {t0, t1, pps};
   const width = Math.max(scroller.clientWidth, x(t1) + LIVE_INSET); // room for the line at the newest audio
   track.style.width = width + "px";
@@ -299,7 +300,9 @@ function draw() {
   }
   // No audio at all between strips (the recorder was offline, or reconnecting for over 10 s):
   // hatched like the dropouts inside them.
+  // A gap reaching into a day not loaded yet isn't known to be silent, so it stays blank.
   for (let i = 1; i < shown.length; i++) {
+    if (!loadedBetween(endOf(shown[i - 1]), Date.parse(shown[i].start))) continue;
     const a = Math.round(x(endOf(shown[i - 1]))), b = Math.round(x(Date.parse(shown[i].start)));
     if (b - a < 1) continue;
     const gap = document.createElement("div");
@@ -402,7 +405,10 @@ const pacificDate = (t) => new Date(t).toLocaleDateString("en-CA", {timeZone: "A
 const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
 const midnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - pacificHour(t) * HOUR; };
 const dayShift = (date, n) => new Date(Date.parse(date + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
-const loadedDays = new Set();
+const loadedDays = new Set(); // UTC dates of live/days/ files fetched
+// Whether every day file between a and b has been fetched (live.json holds the last 24 hours).
+const loadedBetween = (a, b) => d3.utcDay.range(d3.utcDay.floor(new Date(a)), new Date(Math.min(b, Date.now() - 23 * HOUR)))
+  .every((d) => loadedDays.has(d.toISOString().slice(0, 10)));
 async function loadDay(date) { // the UTC-dated files covering a Pacific day
   const [w0, w1] = [midnight(date), midnight(dayShift(date, 1))];
   const files = [...new Set([new Date(w0).toISOString().slice(0, 10), new Date(w1 - 1).toISOString().slice(0, 10)])].filter((f) => !loadedDays.has(f));
@@ -435,7 +441,7 @@ function drawOverview() {
   const oldest = Math.min(daysIndex?.[0]?.start ? Date.parse(daysIndex[0].start) : Infinity, Date.parse(strips[0]?.start ?? now));
   document.getElementById("live-days-back").disabled = w0 <= oldest || w0 <= now - KEEP_DAYS * 864e5;
   document.getElementById("live-days-fwd").disabled = ovEnd === null;
-  if (strips.length && w0 < Date.parse(strips[0].start) && w1 > oldest) for (const t of [...d3.range(w0, w1, 864e5), w1 - 1]) loadDay(pacificDate(t));
+  if (!days && strips.length && w0 < Date.parse(strips[0].start) && w1 > oldest) for (const t of [w0, w1 - 1]) loadDay(pacificDate(t));
   // Seconds of audio and of birds per bar, from the strips loaded: birds as distinct minutes
   // with a detection for bars of 15 minutes or more, else as 3-second detections...
   const audio = new Map(), birds = new Map(), byMinute = bin >= 15 * 60e3;
@@ -549,13 +555,16 @@ function positionNames() {
   const viewRight = scroller.scrollLeft + scroller.clientWidth - 4;
   const lanes = Array.from({length: LANES}, () => []);
   // Read text widths together before writing positions, avoiding layout per label.
-  const names = [...track.querySelectorAll(".live-name")].map(button => {
-    const text = button.querySelector(".live-name-text");
-    return {button, text, width: text.offsetWidth, ...button.labelGeometry};
-  });
-  for (const {button, text, width, start, end} of names) {
+  // Labels away from the view are hidden unmeasured, so days of them stay light.
+  const names = [];
+  for (const button of track.querySelectorAll(".live-name")) {
+    const {start, end} = button.labelGeometry;
     // Do not pin labels whose detection hasn't entered, or has left, the view.
-    if (start > viewRight || end < viewLeft) { button.style.visibility = "hidden"; continue; }
+    if (start > viewRight || end < viewLeft) { if (button.style.visibility !== "hidden") button.style.visibility = "hidden"; continue; }
+    names.push({button, text: button.querySelector(".live-name-text"), start, end});
+  }
+  for (const n of names) n.width = n.text.offsetWidth;
+  for (const {button, text, width, start, end} of names) {
     const left = liveLabelLeft(start, width, viewLeft, viewRight);
     const right = Math.max(left + width, Math.min(end, viewRight));
     const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || left >= r + 6));
@@ -565,6 +574,14 @@ function positionNames() {
     button.style.top = lane * LANE + "px";
     text.style.transform = `translateX(${left - start}px)`;
   }
+}
+
+// Older days' strips load as the view (give or take a span) reaches them; live.json holds the
+// last 24 hours. loadDay skips days already loaded, so asking every frame is cheap.
+function loadNearView() {
+  if (!geo) return;
+  const pad = span * 1e3, a = tAt(scroller.scrollLeft) - pad, b = tAt(scroller.scrollLeft + scroller.clientWidth) + pad;
+  for (const t of [a, b]) if (t < Date.now() - 23 * HOUR && t >= (ov?.w0 ?? t)) loadDay(pacificDate(t));
 }
 
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
@@ -581,6 +598,7 @@ function frame() {
     playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
+  loadNearView();
   positionNames();
   showView();
   showOverviewView();
