@@ -49,6 +49,7 @@ import sqlite3
 import sys
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -229,11 +230,39 @@ def process(audio: Path, args, conn) -> int:
             (args.data / old_path).unlink(missing_ok=True)
             (args.data / old_path).with_suffix(".webp").unlink(missing_ok=True)
     if args.live_hours > 0:
-        try:
-            update_live(audio, rows, args)
-        except Exception:  # the near-live view is a nicety; the detections are already stored
-            log.exception("couldn't add %s to the live view", audio.name)
+        queue_live(audio, rows, args)
     return inserted
+
+
+_live_worker = None  # one background thread for the near-live view, started on first use
+
+
+def queue_live(audio: Path, rows: list[dict], args) -> None:
+    """Hand the near-live view's work (spectrogram, cleaned copy, two MP3s: ~40 s a minute on a
+    Pi 3B+) to a background thread, so BirdNET starts on the next minute meanwhile on the other
+    cores; in turn, a minute took longer than a minute. The thread gets its own hard link to the
+    recording, since run_once deletes the original right after this returns."""
+    global _live_worker
+    pending = args.data / "live-pending"
+    pending.mkdir(exist_ok=True)
+    copy = pending / audio.name
+    copy.unlink(missing_ok=True)
+    try:
+        os.link(audio, copy)
+    except OSError:
+        shutil.copy2(audio, copy)
+    if _live_worker is None:
+        _live_worker = ThreadPoolExecutor(1, thread_name_prefix="live")
+    _live_worker.submit(live_job, copy, rows, args)
+
+
+def live_job(copy: Path, rows: list[dict], args) -> None:
+    try:
+        update_live(copy, rows, args)
+    except Exception:  # the near-live view is a nicety; the detections are already stored
+        log.exception("couldn't add %s to the live view", copy.name)
+    finally:
+        copy.unlink(missing_ok=True)
 
 
 def background_dbfs(data, rate: int) -> float | None:
@@ -417,6 +446,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     lock = single_instance(args.data)
+    shutil.rmtree(args.data / "live-pending", ignore_errors=True)  # left by a stop mid-job
     conn = db.connect(args.db)
     state = {}
     if args.once:
@@ -427,6 +457,8 @@ if __name__ == "__main__":
             run_once(args, conn, state)
         except EnvironmentProblem as e:
             sys.exit(f"stopped, nothing moved: {e}")
+        if _live_worker:
+            _live_worker.shutdown(wait=True)
     else:
         log.info("watching %s every %ss", args.data / "incoming", args.interval)
         backoff = 0
