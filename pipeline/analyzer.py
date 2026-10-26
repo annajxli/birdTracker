@@ -14,8 +14,9 @@ into the incoming folder, and for each one this:
   4. renders the whole recording's spectrogram into live/, with 24 kHz MP3
      copies of its audio (as recorded, and cleaned by denoise.py for the
      Live page's Bird boost), and lists them, with its detections, in
-     live/live.json, for the site's near-live view; strips older than
-     --live-hours are deleted (publish.py uploads them)
+     live/live.json (the last day) and live/days/, for the site's near-live
+     view; strips older than --live-hours (a week) are deleted (publish.py
+     uploads them)
   5. deletes the recording (or, with --keep-days, moves it to processed/ and
      deletes it that many days later)
 
@@ -307,8 +308,9 @@ def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float
 
 
 def update_live(audio: Path, rows: list[dict], args) -> None:
-    """Add the recording's spectrogram strip to live/ and live/live.json; drop strips older than
-    --live-hours. live.json lists the strips oldest first, each with its detections."""
+    """Add the recording's spectrogram strip and MP3s to live/, list it in live/live.json and its
+    day's file, and drop strips older than --live-hours. Strip lists are oldest first, each strip
+    with its detections."""
     live = args.data / "live"
     live.mkdir(exist_ok=True)
     image = live / (audio.stem + ".webp")
@@ -339,23 +341,89 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
             for r in sorted(rows, key=lambda r: r["detected_at"])
         ],
     }
+    now = datetime.now(UTC)
+    stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")
     index = live / "live.json"
+    days = live / "days"
+    if not days.exists():  # first run with day files: start them from what live.json has
+        days.mkdir()
+        for s in read_strips(index):
+            add_to_day(days, s)
+    add_to_day(days, entry)
+    recent = stamp(now - timedelta(hours=LIVE_JSON_HOURS))
+    strips = [s for s in read_strips(index) if s["image"] != entry["image"] and s["start"] >= recent] + [entry]
+    write_json(index, {"updated": stamp(now), "strips": sorted(strips, key=lambda s: s["start"])})
+    prune_days(live, stamp(now - timedelta(hours=args.live_hours)))
+
+
+# The Live page polls live.json (the last LIVE_JSON_HOURS) every 30 s; the rest of --live-hours is
+# in live/days/<UTC date>.json, one file per day with the same strip entries, listed in
+# live/days.json with each day's span and, per UTC hour, the minutes of audio and the minutes
+# with a bird (LIVE_MIN_CONF or more), so the page can draw a week without loading every day.
+LIVE_JSON_HOURS = 24
+LIVE_MIN_CONF = 0.6  # the dashboard's threshold for a confident detection
+
+
+def read_strips(path: Path) -> list[dict]:
     try:
-        strips = json.loads(index.read_text())["strips"]
+        return json.loads(path.read_text())["strips"]
     except (FileNotFoundError, KeyError, ValueError):
-        strips = []
-    strips = [s for s in strips if s["image"] != entry["image"]] + [entry]
-    cutoff = (datetime.now(UTC) - timedelta(hours=args.live_hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    keep = sorted((s for s in strips if s["start"] >= cutoff), key=lambda s: s["start"])
-    for s in strips:
-        if s["start"] < cutoff:
-            (live / s["image"]).unlink(missing_ok=True)
-            for key in ("audio", "clean"):
-                if s.get(key):
-                    (live / s[key]).unlink(missing_ok=True)
-    tmp = index.with_suffix(".json.part")
-    tmp.write_text(json.dumps({"updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "strips": keep}))
-    os.replace(tmp, index)
+        return []
+
+
+def write_json(path: Path, data) -> None:
+    tmp = path.with_name(path.name + ".part")  # publish.py skips .part files
+    tmp.write_text(json.dumps(data))
+    os.replace(tmp, path)
+
+
+def add_to_day(days: Path, entry: dict) -> None:
+    path = days / f"{entry['start'][:10]}.json"
+    strips = [s for s in read_strips(path) if s["image"] != entry["image"]] + [entry]
+    write_day(path, sorted(strips, key=lambda s: s["start"]))
+
+
+def write_day(path: Path, strips: list[dict]) -> None:
+    """Write a day's file and its line in days.json (or remove both if it has no strips left)."""
+    date = path.stem
+    index = path.parent.parent / "days.json"
+    try:
+        listed = [d for d in json.loads(index.read_text()) if d["date"] != date]
+    except (FileNotFoundError, ValueError):
+        listed = []
+    if strips:
+        write_json(path, {"date": date, "strips": strips})
+        audio, birds = [0.0] * 24, [set() for _ in range(24)]
+        for s in strips:
+            audio[int(s["start"][11:13])] += (s["seconds"] - sum(b - a for a, b in s.get("gaps", []))) / 60
+            for d in s["detections"]:
+                if d["confidence"] >= LIVE_MIN_CONF and d["at"][:10] == date:
+                    birds[int(d["at"][11:13])].add(d["at"][14:16])
+        end = max(datetime.strptime(s["start"], "%Y-%m-%dT%H:%M:%SZ") + timedelta(seconds=s["seconds"]) for s in strips)
+        listed.append({"date": date, "start": strips[0]["start"], "end": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "strips": len(strips), "audio": [round(a, 1) for a in audio], "birds": [len(b) for b in birds]})
+    else:
+        path.unlink(missing_ok=True)
+    write_json(index, sorted(listed, key=lambda d: d["date"]))
+
+
+def prune_days(live: Path, cutoff: str) -> None:
+    """Delete strips (spectrogram and both MP3s) that started before cutoff, and their days."""
+    try:
+        listed = json.loads((live / "days.json").read_text())
+    except (FileNotFoundError, ValueError):
+        return
+    for day in listed:
+        if day["start"] >= cutoff:
+            break  # sorted by date: the rest are newer
+        path = live / "days" / f"{day['date']}.json"
+        strips = read_strips(path)
+        for s in strips:
+            if s["start"] < cutoff:
+                for key in ("image", "audio", "clean"):
+                    if s.get(key):
+                        (live / s[key]).unlink(missing_ok=True)
+        write_day(path, [s for s in strips if s["start"] >= cutoff])
 
 
 def prune(processed: Path, keep_days: float) -> None:
@@ -442,7 +510,7 @@ if __name__ == "__main__":
     p.add_argument("--threads", type=int, default=2, help="threads for BirdNET (leave a core free on a Pi)")
     p.add_argument("--keep-days", type=float, default=0, help="keep recordings in processed/ this many days (default: delete right after analysis)")
     p.add_argument("--interval", type=float, default=30, help="seconds between checks when watching")
-    p.add_argument("--live-hours", type=float, default=24, help="keep this many hours of spectrogram strips in live/ (0 = off)")
+    p.add_argument("--live-hours", type=float, default=168, help="keep this many hours of strips (spectrogram and audio) in live/ (0 = off)")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
