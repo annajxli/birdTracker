@@ -63,3 +63,11 @@ The following table lists the branches and where their documentation goes:
 | `codex/publisher-usage-reduction` | Implemented, checked locally, not deployed. | `docs/publisher-handoff.md`: deployment steps into [Deploy](deploy.md); the deployment record into the [deployment log](#deployment-log). Additions to `docs/deploy.md` about publisher usage stay in `deploy.md`; the parts that describe behavior move to [Architecture](architecture.md). `docs/multi-station-plan.md`: see the next row. |
 | `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md` to `docs/plans/multi-station.md`. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
 | `codex/ui-live-polish` | Live page changes. | `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). |
+
+### Live details update
+
+The Live UI supports the species pane, edge-clamped labels, centered mute text,
+and unidentified intervals. The analyzer export is a separate pending update;
+no Pi deployment has happened, so existing production strips don't gain
+unidentified intervals. Site deployment is automatic after merging this update.
+Dashboard tests and build pass; browser interaction verification remains open.

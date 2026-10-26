@@ -17,6 +17,9 @@ toc: false
      without stopping it. -->
 
 ```js
+import {UNIDENTIFIED, unidentifiedDetections, unidentifiedRuns} from "./components/live-unidentified.js";
+import {liveLabelLeft} from "./components/live-label-position.js";
+import {liveSpeciesPanel} from "./components/live-species-panel.js";
 import {includedDetection, detectionPlaybackStart, shownInGantt} from "./components/detection-policy.js";
 import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview} from "./components/birds.js";
 ```
@@ -318,24 +321,24 @@ function draw() {
   // dashboard's threshold in bold, weaker ones faint with a question mark, so where BirdNET is torn between
   // species, the candidates show side by side. Confident runs are placed first, then non-bird
   // sounds, then the rest by score, so a crowded stretch keeps its surest names.
-  const lanes = Array.from({length: LANES}, () => []);
+  // Text lanes are assigned using visible, edge-clamped positions below.
   const sure = (r) => includedDetection({confidence: r.best, review: r.review}, MIN_CONF);
   const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
-    const label = `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
-    const left = x(r.start), labelWidth = label.length * 7.8 + 12;
-    const right = Math.max(left + labelWidth, x(r.end));
-    const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
-    if (lane < 0) return;
-    lanes[lane].push([left, right]);
+    const label = r.unidentified ? UNIDENTIFIED : `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
+    const left = x(r.start);
+    const lane = 0;
     // A click jumps to the run's first detection; hovering opens the species card (details).
     const a = document.createElement("button");
     a.type = "button";
     a.className = `live-name${sure(r) ? "" : " is-unsure"}${r.review ? ` is-${r.review}` : ""}`;
-    a.dataset.species = r.name;
+    if (!r.unidentified) a.dataset.species = r.name;
     a.run = r;
-    a.textContent = r.review === "confirmed" ? `${label} ✓` : label;
-    a.setAttribute("aria-label", `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
+    const text = document.createElement("span");
+    text.className = "live-name-text";
+    text.textContent = r.review === "confirmed" ? `${label} ✓` : label;
+    a.append(text);
+    a.setAttribute("aria-label", r.unidentified ? `${UNIDENTIFIED}, ${time(new Date(r.start))}: play from here` : `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault(); // stay unfocused, so space still mutes
     a.onclick = (event) => {
       event.stopPropagation(); // don't let the track seek again at the label's click position
@@ -343,6 +346,7 @@ function draw() {
     };
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
+    a.labelGeometry = {start: left, end: x(r.end)};
     track.append(a);
   };
   birdRuns.filter(sure).forEach(placeBird);
@@ -351,16 +355,13 @@ function draw() {
   // jumps there too.
   for (const r of soundRuns(shown).sort((a, b) => b.best - a.best)) {
     const label = `${r.name} (${Math.round(r.best * 100)}%)`;
-    const left = x(r.start), labelWidth = label.length * 7.8 + 30;
-    const right = Math.max(left + labelWidth, x(r.end));
-    const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
-    if (lane < 0) continue;
-    lanes[lane].push([left, right]);
+    const left = x(r.start);
+    const lane = 0;
     const a = document.createElement("button");
     a.type = "button";
     a.className = "live-name is-sound";
-    a.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg>`;
-    a.append(label);
+    a.innerHTML = `<span class="live-name-text"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg></span>`;
+    a.querySelector(".live-name-text").append(label);
     a.setAttribute("aria-label", `${r.name} (not a bird), ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault();
     a.onclick = (event) => {
@@ -369,13 +370,16 @@ function draw() {
     };
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
+    a.labelGeometry = {start: left, end: x(r.end)};
     track.append(a);
   }
   birdRuns.filter((r) => !sure(r)).forEach(placeBird);
+  unidentifiedRuns(shown).forEach(placeBird);
   Object.assign(playheadLine.style, {top: SPEC_TOP - 6 + "px", height: SPEC_H + 6 + "px"}); // the spectrogram, and a little above
   track.append(playheadLine);
   if (!tracking && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
   else if (rightEdge === null) scroller.scrollLeft = scroller.scrollWidth;
+  positionNames();
   drawOverview();
 }
 
@@ -533,6 +537,30 @@ document.getElementById("live-overview-bars").onclick = async (e) => {
   if (near) seek(Math.max(Date.parse(near.start), Math.min(t, endOf(near) - 1e3)), PLAYHEAD_AT);
 };
 
+// Keep incoming names inside the viewport without moving their detection underline.
+function positionNames() {
+  const viewLeft = scroller.scrollLeft + 4;
+  const viewRight = scroller.scrollLeft + scroller.clientWidth - 4;
+  const lanes = Array.from({length: LANES}, () => []);
+  // Read text widths together before writing positions, avoiding layout per label.
+  const names = [...track.querySelectorAll(".live-name")].map(button => {
+    const text = button.querySelector(".live-name-text");
+    return {button, text, width: text.offsetWidth, ...button.labelGeometry};
+  });
+  for (const {button, text, width, start, end} of names) {
+    // Do not pin labels whose detection hasn't entered, or has left, the view.
+    if (start > viewRight || end < viewLeft) { button.style.visibility = "hidden"; continue; }
+    const left = liveLabelLeft(start, width, viewLeft, viewRight);
+    const right = Math.max(left + width, Math.min(end, viewRight));
+    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || left >= r + 6));
+    button.style.visibility = lane < 0 ? "hidden" : "visible";
+    if (lane < 0) continue;
+    lanes[lane].push([left, right]);
+    button.style.top = lane * LANE + "px";
+    text.style.transform = `translateX(${left - start}px)`;
+  }
+}
+
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
 function frame() {
   if (geo && strips.length) {
@@ -546,6 +574,7 @@ function frame() {
     playheadLine.style.left = x(playhead) + "px";
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
+  positionNames();
   showView();
   showOverviewView();
   updateDuck();
@@ -577,6 +606,8 @@ function reviewRun(run, verdict) {
   draw(); summarize();
   document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape"})); // close the card; its label was redrawn
 }
+const speciesPanel = liveSpeciesPanel();
+invalidation.then(() => speciesPanel.destroy());
 const stopCards = speciesCards((name, el) => {
   if (!cardMeta) return null;
   const heard = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name && counts(d));
@@ -586,11 +617,11 @@ const stopCards = speciesCards((name, el) => {
   return {
     photo: cardMeta.photos?.[name], scientific: (heard[0] ?? run?.dets[0])?.scientific_name, category: cardMeta.categories?.species?.[name],
     rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`]],
-    actions: run && html`<div class="species-pop-review"><span>This one, ${time(new Date(run.start))}</span>${run.review
+    actions: run && html`<div class="species-pop-review"><span>${time(new Date(run.start))}</span>${run.review
       ? [html`<span class="review-state">${run.review === "rejected" ? "Rejected" : "✓ Confirmed"}</span>`, act("Undo", null)]
       : [act("Confirm", "confirmed"), act("Reject", "rejected")]}</div>`
   };
-}, {hover: ".live-name"});
+}, {hover: ".live-name", onDetails: (species) => speciesPanel.open(species)});
 invalidation.then(stopCards);
 
 // Scrolling by hand (wheel, touch, dragging the scrollbar) frees the view; time runs on.
@@ -846,7 +877,7 @@ function summarize() {
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
   heardHeading.textContent = `Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}`;
-  const detections = strips.flatMap((s) => s.detections).filter((d) =>
+  const detections = [...strips.flatMap((s) => s.detections), ...unidentifiedDetections(strips)].filter((d) =>
     shownInGantt({confidence: d.confidence, review: reviewOf(d)}, confidentOnly.checked, MIN_CONF) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
   const rows = d3.groups(detections, (d) => d.common_name).map(([name, v]) => {
     const byMinute = d3.rollup(v, (w) => ({best: d3.max(w, (d) => d.confidence), first: d3.min(w, (d) => Date.parse(d.at)), confident: w.some(accepted)}),
@@ -857,7 +888,7 @@ function summarize() {
       if (bar && bar.end === m && bar.confident === confident) { bar.end = m + 60e3; bar.minutes++; bar.best = Math.max(bar.best, best); }
       else bars.push({start: m, end: m + 60e3, minutes: 1, best, first, confident}); // first: its first detection, where a click goes
     }
-    return {name, bars, uncertain: !v.some(accepted), minutes: byMinute.size, first: d3.min(v, (d) => Date.parse(d.at)), last: d3.max(v, (d) => Date.parse(d.at))};
+    return {name, bars, unidentified: v.some(d => d.unidentified), uncertain: !v.some(accepted), minutes: byMinute.size, first: d3.min(v, (d) => Date.parse(d.at)), last: d3.max(v, (d) => Date.parse(d.at))};
   }).sort((a, b) => sort.dir * (SORTS[sort.by](a) - SORTS[sort.by](b)) || a.first - b.first);
 
   if (!rows.length) {
@@ -865,14 +896,14 @@ function summarize() {
   } else {
     const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
     const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 2}`}>${r.bars.map((b, j) =>
-        html`<span class=${`live-gantt-bar${j === r.bars.length - 1 ? " is-last" : ""}${b.confident ? "" : " is-unsure"}`} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · ${b.confident ? "" : "uncertain · "}best ${Math.round(b.best * 100)}%`}
+        html`<span class=${`live-gantt-bar${j === r.bars.length - 1 ? " is-last" : ""}${b.confident ? "" : " is-unsure"}`} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · ${b.confident ? "" : "uncertain · "}${r.unidentified ? "species not identified" : `best ${Math.round(b.best * 100)}%`}`}
           style=${{left: pct(Math.max(b.start, w0)), width: `calc(${pct(Math.min(b.end, w1))} - ${pct(Math.max(b.start, w0))})`}}></span>`)}</div>`);
     heard.replaceChildren(html`<div class="live-gantt">
       <div class="live-gantt-grid">
         ${header("first", "First heard", "live-gantt-sort-first")}
         <span class="live-gantt-total live-gantt-head">${header("minutes", "Total")}${header("last", "Last")}</span>
         ${rows.flatMap((r, i) => [
-          html`<a class=${`live-gantt-name${r.uncertain ? " is-unsure" : ""}`} href=${speciesHref(r.name)} title=${r.uncertain ? `${r.name}: uncertain detections` : r.name} style=${`grid-row: ${i + 2}`}>${r.uncertain ? "? " : ""}${r.name}</a>`,
+          r.unidentified ? html`<span class="live-gantt-name is-unsure" style=${`grid-row: ${i + 2}`}>${UNIDENTIFIED}</span>` : html`<a class=${`live-gantt-name${r.uncertain ? " is-unsure" : ""}`} href=${speciesHref(r.name)} title=${r.uncertain ? `${r.name}: uncertain detections` : r.name} style=${`grid-row: ${i + 2}`}>${r.uncertain ? "? " : ""}${r.name}</a>`,
           lanes[i],
           html`<span class="sub live-gantt-total" style=${`grid-row: ${i + 2}`}><span>${r.minutes} min</span><span>${time(new Date(r.last))}</span></span>`
         ])}

@@ -1568,7 +1568,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-sound[aria-pressed="true"] .icon-on { display: inline; }
 /* Both words in one cell, the hidden one keeping its room, so the button doesn't change width. */
 .live-sound-label { display: inline-grid; }
-.live-sound-label > span { grid-area: 1 / 1; text-align: left; }
+.live-sound-label > span { grid-area: 1 / 1; text-align: center; }
 .live-sound .when-on, .live-sound[aria-pressed="true"] .when-off { visibility: hidden; }
 .live-sound[aria-pressed="true"] .when-on { visibility: visible; }
 .live-playhead { /* the moment shown or heard */
@@ -2113,3 +2113,33 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
 .live-gantt-filter input { margin: 0; accent-color: var(--theme-foreground-focus); }
 .live-gantt-name.is-unsure { color: var(--theme-foreground-muted); }
 .live-gantt-bar.is-unsure { background: color-mix(in srgb, var(--theme-foreground-muted) 20%, transparent); border: 1px dashed var(--theme-foreground-muted); box-sizing: border-box; }
+
+/* Keep the live player mounted while inspecting a species alongside it. */
+.live-species-panel[hidden] { display: none; }
+.live-species-panel {
+  position: fixed;
+  z-index: 5;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 46vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-background);
+  border-left: 1px solid var(--rule);
+  box-shadow: -6px 0 24px #0002;
+}
+.live-species-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.75rem 1rem; border-bottom: 1px solid var(--rule); }
+.live-species-toolbar strong { min-width: 0; overflow-wrap: anywhere; }
+.live-species-toolbar button { flex: none; }
+.live-species-panel iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--theme-background); }
+body.live-species-open #observablehq-center { margin-right: 46vw; }
+.species-embedded #observablehq-header, .species-embedded #observablehq-footer { display: none; }
+.species-embedded #observablehq-header ~ #observablehq-main { margin-top: 1rem; min-height: 0; }
+@media (max-width: 760px) {
+  .live-species-panel { width: 100%; border-left: 0; }
+  body.live-species-open #observablehq-center { margin-right: 0; }
+}
+
+.live-name { width: 0; overflow: visible; }
+.live-name-text { display: inline-block; position: relative; }
