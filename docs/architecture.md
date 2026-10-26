@@ -277,3 +277,16 @@ repository documents for them.
   0.005, and ran about six times faster.
 - **Plain SQLite schema.** The schema avoids SQLite-specific features so that
   the same tables could move to Cloudflare D1. The pipeline doesn't use D1.
+
+## Live species details and unidentified intervals
+
+The Live popup opens species details in a right pane while the Live player stays
+mounted. On phones the pane fills the screen. Close or Escape dismisses it.
+Incoming label text stays within the plot edge until its detection catches up;
+underlines and seek positions retain their recording timestamps.
+
+Live accepts optional `unidentified` intervals on strips, showing Unidentified
+bird separately from species detections. These intervals have no species score,
+species link or species review controls. Confident-only omits their Gantt row.
+Older strips without the field remain compatible. See [Status](status.md) for
+analyzer rollout requirements.

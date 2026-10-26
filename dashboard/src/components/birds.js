@@ -1204,7 +1204,7 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
  * that removes the listeners. Elements matching `hover` (with the name in data-species) open the
  * card on hover only; their clicks stay the page's own (the Live labels jump to their run).
  */
-export function speciesCards(info, {hover = null} = {}) {
+export function speciesCards(info, {hover = null, onDetails = null} = {}) {
   const LABELS = 'g[aria-label="y-axis tick label"] text';
   const LINKS = 'a[href*="species?name="]';
   const TARGETS = [LABELS, LINKS, hover].filter(Boolean).join(", ");
@@ -1247,6 +1247,12 @@ export function speciesCards(info, {hover = null} = {}) {
       ${data.actions ?? ""}
       <a class="species-pop-more" href=${speciesHref(species)}>More details →</a>
     </div>`;
+    if (onDetails) card.querySelector(".species-pop-more").addEventListener("click", (event) => {
+      if (event.button || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      hide();
+      onDetails(species);
+    });
     card.addEventListener("pointerenter", () => clearTimeout(hideTimer));
     card.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hideTimer = setTimeout(hide, 200); });
     document.body.append(card);

@@ -26,6 +26,9 @@ const byCount = d3.rollups(all, (v) => v.length, (d) => d.species)
 ```
 
 ```js
+const embedded = new URLSearchParams(location.search).get("embed") === "live";
+if (embedded) document.documentElement.classList.add("species-embedded");
+invalidation.then(() => document.documentElement.classList.remove("species-embedded"));
 const requested = new URLSearchParams(location.search).get("name");
 // Opened without a species named (the header link): a random one heard at the default threshold.
 const confidentSpecies = [...new Set(all.filter((d) => includedDetection(d, 0.6)).map((d) => d.species))];
