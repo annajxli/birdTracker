@@ -11,8 +11,9 @@ into the incoming folder, and for each one this:
   3. cuts a short Opus clip of the most confident detection per species per
      hour, records its path on that detection, and renders the clip's
      spectrogram beside it (same name, .webp; see spectrogram.py)
-  4. renders the whole recording's spectrogram into live/, with a 24 kHz MP3
-     copy of its audio, and lists both, with its detections, in
+  4. renders the whole recording's spectrogram into live/, with 24 kHz MP3
+     copies of its audio (as recorded, and cleaned by denoise.py for the
+     Live page's Bird boost), and lists them, with its detections, in
      live/live.json, for the site's near-live view; strips older than
      --live-hours are deleted (publish.py uploads them)
   5. deletes the recording (or, with --keep-days, moves it to processed/ and
@@ -58,6 +59,7 @@ from scipy.signal import resample_poly
 
 import db
 from ingest import read_results, recording_start
+from denoise import clean
 from spectrogram import render as render_spectrogram
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -281,15 +283,17 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
     live.mkdir(exist_ok=True)
     image = live / (audio.stem + ".webp")
     render_spectrogram(audio, image)
-    sound = live / (audio.stem + ".mp3")
     data, rate = sf.read(audio, always_2d=False, dtype="float32")
     if data.ndim > 1:
         data = data.mean(axis=1)
+    # Twice: as recorded, and with the background turned down (denoise.py) for Bird boost.
+    sound, cleaned = live / (audio.stem + ".mp3"), live / (audio.stem + ".clean.mp3")
     g = math.gcd(LIVE_AUDIO_RATE, rate)
-    part = sound.with_suffix(".mp3.part")  # publish.py skips .part files
-    sf.write(part, resample_poly(data, LIVE_AUDIO_RATE // g, rate // g).astype("float32"), LIVE_AUDIO_RATE,
-             format="MP3", subtype="MPEG_LAYER_III", compression_level=LIVE_AUDIO_LEVEL)
-    os.replace(part, sound)
+    for path, samples in ((sound, data), (cleaned, clean(data, rate))):
+        part = path.with_name(path.name + ".part")  # publish.py skips .part files
+        sf.write(part, resample_poly(samples, LIVE_AUDIO_RATE // g, rate // g).astype("float32"), LIVE_AUDIO_RATE,
+                 format="MP3", subtype="MPEG_LAYER_III", compression_level=LIVE_AUDIO_LEVEL)
+        os.replace(part, path)
     start = recording_start(audio.name, None)
     gaps = silence_fills(data, rate)
     entry = {
@@ -297,6 +301,7 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
         "seconds": round(sf.info(audio).duration, 2),
         "image": image.name,
         "audio": sound.name,
+        "clean": cleaned.name,
         **({"gaps": gaps} if gaps else {}),
         "detections": [
             {"at": r["detected_at"], "common_name": r["common_name"], "scientific_name": r["scientific_name"],
@@ -315,8 +320,9 @@ def update_live(audio: Path, rows: list[dict], args) -> None:
     for s in strips:
         if s["start"] < cutoff:
             (live / s["image"]).unlink(missing_ok=True)
-            if s.get("audio"):
-                (live / s["audio"]).unlink(missing_ok=True)
+            for key in ("audio", "clean"):
+                if s.get(key):
+                    (live / s[key]).unlink(missing_ok=True)
     tmp = index.with_suffix(".json.part")
     tmp.write_text(json.dumps({"updated": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "strips": keep}))
     os.replace(tmp, index)

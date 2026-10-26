@@ -42,8 +42,7 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
     </div>
     <div class="live-transport" id="live-audio" hidden>
       <button type="button" class="live-button live-icon live-sound" id="live-sound" title="Unmute (space)" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="icon-off" d="M16 9.5l5 5M21 9.5l-5 5"/><path class="icon-on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="live-sound-label"><span class="when-off">Unmute</span><span class="when-on">Mute</span></span></button>
-      <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: quieter rumble, brighter birdsong (B)" aria-pressed="false">Bird boost</button>
-      <button type="button" class="live-button live-boost" id="live-hiss" title="Less hiss: turns the treble down between calls (H)" aria-pressed="false">Less hiss</button>
+      <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: cleaner sound, brighter birdsong, calls up front (B)" aria-pressed="false">Bird boost</button>
     </div>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
     <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
@@ -299,6 +298,7 @@ function frame() {
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
   showView();
+  updateDuck();
   raf = requestAnimationFrame(frame);
 }
 let raf = requestAnimationFrame(frame);
@@ -317,162 +317,65 @@ function markLive() {
 const freeView = () => { tracking = false; };
 for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListener(type, freeView, {passive: true});
 
-// Bird boost: the sound runs through two filters on its way out. A high-pass at 1 kHz takes away
-// the low rumble (wind, traffic, the house, voices) that covers most songbirds, and a broad lift
-// of 6 dB around 4 kHz brings out where they sing. Low-voiced birds (doves, owls, crows) go thin
-// with it, so it's a switch, remembered per viewer. Set up on the first play (browsers only allow
-// sound after a tap), on the one audio element.
+// Bird boost: one switch for everything that brings the birds forward, remembered per viewer.
+// - It plays each minute's cleaned copy (strip.clean: the Pi has already turned the steady
+//   background down, per frequency, before encoding; pipeline/denoise.py).
+// - Two filters: a high-pass at 1 kHz takes away the low rumble (wind, traffic, the house,
+//   voices) that covers most songbirds, and a broad lift of 6 dB around 4 kHz brings out where
+//   they sing. Low-voiced birds (doves, owls, crows) go thin with it, which is why it's a switch.
+// - Calls up front: between BirdNET's detections the sound dips DUCK_DB (never silent, so the
+//   backyard and the calls it missed still come through); it rises to full DUCK_LEAD ms before a
+//   detection's 3 s window and falls DUCK_TAIL ms after it. A "?" detection (below MIN_CONF)
+//   opens it halfway. The page is a minute behind, so every detection is known before it plays.
 // After it, always, leveling: the recorder keeps its gain fixed so stored audio keeps true
 // loudness, which leaves it quiet (background about -60 dBFS, bird calls peaking around -42).
 // MAKEUP_DB brings that up to an ordinary volume; a compressor above the background then holds
 // loud sounds back (a voice near the mic ends up only a few dB above a bird call, not 20), so
 // quiet birds come up without close voices blasting; a limiter at -3 dBFS catches the rest
 // (a door, the board being handled), and a soft clipper rounds off the few clicks too sharp for
-// it. The compressor's threshold sits above the boosted background, so it doesn't pump the hiss
-// up between calls. Raising everything 30 dB raises that hiss too, though, so before the
-// compressor a gentle gate (a downward expander) turns sound below GATE_DB down, by up to
-// GATE_MAX_DB: the hiss between calls drops about 10 dB while the calls pass unchanged.
-const MAKEUP_DB = 30, GATE_DB = -22, GATE_RATIO = 2.5, GATE_MAX_DB = 12;
-const GATE = `class Gate extends AudioWorkletProcessor {
-  constructor() { super(); this.env = 0; this.g = 1; }
-  process(inputs, outputs) {
-    const i = inputs[0][0], o = outputs[0][0];
-    if (!i) return true;
-    // A level follower (fast up, slow down), and the gain smoothed so it never clicks.
-    const up = Math.exp(-1 / (0.005 * sampleRate)), down = Math.exp(-1 / (0.2 * sampleRate)), smooth = Math.exp(-1 / (0.01 * sampleRate));
-    for (let n = 0; n < i.length; n++) {
-      const v = Math.abs(i[n]);
-      this.env = v > this.env ? up * this.env + (1 - up) * v : down * this.env + (1 - down) * v;
-      const under = Math.max(0, ${GATE_DB} - 20 * Math.log10(this.env + 1e-9));
-      this.g = smooth * this.g + (1 - smooth) * 10 ** (-Math.min(${GATE_MAX_DB}, under * (${GATE_RATIO} - 1)) / 20);
-      o[n] = i[n] * this.g;
-    }
-    return true;
-  }
-}
-registerProcessor("gate", Gate);`;
-// Less hiss: the mic's hiss is steady and spread over the treble, where birds sing in short
-// bursts. Above 2 kHz the sound is split into five bands (each split adds back exactly), and each
-// band keeps a slow estimate of its own background. A band near its background is turned down by
-// up to HISS_CUT_DB; one HISS_OPEN_DB above it passes untouched, with a linear knee in between.
-// Gains open in 3 ms but close over 250 ms, so the hiss sits at a steady level instead of
-// warbling, and the sound is delayed 16 ms so a call's first note finds its band already open.
-// The node is always in place (switched by message), so turning it on or off never shifts timing.
-const HISS_EDGES = [2000, 2800, 4000, 5600, 8000], HISS_CUT_DB = 10, HISS_KNEE_DB = 6, HISS_OPEN_DB = 12;
-const HISS = `class Hiss extends AudioWorkletProcessor {
-  constructor() {
-    super();
-    this.on = false;
-    this.port.onmessage = (e) => { this.on = !!e.data; };
-    // Second-order Butterworth low-passes, one per edge (the same as scipy's butter(2, f)).
-    this.lp = ${JSON.stringify(HISS_EDGES)}.filter((f) => f < 0.45 * sampleRate).map((f) => {
-      const w = 2 * Math.PI * f / sampleRate, a = Math.sin(w) / Math.SQRT2, c = Math.cos(w), a0 = 1 + a;
-      return {b0: (1 - c) / 2 / a0, b1: (1 - c) / a0, b2: (1 - c) / 2 / a0, a1: -2 * c / a0, a2: (1 - a) / a0, z1: 0, z2: 0};
-    });
-    const n = this.lp.length + 1;
-    this.look = Math.max(1, Math.round(0.016 * sampleRate / 128)); // blocks of delay
-    this.ring = Array.from({length: this.look + 1}, () => Array.from({length: n}, () => new Float32Array(128)));
-    this.head = 0;
-    this.bands = Array.from({length: n}, () => new Float32Array(128));
-    this.env = new Float64Array(n); this.floor = new Float64Array(n).fill(NaN);
-    this.gdb = new Float64Array(n); this.hist = Array.from({length: this.look + 1}, () => new Float64Array(n));
-    this.applied = new Float64Array(n).fill(1);
-    this.time = 0;
-  }
-  process(inputs, outputs) {
-    const x = inputs[0][0], o = outputs[0][0];
-    if (!x || !o) return true;
-    const len = x.length, dt = len / sampleRate, k = (ms) => Math.exp(-dt * 1000 / ms);
-    const lp = this.lp, nb = lp.length + 1, bands = this.bands;
-    let power = 0;
-    for (let i = 0; i < len; i++) {
-      let rest = x[i];
-      power += rest * rest;
-      for (let j = 0; j < lp.length; j++) {
-        const f = lp[j], low = f.b0 * rest + f.z1;
-        f.z1 = f.b1 * rest - f.a1 * low + f.z2;
-        f.z2 = f.b2 * rest - f.a2 * low;
-        bands[j][i] = low;
-        rest -= low;
-      }
-      bands[nb - 1][i] = rest;
-    }
-    // Muted, paused or a dropout comes through as exact zeros: hold everything rather than let
-    // the silence drag the background estimate down.
-    const live = power / len > 1e-14;
-    if (live) this.time += dt;
-    const hist = this.hist[this.head];
-    for (let j = 0; j < nb; j++) {
-      if (live && j > 0) { // band 0 (below 2 kHz) is left alone
-        let p = 0;
-        for (let i = 0; i < len; i++) p += bands[j][i] * bands[j][i];
-        p = p / len + 1e-20;
-        const c = p > this.env[j] ? k(3) : k(80);
-        this.env[j] = this.env[j] ? c * this.env[j] + (1 - c) * p : p;
-        const level = 10 * Math.log10(this.env[j]);
-        if (Number.isNaN(this.floor[j])) this.floor[j] = level;
-        const fast = this.time < 2; // settle quickly at the start
-        this.floor[j] += level > this.floor[j] ? (fast ? 20 : 2) * dt : -(fast ? 20 : 6) * dt;
-      }
-      const over = (10 * Math.log10(this.env[j] || 1e-20)) - this.floor[j];
-      const target = this.on && j > 0 && !Number.isNaN(over)
-        ? -${HISS_CUT_DB} * Math.min(1, Math.max(0, (${HISS_OPEN_DB} - over) / (${HISS_OPEN_DB - HISS_KNEE_DB}))) : 0;
-      const c = target > this.gdb[j] ? k(3) : k(250);
-      this.gdb[j] = c * this.gdb[j] + (1 - c) * target;
-      hist[j] = this.gdb[j];
-    }
-    // Write this block into the delay ring and play out the one from \`look\` blocks ago, with each
-    // band's gain the most open of the last \`look\` blocks (so it has opened before a call starts),
-    // ramped across the block so it never clicks.
-    const slot = this.ring[this.head];
-    for (let j = 0; j < nb; j++) slot[j].set(bands[j].subarray(0, len));
-    this.head = (this.head + 1) % this.ring.length;
-    const old = this.ring[this.head];
-    o.fill(0);
-    for (let j = 0; j < nb; j++) {
-      let g = -Infinity;
-      for (const h of this.hist) g = Math.max(g, h[j]);
-      const to = 10 ** (g / 20), from = this.applied[j], band = old[j];
-      for (let i = 0; i < len; i++) o[i] += band[i] * (from + (to - from) * (i + 1) / len);
-      this.applied[j] = to;
-    }
-    return true;
-  }
-}
-registerProcessor("hiss", Hiss);`;
-const BOOST_KEY = "birdtracker-live-boost", HISS_KEY = "birdtracker-live-hiss";
-let boost = false, hiss = false, audio = null; // audio: {context, source, chain, out, hiss}
+// it. Set up on the first play (browsers only allow sound after a tap), on the one audio element.
+const MAKEUP_DB = 30, DUCK_DB = 12, DUCK_LEAD = 500, DUCK_TAIL = 500;
+const BOOST_KEY = "birdtracker-live-boost";
+let boost = false, audio = null; // audio: {context, source, chain, out, duck}
 try { boost = localStorage.getItem(BOOST_KEY) === "1"; } catch {}
-try { hiss = localStorage.getItem(HISS_KEY) === "1"; } catch {}
 const boostButton = document.getElementById("live-boost");
-const hissButton = document.getElementById("live-hiss");
 function route() {
   if (!audio) return;
-  const into = boost ? audio.chain : audio.out;
   audio.source.disconnect();
-  if (audio.hiss) {
-    audio.hiss.disconnect();
-    audio.source.connect(audio.hiss).connect(into);
-  } else audio.source.connect(into);
+  audio.source.connect(boost ? audio.chain : audio.out);
 }
-function setHiss(on) {
-  hiss = on;
-  try { localStorage.setItem(HISS_KEY, on ? "1" : "0"); } catch {}
-  hissButton.setAttribute("aria-pressed", String(on));
-  audio?.hiss?.port.postMessage(on);
-}
-hissButton.setAttribute("aria-pressed", String(hiss));
-hissButton.onclick = () => setHiss(!hiss);
 function setBoost(on) {
   boost = on;
   try { localStorage.setItem(BOOST_KEY, on ? "1" : "0"); } catch {}
   boostButton.setAttribute("aria-pressed", String(on));
   route();
+  if (soundOn && current && playhead !== null) playFrom(playhead); // switch to the other copy
 }
 boostButton.setAttribute("aria-pressed", String(boost));
 boostButton.onclick = () => setBoost(!boost);
+// How open the calls-up-front dip is at time t (ms): 1 inside a detection's window (with its
+// lead and tail ramps), 0.5 for a "?" one, 0 between them.
+function duckOpen(t) {
+  const i = strips.indexOf(current);
+  let open = 0;
+  for (const s of strips.slice(Math.max(0, i - 1), i + 2)) {
+    for (const d of s.detections) {
+      const a = Date.parse(d.at), weight = d.confidence >= MIN_CONF ? 1 : 0.5;
+      const ramp = t < a ? 1 - (a - t) / DUCK_LEAD : t > a + 3e3 ? 1 - (t - a - 3e3) / DUCK_TAIL : 1;
+      if (ramp > 0) open = Math.max(open, Math.min(1, ramp) * weight);
+    }
+  }
+  return open;
+}
+function updateDuck() {
+  if (!audio) return;
+  const t = current && positioned ? Date.parse(current.start) + player.currentTime * 1e3 : null;
+  const gain = boost && t !== null ? 10 ** (-DUCK_DB * (1 - duckOpen(t)) / 20) : 1;
+  audio.duck.gain.setTargetAtTime(gain, audio.context.currentTime, 0.05);
+}
 const newPlayer = () => {
   const el = Object.assign(new Audio(), {preload: "auto", onended: () => { if (soundOn) playFrom(endOf(current)); }});
+  el.ontimeupdate = updateDuck; // frames stop in a background tab; this keeps the dip moving there
   const Context = window.AudioContext ?? window.webkitAudioContext;
   if (Context) {
     const context = new Context();
@@ -505,17 +408,9 @@ const newPlayer = () => {
       return a <= 0.7 ? v : Math.sign(v) * (0.7 + 0.25 * Math.tanh((a - 0.7) / 0.25));
     });
     makeup.connect(compressor).connect(limiter).connect(clipper).connect(context.destination);
-    // The gate goes in between makeup and compressor, and Less hiss right after the source, once
-    // their code has loaded (a moment later).
-    context.audioWorklet?.addModule(URL.createObjectURL(new Blob([GATE, "\n", HISS], {type: "text/javascript"}))).then(() => {
-      makeup.disconnect();
-      makeup.connect(new AudioWorkletNode(context, "gate")).connect(compressor);
-      audio.hiss = new AudioWorkletNode(context, "hiss", {channelCount: 1, channelCountMode: "explicit", outputChannelCount: [1]});
-      audio.hiss.port.postMessage(hiss);
-      route();
-    }).catch(() => {}); // without them, the sound just keeps its hiss
-    highpass.connect(lift).connect(makeup);
-    audio = {context, source, chain: highpass, out: makeup};
+    const duck = context.createGain();
+    highpass.connect(lift).connect(duck).connect(makeup);
+    audio = {context, source, chain: highpass, out: makeup, duck};
     route();
   }
   return el;
@@ -532,7 +427,7 @@ function playFrom(t) {
   const offset = Math.max(0, (t - Date.parse(strip.start)) / 1e3);
   const load = ++loads;
   positioned = false;
-  player.src = LIVE + strip.audio;
+  player.src = LIVE + (boost && strip.clean ? strip.clean : strip.audio);
   player.addEventListener("loadedmetadata", () => {
     if (load !== loads) return; // replaced by a later playFrom
     player.currentTime = Math.min(offset, player.duration || offset);
@@ -604,7 +499,7 @@ soundButton.onclick = toggleSound;
 document.getElementById("live-back").onclick = () => step(-STEP);
 fwdButton.onclick = () => step(STEP);
 // Clicking these shouldn't leave them focused, where space would press them again.
-for (const b of [followButton, soundButton, boostButton, hissButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
+for (const b of [followButton, soundButton, boostButton, document.getElementById("live-back"), document.getElementById("live-fwd")]) b.onmousedown = (e) => e.preventDefault();
 
 // Clicking the spectrogram moves the playhead there (the names above it are links to the species).
 track.addEventListener("click", (event) => {
@@ -789,7 +684,7 @@ const markFull = () => {
 };
 fullButton.hidden = !document.documentElement.requestFullscreen;
 fullButton.onclick = toggleFull;
-// Keys: space (or M) mutes and unmutes, arrows step 10 s, L goes back to live, B and H switch Bird boost and Less hiss, F toggles fullscreen.
+// Keys: space (or M) mutes and unmutes, arrows step 10 s, L goes back to live, B switches Bird boost, F toggles fullscreen.
 const keys = (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.target.closest?.("input, textarea, select")) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -798,7 +693,6 @@ const keys = (e) => {
   else if (k === "ArrowRight") step(STEP);
   else if (k === "l") goLive();
   else if (k === "b") setBoost(!boost);
-  else if (k === "h") setHiss(!hiss);
   else if (k === "f") toggleFull();
   else return;
   e.preventDefault();
