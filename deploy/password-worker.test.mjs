@@ -107,6 +107,27 @@ check(r.status === 404, "only clips/ and live/ are served, not the database");
 r = await worker.fetch(new Request(base + "/api/live/missing.webp", {headers: {Cookie: value}}), menv);
 check(r.status === 404, "missing media -> 404");
 
+// Reviews: saved to the bucket for the Pi; same-origin, signed in, well-formed only.
+const put = [];
+const renv = {...env, MEDIA: {...MEDIA, put: async (key, value) => { put.push([key, JSON.parse(value)]); }}};
+const rev = (body, headers = {}) => new Request(base + "/api/reviews", {method: "POST", body: JSON.stringify(body),
+  headers: {Cookie: value, Origin: base, "Content-Type": "application/json", ...headers}});
+const good = {verdict: "rejected", detections: [{at: "2026-10-26T14:35:39Z", scientific: "Falco peregrinus"}]};
+r = await worker.fetch(rev(good), renv);
+check(r.status === 200 && put.length === 1 && /^reviews\/\d{8}T\d{9}Z-[\w-]+\.json$/.test(put[0][0]) && put[0][1].verdict === "rejected" && put[0][1].detections[0].scientific === "Falco peregrinus", "review saved to reviews/", put[0]?.[0]);
+r = await worker.fetch(new Request(base + "/api/reviews", {method: "POST", body: JSON.stringify(good), headers: {Origin: base}}), renv);
+check(r.status === 401 && put.length === 1, "review needs a session");
+r = await worker.fetch(rev(good, {Origin: "https://evil.example"}), renv);
+check(r.status === 403 && put.length === 1, "review from another site refused");
+r = await worker.fetch(rev({verdict: "maybe", detections: good.detections}), renv);
+check(r.status === 400, "unknown verdict refused");
+r = await worker.fetch(rev({verdict: null, detections: [{at: "yesterday", scientific: "x"}]}), renv);
+check(r.status === 400 && put.length === 1, "malformed detection refused");
+r = await worker.fetch(rev({verdict: null, detections: good.detections}), renv);
+check(r.status === 200 && put.length === 2 && put[1][1].verdict === null, "null verdict clears");
+r = await worker.fetch(new Request(base + "/api/reviews", {headers: {Cookie: value}}), renv);
+check(r.status === 405, "GET refused");
+
 r = await worker.fetch(new Request(base + "/"), {ASSETS});
 check(r.status === 500, "missing secret fails closed");
 console.log(fails ? `${fails} FAILED` : "all passed");

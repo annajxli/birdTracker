@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS detections (
     confidence      REAL    NOT NULL,  -- BirdNET score, 0-1
     clip_path       TEXT,              -- audio clip key (e.g. in R2), when kept
     source_file     TEXT,              -- recording the detection came from
+    review          TEXT,              -- a person's verdict after listening: "rejected" or "confirmed"
+    reviewed_at     TEXT,              -- when, ISO 8601 UTC
     UNIQUE (station_id, detected_at, scientific_name)
 );
 

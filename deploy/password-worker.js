@@ -18,10 +18,17 @@
 // start with clips/), /api/live/<name> serves live/<name>, and /api/data/detections.parquet and
 // /api/data/recordings.parquet serve the latest detections and recorder telemetry, which the
 // pages load when they open.
+//
+// POST /api/reviews takes a signed-in visitor's verdict on detections they listened to:
+// {"verdict": "rejected" | "confirmed" | null (clears), "detections": [{"at": "<UTC time>",
+// "scientific": "<name>"}, ...]}. It's saved to the bucket as reviews/<time>-<id>.json, and the
+// Pi's publish.py applies it to the database on its next pass.
 
 const COOKIE = "bt_session";
 const DATA = new Set(["/api/data/detections.parquet", "/api/data/recordings.parquet"]);
 const SESSION_DAYS = 30;
+const VERDICTS = new Set(["rejected", "confirmed", null]);
+const MAX_REVIEWED = 500; // detections in one review
 const SIGN_IN = "/__signin";
 const SIGN_OUT = "/__signout";
 
@@ -57,6 +64,8 @@ export default {
       return signInPage(url.pathname + url.search, false);
     }
 
+    if (url.pathname === "/api/reviews") return request.method === "POST" ? review(request, env, url) : new Response("POST only", {status: 405});
+
     if (url.pathname.startsWith("/api/clips/") || url.pathname.startsWith("/api/live/") || DATA.has(url.pathname)) {
       return media(request, env, url.pathname);
     }
@@ -74,6 +83,28 @@ export default {
     return new Response(response.body, {status: response.status, statusText: response.statusText, headers});
   }
 };
+
+// A verdict on some detections, saved for the Pi to apply. Only from the site's own pages.
+async function review(request, env, url) {
+  if (request.headers.get("Origin") !== url.origin) return new Response("forbidden", {status: 403});
+  if (!env.MEDIA) return new Response("no bucket", {status: 503});
+  if (Number(request.headers.get("Content-Length") ?? 0) > 64 * 1024) return new Response("too large", {status: 413});
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response("not JSON", {status: 400});
+  }
+  const list = Array.isArray(body?.detections) ? body.detections : [];
+  const ok = body !== null && typeof body === "object" && VERDICTS.has(body.verdict) && list.length > 0 && list.length <= MAX_REVIEWED &&
+    list.every((d) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(d?.at) && /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(d?.scientific));
+  if (!ok) return new Response("bad review", {status: 400});
+  const at = new Date().toISOString();
+  const record = {at, verdict: body.verdict, detections: list.map((d) => ({at: d.at, scientific: d.scientific}))};
+  await env.MEDIA.put(`reviews/${at.replace(/[-:.]/g, "")}-${crypto.randomUUID()}.json`, JSON.stringify(record),
+    {httpMetadata: {contentType: "application/json"}});
+  return new Response(JSON.stringify({ok: true}), {headers: {"Content-Type": "application/json", "Cache-Control": "no-store"}});
+}
 
 // A file from the MEDIA bucket. Supports Range requests: Safari won't play audio without them.
 async function media(request, env, path) {

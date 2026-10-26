@@ -277,6 +277,49 @@ class Health:
         self.written = now
 
 
+REVIEWED_DAYS = 8  # live/reviews.json covers the Live page's week, and a day to spare
+
+
+def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = False) -> int:
+    """Apply the verdicts visitors left on the site (the password Worker saves each one as
+    reviews/<time>-<id>.json): set review and reviewed_at on those detections, oldest first so a
+    later verdict wins, then delete the files. A rejected detection stays in the database (it's
+    what thresholds will learn from) but leaves the exports. live/reviews.json, keyed
+    "<UTC time>|<scientific name>", tells the Live page about the last week's verdicts, since its
+    strips were written before them. Returns how many review files were applied."""
+    keys, token = [], None
+    while True:
+        page = s3.list_objects_v2(Bucket=bucket, Prefix="reviews/", **({"ContinuationToken": token} if token else {}))
+        keys += [o["Key"] for o in page.get("Contents", [])]
+        if not page.get("IsTruncated"):
+            break
+        token = page["NextContinuationToken"]
+    if not keys and not force:
+        return 0
+    with db.connect(db_path) as conn:
+        conn.execute("PRAGMA busy_timeout = 30000")  # the analyzer may be writing
+        for key in sorted(keys):
+            try:
+                r = json.loads(s3.get_object(Bucket=bucket, Key=key)["Body"].read())
+                verdict = r["verdict"] if r["verdict"] in ("rejected", "confirmed") else None
+                conn.executemany("UPDATE detections SET review = ?, reviewed_at = ? WHERE detected_at = ? AND scientific_name = ?",
+                                 [(verdict, r["at"][:19] + "Z" if verdict else None, d["at"], d["scientific"]) for d in r["detections"]])
+            except (KeyError, TypeError, ValueError):
+                log.warning("skipping unreadable review %s", key)
+            conn.commit()
+            s3.delete_object(Bucket=bucket, Key=key)
+        since = datetime.fromtimestamp(time.time() - REVIEWED_DAYS * 86400, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        reviewed = {f"{at}|{sci}": verdict for at, sci, verdict in conn.execute(
+            "SELECT detected_at, scientific_name, review FROM detections WHERE review IS NOT NULL AND detected_at >= ?", (since,))}
+    live.mkdir(parents=True, exist_ok=True)
+    part = live / "reviews.json.part"  # the mirror skips .part files
+    part.write_text(json.dumps(reviewed))
+    os.replace(part, live / "reviews.json")
+    if keys:
+        log.info("applied %d reviews", len(keys))
+    return len(keys)
+
+
 def db_changed_since(db_path: Path, when: float) -> bool:
     return any(p.exists() and p.stat().st_mtime > when for p in (db_path, Path(str(db_path) + "-wal")))
 
@@ -301,9 +344,13 @@ if __name__ == "__main__":
     last_snapshot = 0.0  # wall-clock time of the last snapshot taken
     last_detections = 0.0  # ...and of the last detections.parquet upload
     health = Health(args.data)
+    first = True
     while True:
         try:
             health.maybe_write()
+            if args.db.exists() and apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
+                last_detections = 0.0  # let the exports catch up now, not in up to 10 minutes
+            first = False
             for m in mirrors:
                 sent, deleted = m.sync()
                 if sent or deleted:

@@ -1,7 +1,10 @@
 """Export detections from SQLite as Parquet for the dashboard.
 
 Local date and hour (Pacific time) are computed here so the browser never has
-to do time-zone math. Set BIRDTRACKER_DB to read a different database.
+to do time-zone math. review is a person's verdict after listening ("rejected",
+"confirmed" or null); rejected detections are exported too, so the Detections
+table can show them, and the pages leave them out of everything else. Set
+BIRDTRACKER_DB to read a different database.
 """
 
 import os
@@ -18,10 +21,10 @@ DB = Path(os.environ.get("BIRDTRACKER_DB", ROOT / "data" / "detections.sqlite"))
 TZ = "America/Los_Angeles"
 
 with sqlite3.connect(DB) as conn:
-    df = pd.read_sql(
-        "SELECT station_id, detected_at, scientific_name, common_name, confidence, clip_path FROM detections",
-        conn,
-    )
+    try:
+        df = pd.read_sql("SELECT station_id, detected_at, scientific_name, common_name, confidence, clip_path, review FROM detections", conn)
+    except (pd.errors.DatabaseError, sqlite3.OperationalError):  # a database from before reviews
+        df = pd.read_sql("SELECT station_id, detected_at, scientific_name, common_name, confidence, clip_path, NULL AS review FROM detections", conn)
 
 utc = pd.to_datetime(df.pop("detected_at"), utc=True)
 local = utc.dt.tz_convert(TZ)
@@ -34,6 +37,7 @@ out = pd.DataFrame({
     "confidence": df.confidence.astype("float32"),
     "station": df.station_id,
     "clip": df.clip_path,
+    "review": df.review,
 }).sort_values("time")
 
 schema = pa.schema([
@@ -45,8 +49,9 @@ schema = pa.schema([
     ("confidence", pa.float32()),
     ("station", pa.string()),
     ("clip", pa.string()),
+    ("review", pa.string()),
 ])
 table = pa.Table.from_pandas(out, schema=schema, preserve_index=False)
 buf = pa.BufferOutputStream()
-pq.write_table(table, buf, compression="zstd", use_dictionary=["date", "species", "scientific", "station", "clip"])
+pq.write_table(table, buf, compression="zstd", use_dictionary=["date", "species", "scientific", "station", "clip", "review"])
 sys.stdout.buffer.write(buf.getvalue().to_pybytes())
