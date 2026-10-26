@@ -2069,6 +2069,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-overview-dates {
   position: relative;
   height: 15px;
+  margin-bottom: 7px; /* clear of the view outline and playhead marker, which rise above the bars */
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--theme-foreground-muted);

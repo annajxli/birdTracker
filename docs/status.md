@@ -83,6 +83,15 @@ no Pi deployment has happened, so existing production strips don't gain
 unidentified intervals. Site deployment is automatic after merging this update.
 Dashboard tests and build pass; browser interaction verification remains open.
 
+The Live spectrogram's scroll range now matches the overview window: 1 hour at
+the 1-minute span, 6 hours at 5 minutes, 24 hours at 15 minutes, and 3 days at
+1 hour. Before, it started at the last hour and grew as you jumped back. The
+**‹** and **›** buttons move the window, and playing past a stepped window's
+edge makes it follow again. The 3-day window loads up to three days of strips;
+its performance with real data hasn't been checked. The overview's dates sit
+higher, clear of the view outline, and the raster's unidentified tooltip reads
+*Unidentified*. Not yet checked in a browser.
+
 ### Overview trailing selection
 
 Overview date and span persist in URL parameters across refreshes. W/M/Y use

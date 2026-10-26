@@ -102,9 +102,9 @@ const reviewOf = (d) => (localReviews.has(reviewKey(d)) ? localReviews.get(revie
 const counts = (d) => reviewOf(d) !== "rejected";
 const accepted = (d) => includedDetection({confidence: d.confidence, review: reviewOf(d)}, MIN_CONF);
 const mergeStrips = (a, b) => [...new Map([...a, ...b].map((s) => [s.start, s])).values()].sort((p, q) => p.start.localeCompare(q.start));
-let shownFrom = null; // start of the earliest strip drawn (ms)
 let updated = null;
-let geo = null; // {t0, pps}: the drawn track's time at x = 0 and its scale
+let geo = null; // {t0, t1, pps}: the drawn track's time at x = 0, its last audio, and its scale
+let drawnWindow = null; // the overview window [w0, w1] the track was last drawn for
 const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
 const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
 const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
@@ -167,7 +167,7 @@ function setSpan(seconds) {
   span = seconds;
   try { localStorage.setItem(SPAN_KEY, String(span)); } catch {}
   markSpan();
-  if (shownFrom !== null) shownFrom = Math.min(shownFrom, Date.parse(strips.at(-1)?.start ?? new Date()) - Math.max(HOUR, span * 1e3));
+  drawOverview(); // a new span has a new overview window, and the track follows it
   draw();
 }
 
@@ -260,14 +260,17 @@ const HATCH = 7; // px between the hatching's lines
 // next frame puts the playhead there anyway).
 function draw() {
   const rightEdge = geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : null;
-  const shown = strips.filter((s) => Date.parse(s.start) >= shownFrom);
+  // The strips in the overview's window, so the scroll range is always what the overview shows.
+  const w = ov ?? ovWindow();
+  const shown = strips.filter((s) => endOf(s) > w.w0 && Date.parse(s.start) < w.w1);
+  drawnWindow = [w.w0, w.w1];
   track.replaceChildren();
   if (!shown.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
   const t1 = endOf(shown.at(-1));
   // At least one full span before the newest audio, so the view can always be filled.
   const t0 = Math.min(Date.parse(shown[0].start), t1 - span * 1e3);
-  geo = {t0, pps};
+  geo = {t0, t1, pps};
   const width = Math.max(scroller.clientWidth, x(t1) + LIVE_INSET); // room for the line at the newest audio
   track.style.width = width + "px";
   if (specHeight() !== SPEC_H) { SPEC_H = specHeight(); drawFreqLabels(); }
@@ -428,10 +431,11 @@ function drawOverview() {
   if (overviewRow.hidden) return;
   ov = ovWindow();
   const {w0, w1, bin, days} = ov, now = Date.now();
+  if (drawnWindow && (drawnWindow[0] !== w0 || drawnWindow[1] !== w1)) draw();
   const oldest = Math.min(daysIndex?.[0]?.start ? Date.parse(daysIndex[0].start) : Infinity, Date.parse(strips[0]?.start ?? now));
   document.getElementById("live-days-back").disabled = w0 <= oldest || w0 <= now - KEEP_DAYS * 864e5;
   document.getElementById("live-days-fwd").disabled = ovEnd === null;
-  if (!days && strips.length && w0 < Date.parse(strips[0].start) && w1 > oldest) for (const t of [w0, w1 - 1]) loadDay(pacificDate(t));
+  if (strips.length && w0 < Date.parse(strips[0].start) && w1 > oldest) for (const t of [...d3.range(w0, w1, 864e5), w1 - 1]) loadDay(pacificDate(t));
   // Seconds of audio and of birds per bar, from the strips loaded: birds as distinct minutes
   // with a detection for bars of 15 minutes or more, else as 3-second detections...
   const audio = new Map(), birds = new Map(), byMinute = bin >= 15 * 60e3;
@@ -497,6 +501,7 @@ function drawOverview() {
 function showOverviewView() {
   if (!geo || !ov) return;
   if (ovEnd === null && ovWindow().w1 !== ov.w1) drawOverview(); // following: slide along
+  else if (ovEnd !== null && tracking && playhead !== null && (playhead >= ov.w1 || playhead < ov.w0)) { ovEnd = null; drawOverview(); } // played out of a stepped window
   const {w0, w1} = ov, pct = (t) => (100 * (t - w0)) / (w1 - w0);
   const clamp = (v) => Math.max(0, Math.min(100, v));
   const view = document.getElementById("live-overview-view"), head = document.getElementById("live-overview-head");
@@ -514,7 +519,9 @@ function stepDays(n) {
   const end = ov.w1 + n * (ov.days ? 864e5 : ov.len);
   ovEnd = null;
   ovEnd = end >= ovWindow().w1 ? null : end; // back at (or past) where it would follow: follow again
+  if (ovEnd !== null) tracking = false; // look at the stepped window; time runs on
   drawOverview();
+  if (ovEnd !== null) scroller.scrollLeft = scroller.scrollWidth;
 }
 document.getElementById("live-days-back").onclick = () => stepDays(-1);
 document.getElementById("live-days-fwd").onclick = () => stepDays(1);
@@ -571,6 +578,7 @@ function frame() {
     else if (!(soundOn && waitingFor !== null)) playhead = Math.min(Date.now() - lag, newest);
     lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
+    playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
     if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
   positionNames();
@@ -756,12 +764,9 @@ function seek(t, at = anchor) {
   if (!strips.length) return;
   const newest = endOf(strips.at(-1));
   t = Math.max(Date.parse(strips[0].start), Math.min(t, newest));
-  if (t < shownFrom) { // draw from the strip holding t (or the last before it), so the view starts there
-    const before = strips.findLast((s) => Date.parse(s.start) <= t);
-    shownFrom = Math.min(t, before ? Date.parse(before.start) : t) - 60e3;
-    draw();
-  }
   playhead = t;
+  if (ov && (t < ov.w0 || t >= ov.w1)) ovEnd = null; // outside the overview window: it follows the playhead there
+  drawOverview(); // and the track with it
   lag = Date.now() - t;
   live = false;
   tracking = true;
@@ -1004,7 +1009,6 @@ async function poll() {
       updated = j.updated;
       strips = mergeStrips(older, j.strips ?? []);
     }
-    if (shownFrom === null && strips.length) shownFrom = Date.parse(strips.at(-1).start) - HOUR;
     transport.hidden = !strips.length;
     audioControls.hidden = !strips.some((s) => s.audio);
     draw();
