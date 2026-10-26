@@ -92,8 +92,9 @@ const confMedian = d3.median(confidences);
 function pooledPacket(rows) {
   rows = rows.filter((d) => d.packet != null);
   if (!rows.length) return NaN;
-  if (rows.every((d) => d.sent != null && d.dropped != null)) {
-    const sent = d3.sum(rows, (d) => d.sent), all = sent + d3.sum(rows, (d) => d.dropped);
+  const counted = rows.filter((d) => d.sent != null && d.dropped != null); // older rows lack the counts
+  if (counted.length) {
+    const sent = d3.sum(counted, (d) => d.sent), all = sent + d3.sum(counted, (d) => d.dropped);
     return all ? (100 * sent) / all : NaN;
   }
   const weight = d3.sum(rows, (d) => d.seconds);
