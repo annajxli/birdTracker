@@ -1714,8 +1714,8 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   top: -3px;
   bottom: -3px;
   background: color-mix(in srgb, var(--theme-foreground-focus) 14%, transparent);
-  border-right: 2px solid var(--theme-foreground-focus);
 }
+.live-gantt-playhead { position: absolute; top: -3px; bottom: -3px; border-left: 1px dashed var(--theme-foreground); }
 .live-gantt-axis { grid-column: 2; position: relative; height: 1.4rem; }
 .live-gantt-axis span {
   position: absolute;

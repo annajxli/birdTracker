@@ -863,6 +863,7 @@ function summarize() {
         <div class="live-gantt-overlay" aria-hidden="true" style=${`grid-row: 2 / span ${rows.length}`}>
           ${ticks.map((t) => html`<span class="live-gantt-grid-line" style=${{left: pct(t)}}></span>`)}
           <span class="live-gantt-view" id="live-gantt-view" hidden></span>
+          <span class="live-gantt-playhead" id="live-gantt-playhead" hidden></span>
         </div>
         <div class="live-gantt-axis" aria-hidden="true" style=${`grid-row: ${rows.length + 2}`}>${ticks.map((t) => html`<span class=${new Date(t).getMinutes() % 30 ? "is-minor" : ""} style=${{left: pct(t)}}>${time(new Date(t))}</span>`)}</div>
       </div>
@@ -896,6 +897,10 @@ function showView() {
   const view = document.getElementById("live-gantt-view");
   if (!view || !geo || !hourView) return;
   const {w0, w1} = hourView;
+  // The playhead, dashed as over the spectrogram; while live the chart ends there, so it's left out.
+  const head = document.getElementById("live-gantt-playhead");
+  head.hidden = live || playhead === null || playhead < w0 || playhead > w1;
+  if (!head.hidden) head.style.left = ((playhead - w0) / (w1 - w0)) * 100 + "%";
   const a = Math.max(w0, tAt(scroller.scrollLeft)), b = Math.min(w1, tAt(scroller.scrollLeft + scroller.clientWidth));
   view.hidden = b <= a;
   if (b <= a) return;
