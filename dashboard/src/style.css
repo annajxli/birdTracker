@@ -243,6 +243,15 @@ table {
   font-style: italic;
 }
 
+/* Live ends after the Gantt; the framework's article-sized footer gap adds
+   unnecessary scrolling on otherwise short pages. */
+body:has(#live-track) #observablehq-main {
+  min-height: 0;
+}
+body:has(#live-track) #observablehq-footer {
+  margin-top: 2rem;
+}
+
 /* Compact page links in the header for small screens, where the sidebar is hidden. */
 @media (max-width: 640px) {
   .site-header .eyebrow {
