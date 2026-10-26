@@ -15,15 +15,15 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Not recorded. Add the host, the deployed commit, and the date. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
-| Recorder | Not recorded. Add the board, the firmware commit, and where it's mounted. | [Recorder hardware](hardware.md) |
+| Indoor computer | Raspberry Pi 3B+ running the receiver, analyzer, and publisher. Deployed October 25, 2026. The deployed commit isn't recorded. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/`, mounted outdoors. Deployed October 25, 2026. The firmware commit isn't recorded. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
 
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
-- No entries yet.
+- October 25, 2026: Raspberry Pi 3B+ pipeline and outdoor FireBeetle 2 ESP32-E recorder. Commits not recorded.
 
 ## Open checks
 
