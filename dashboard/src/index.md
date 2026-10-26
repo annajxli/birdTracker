@@ -34,7 +34,7 @@ const recordedDates = new Set(all.map((d) => d.date));
 ```js
 const confIn = confidenceInput();
 const minConf = Generators.input(confIn);
-const daylightIn = Inputs.toggle({label: "Daylight only", value: true});
+const daylightIn = Inputs.toggle({label: "Daylight only", value: false}); // off: owls and other night callers show
 const daylightOnly = Generators.input(daylightIn);
 ```
 
@@ -172,7 +172,12 @@ const daily = period.map((date) => {
 });
 const gap = period.length <= 90 ? 1 : 0;
 const daySun = sun[selection.date];
-const daylightWindow = daySun ? [new Date(+new Date(daySun.sunrise) - 90 * 6e4), new Date(+new Date(daySun.sunset) + 90 * 6e4)] : null;
+// The day view's hours: 90 minutes either side of daylight with "Daylight only", else the whole
+// Pacific day (midnight to midnight).
+const pacificMidnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - (+new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"})) * 36e5; };
+const daylightWindow = !daylightOnly
+  ? [new Date(pacificMidnight(selection.date)), new Date(pacificMidnight(new Date(Date.parse(selection.date + "T12:00:00Z") + 864e5).toISOString().slice(0, 10)))]
+  : daySun ? [new Date(+new Date(daySun.sunrise) - 90 * 6e4), new Date(+new Date(daySun.sunset) + 90 * 6e4)] : null;
 const songBinMs = 15 * 6e4;
 const clockMinutes = d3.rollup(selection.scale === "D" && daylightWindow ? rows.filter((d) => d.time >= daylightWindow[0] && d.time <= daylightWindow[1]) : [],
   (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size,

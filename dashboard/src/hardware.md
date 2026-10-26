@@ -187,13 +187,26 @@ const COVERAGE_ZONES = [[0, 80, "critical"], [80, 95, "warning"], [95, 100, "goo
 // day is a row of full green bars; a faint stub where there's no data. A reading without status
 // zones (zones null) gets plain bars sized by its value instead. Hover a bar for its value.
 const HALF_HOUR = 30 * 60e3, BARS = 48;
-const statusStrip = (rows, key, zones, format, reduce = d3.median) => {
+const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, minSpan = 6) => {
   const start = Date.now() - BARS * HALF_HOUR;
   const byBar = d3.group(rows.filter((r) => r[key] != null && !Number.isNaN(r[key]) && +r.at >= start), (r) => Math.floor((+r.at - start) / HALF_HOUR));
   const medians = new Map([...byBar].map(([i, v]) => [i, reduce(v, (r) => r[key])]));
   const [lo, hi] = d3.extent(medians.values());
   const size = (m) => (hi > lo ? 20 + (80 * (m - lo)) / (hi - lo) : 60); // % of the strip's height
-  return html`<div class="card-history"><div class="status-strip">${d3.range(BARS).map((i) => {
+  // Over the bars, the half-hour values as a line, so trends show within a status; broken where
+  // there's no data. Its range is the values' robust spread (quartiles ± 1.5 IQR, so a lone
+  // spike doesn't flatten the rest; spikes clip at the edge), but never narrower than a tenth of
+  // the meter's scale (minSpan, in the reading's units, without one), so a steady reading stays
+  // flat instead of stretched.
+  const vals = [...medians.values()].sort(d3.ascending);
+  const [q1, q3] = [d3.quantileSorted(vals, 0.25), d3.quantileSorted(vals, 0.75)];
+  let [l0, l1] = [Math.max(lo, q1 - 1.5 * (q3 - q1)), Math.min(hi, q3 + 1.5 * (q3 - q1))];
+  const floor = zones ? (zones.at(-1)[1] - zones[0][0]) / 10 : minSpan;
+  if (l1 - l0 < floor) { const c = (l0 + l1) / 2; [l0, l1] = [c - floor / 2, c + floor / 2]; }
+  const y = (m) => 90 - 80 * Math.max(0, Math.min(1, (m - l0) / (l1 - l0)));
+  const path = d3.range(BARS).map((i) => (medians.has(i) ? `${medians.has(i - 1) ? "L" : "M"}${i + 0.5},${y(medians.get(i))}` : "")).join("");
+  const trend = line && medians.size > 1 ? html`<svg class="strip-line" viewBox="0 0 ${BARS} 100" preserveAspectRatio="none" aria-hidden="true"><path d="${path}"/></svg>` : "";
+  return html`<div class="card-history"><div class="status-strip">${trend}${d3.range(BARS).map((i) => {
     const m = medians.get(i), when = clock(new Date(start + i * HALF_HOUR));
     if (m == null) return html`<span class="strip-bar" title="${when}: no data"></span>`;
     if (!zones) return html`<span class="strip-bar is-plain" style="height: ${size(m)}%" title="${when}: ${format(m)}"></span>`;
@@ -249,7 +262,7 @@ const piSection = pi && html`<div class="grid stats">
   ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
   ${pi.memory_mb ? meterCard("Memory in use", `${d3.format(".0f")(pi.memory_mb.used)} MB`, meter(memPct, MEMORY_ZONES, pctFormat), `of ${d3.format(".0f")(pi.memory_mb.total)} MB`, statusStrip(piHistory, "memory_pct", MEMORY_ZONES, pctFormat)) : ""}
   ${pi.disk_gb ? meterCard("Storage free", `${d3.format(".1f")(pi.disk_gb.free)} GB`, meter(diskPct, STORAGE_ZONES, pctFormat), `of ${d3.format(".0f")(pi.disk_gb.total)} GB`, statusStrip(piHistory, "disk_pct", STORAGE_ZONES, pctFormat)) : ""}
-  ${power ? html`<div class="card"><h2>Power supply</h2><div class="big">${power[2]}</div><div class="sub">${statusTag(power[0])} · ${power[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max)}</div>` : ""}
+  ${power ? html`<div class="card"><h2>Power supply</h2><div class="big">${power[2]}</div><div class="sub">${statusTag(power[0])} · ${power[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max, false)}</div>` : ""}
   ${pi.uptime_s != null ? html`<div class="card"><h2>Time since restart</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">booted ${clock(new Date(Date.parse(pi.updated) - pi.uptime_s * 1e3))}</div></div>` : ""}
 </div>`;
 ```
@@ -287,7 +300,7 @@ const piSection = pi && html`<div class="grid stats">
     const recent = recs.filter((d) => d.power != null && +d.time >= dataEnd - HOUR_MS);
     if (!recent.length) return noData("Power draw (estimate)");
     const mw = d3.mean(recent, (d) => d.power), tx = d3.mean(recent, (d) => d.tx);
-    return html`<div class="card"><h2>Power draw (estimate)</h2><div class="big">${d3.format(",.0f")(mw)} mW</div><div class="sub">last hour · ${d3.format(".0f")(tx)} mW transmitting · ${d3.format(",.0f")(energyToday() / 5)} mAh / ${d3.format(",.0f")(energyToday())} mWh today</div>${statusStrip(slots, "power", null, (v) => `${d3.format(",.0f")(v)} mW`)}</div>`;
+    return html`<div class="card"><h2>Power draw (estimate)</h2><div class="big">${d3.format(",.0f")(mw)} mW</div><div class="sub">last hour · ${d3.format(".0f")(tx)} mW transmitting · ${d3.format(",.0f")(energyToday() / 5)} mAh / ${d3.format(",.0f")(energyToday())} mWh today</div>${statusStrip(slots, "power", null, (v) => `${d3.format(",.0f")(v)} mW`, d3.median, true, 50)}</div>`;
   })()}
   ${(() => {
     const board = recs.findLast((d) => d.boardTemp != null);

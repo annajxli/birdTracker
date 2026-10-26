@@ -165,6 +165,19 @@ function runs(list, minConf = MIN_CONF) {
   return out;
 }
 
+// Non-bird sounds (strip.sounds, when the analyzer sends them) grouped like bird runs.
+function soundRuns(list) {
+  const out = [], open = new Map();
+  for (const d of list.flatMap((s) => s.sounds ?? []).sort((a, b) => a.at.localeCompare(b.at))) {
+    const t = Date.parse(d.at), run = open.get(d.sound);
+    if (run && t - run.end <= RUN_GAP) { run.end = t + 3e3; run.best = Math.max(run.best, d.confidence); continue; }
+    const r = {name: d.sound, start: t, end: t + 3e3, best: d.confidence};
+    open.set(d.sound, r);
+    out.push(r);
+  }
+  return out;
+}
+
 // Strips are masks (loudness in the alpha channel; spectrogram.py); each is painted through
 // colorcet's CET-L5 colormap (near black for silence, through green to yellow-green for loud;
 // sampled at 16 stops), with a square root so faint sound shows. Images are loaded once and kept.
@@ -278,16 +291,17 @@ function draw() {
   // Names above the strips, in lanes so they don't overlap; a run that finds no free lane is
   // left out. Every BirdNET detection is shown with its score as a percentage: ones at the
   // dashboard's threshold in bold, weaker ones faint with a question mark, so where BirdNET is torn between
-  // species, the candidates show side by side. Confident runs are placed first, then the rest by
-  // score, so a crowded stretch keeps its surest names.
+  // species, the candidates show side by side. Confident runs are placed first, then non-bird
+  // sounds, then the rest by score, so a crowded stretch keeps its surest names.
   const lanes = Array.from({length: LANES}, () => []);
   const sure = (r) => r.best >= MIN_CONF;
-  for (const r of runs(shown, 0).sort((a, b) => sure(b) - sure(a) || b.best - a.best)) {
+  const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
+  const placeBird = (r) => {
     const label = `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
     const left = x(r.start), labelWidth = label.length * 7.8 + 12;
     const right = Math.max(left + labelWidth, x(r.end));
     const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
-    if (lane < 0) continue;
+    if (lane < 0) return;
     lanes[lane].push([left, right]);
     // A click jumps to the run's first detection; hovering opens the species card (details).
     const a = document.createElement("button");
@@ -301,7 +315,31 @@ function draw() {
     Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
     a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
     track.append(a);
+  };
+  birdRuns.filter(sure).forEach(placeBird);
+  // Non-bird sounds BirdNET heard (dog, voices, engines...), placed after the confident birds
+  // and before the unsure ones: muted, with a sound icon, so they never read as birds. A click
+  // jumps there too.
+  for (const r of soundRuns(shown).sort((a, b) => b.best - a.best)) {
+    const label = `${r.name} (${Math.round(r.best * 100)}%)`;
+    const left = x(r.start), labelWidth = label.length * 7.8 + 30;
+    const right = Math.max(left + labelWidth, x(r.end));
+    const lane = lanes.findIndex((taken) => taken.every(([l, rr]) => right + 6 <= l || left >= rr + 6));
+    if (lane < 0) continue;
+    lanes[lane].push([left, right]);
+    const a = document.createElement("button");
+    a.type = "button";
+    a.className = "live-name is-sound";
+    a.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg>`;
+    a.append(label);
+    a.setAttribute("aria-label", `${r.name} (not a bird), ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
+    a.onmousedown = (e) => e.preventDefault();
+    a.onclick = () => seek(r.start, PLAYHEAD_AT);
+    Object.assign(a.style, {left: left + "px", top: lane * LANE + "px"});
+    a.style.setProperty("--run", Math.max(2, x(r.end) - left) + "px");
+    track.append(a);
   }
+  birdRuns.filter((r) => !sure(r)).forEach(placeBird);
   Object.assign(playheadLine.style, {top: SPEC_TOP - 6 + "px", height: SPEC_H + 6 + "px"}); // the spectrogram, and a little above
   track.append(playheadLine);
   if (!tracking && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;

@@ -1640,6 +1640,16 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   color: var(--theme-foreground-muted);
 }
 .live-name.is-unsure::after { background: var(--theme-foreground-faint); }
+.live-name.is-sound { /* not a bird: muted, italic, with a sound icon */
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--theme-foreground-muted);
+}
+.live-name.is-sound svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.live-name.is-sound::after { background: repeating-linear-gradient(90deg, var(--theme-foreground-faint) 0 3px, transparent 3px 6px); }
 .live-gantt { position: relative; }
 .live-gantt-grid { /* name | the hour | minutes and last heard */
   display: grid;
@@ -2068,3 +2078,8 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-overview-dates:empty { display: none; }
 .live-overview-dates > span { position: absolute; white-space: nowrap; }
 .live-overview-dates > span.is-midnight { padding-left: 4px; border-left: 1px solid var(--theme-foreground-faint); }
+
+/* The strip's values as a line over its bars (scaled to their own range), for trends. */
+.status-strip { position: relative; }
+.strip-line { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.strip-line path { fill: none; stroke: var(--theme-foreground); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
