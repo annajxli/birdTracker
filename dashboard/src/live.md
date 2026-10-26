@@ -17,7 +17,7 @@ toc: false
      without stopping it. -->
 
 ```js
-import {speciesHref, speciesCards, loadPhotos, loadCategories} from "./components/birds.js";
+import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview} from "./components/birds.js";
 ```
 
 ```js
@@ -80,6 +80,13 @@ const fullButton = document.getElementById("live-full");
 let strips = []; // from live.json (the last 24 h) plus any older days loaded, oldest first
 let older = []; // strips from earlier days' files (live/days/), kept across polls
 let stripObserver = null;
+// Listeners' verdicts on detections: the Pi's (live/reviews.json, refreshed with each poll) and
+// this page's own, shown at once while the Pi catches up. A rejected detection counts nowhere.
+let serverReviews = {};
+const localReviews = new Map();
+const reviewKey = (d) => `${d.at}|${d.scientific_name}`;
+const reviewOf = (d) => (localReviews.has(reviewKey(d)) ? localReviews.get(reviewKey(d)) : serverReviews[reviewKey(d)] ?? null);
+const counts = (d) => reviewOf(d) !== "rejected";
 const mergeStrips = (a, b) => [...new Map([...a, ...b].map((s) => [s.start, s])).values()].sort((p, q) => p.start.localeCompare(q.start));
 let shownFrom = null; // start of the earliest strip drawn (ms)
 let updated = null;
@@ -151,16 +158,22 @@ function setSpan(seconds) {
 }
 
 // Detections at least `minConf` sure, joined into runs: one per species per stretch of song.
+// Each run keeps its detections (`dets`, for reviewing it) and its verdict: "rejected" when all
+// of them are, "confirmed" when any is.
 function runs(list, minConf = MIN_CONF) {
   const out = [];
   const open = new Map();
   for (const d of list.flatMap((s) => s.detections).filter((d) => d.confidence >= minConf).sort((a, b) => a.at.localeCompare(b.at))) {
     const t = Date.parse(d.at);
     const run = open.get(d.common_name);
-    if (run && t - run.end <= RUN_GAP) { run.end = t + 3e3; run.best = Math.max(run.best, d.confidence); continue; }
-    const r = {name: d.common_name, start: t, end: t + 3e3, best: d.confidence};
+    if (run && t - run.end <= RUN_GAP) { run.end = t + 3e3; run.best = Math.max(run.best, d.confidence); run.dets.push(d); continue; }
+    const r = {name: d.common_name, start: t, end: t + 3e3, best: d.confidence, dets: [d]};
     open.set(d.common_name, r);
     out.push(r);
+  }
+  for (const r of out) {
+    const v = r.dets.map(reviewOf);
+    r.review = v.every((x) => x === "rejected") ? "rejected" : v.includes("confirmed") ? "confirmed" : null;
   }
   return out;
 }
@@ -306,9 +319,10 @@ function draw() {
     // A click jumps to the run's first detection; hovering opens the species card (details).
     const a = document.createElement("button");
     a.type = "button";
-    a.className = sure(r) ? "live-name" : "live-name is-unsure";
+    a.className = `live-name${sure(r) ? "" : " is-unsure"}${r.review ? ` is-${r.review}` : ""}`;
     a.dataset.species = r.name;
-    a.textContent = label;
+    a.run = r;
+    a.textContent = r.review === "confirmed" ? `${label} ✓` : label;
     a.setAttribute("aria-label", `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault(); // stay unfocused, so space still mutes
     a.onclick = () => seek(r.start, PLAYHEAD_AT);
@@ -405,7 +419,7 @@ function drawOverview() {
     if (endOf(st) < w0 || t0 >= w1) continue;
     const k = Math.floor(t0 / bin) * bin;
     audio.set(k, (audio.get(k) ?? 0) + st.seconds - d3.sum(st.gaps ?? [], ([a, b]) => b - a));
-    for (const d of st.detections) if (d.confidence >= MIN_CONF) {
+    for (const d of st.detections) if (d.confidence >= MIN_CONF && counts(d)) {
       const t = Date.parse(d.at), kd = Math.floor(t / bin) * bin;
       if (!birds.has(kd)) birds.set(kd, new Set());
       birds.get(kd).add(byMinute ? Math.floor(t / 6e4) : t);
@@ -538,13 +552,25 @@ function markLive() {
 // species' minutes heard in the audio loaded (no card until the photos and categories arrive).
 let cardMeta = null;
 Promise.all([loadPhotos(), loadCategories()]).then(([photos, categories]) => { cardMeta = {photos, categories}; }).catch(() => {});
-const stopCards = speciesCards((name) => {
+// The card also reviews the hovered run: Confirm or Reject all its detections (or Undo).
+function reviewRun(run, verdict) {
+  for (const d of run.dets) localReviews.set(reviewKey(d), verdict);
+  postReview(verdict, run.dets.map((d) => ({at: d.at, scientific: d.scientific_name})));
+  draw(); summarize();
+  document.dispatchEvent(new KeyboardEvent("keydown", {key: "Escape"})); // close the card; its label was redrawn
+}
+const stopCards = speciesCards((name, el) => {
   if (!cardMeta) return null;
-  const heard = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name);
+  const heard = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name && counts(d));
   const sure = heard.filter((d) => d.confidence >= MIN_CONF);
+  const run = el?.run;
+  const act = (label, verdict) => Object.assign(html`<button type="button" class="review-button">${label}</button>`, {onclick: () => reviewRun(run, verdict)});
   return {
-    photo: cardMeta.photos?.[name], scientific: heard[0]?.scientific_name, category: cardMeta.categories?.species?.[name],
-    rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`]]
+    photo: cardMeta.photos?.[name], scientific: (heard[0] ?? run?.dets[0])?.scientific_name, category: cardMeta.categories?.species?.[name],
+    rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`]],
+    actions: run && html`<div class="species-pop-review"><span>This one, ${time(new Date(run.start))}</span>${run.review
+      ? [html`<span class="review-state">${run.review === "rejected" ? "Rejected" : "✓ Confirmed"}</span>`, act("Undo", null)]
+      : [act("Confirm", "confirmed"), act("Reject", "rejected")]}</div>`
   };
 }, {hover: ".live-name"});
 invalidation.then(stopCards);
@@ -801,7 +827,7 @@ function summarize() {
   const hourLabel = live || playhead === null ? "the last hour" : `${time(new Date(w0))}–${time(new Date(w1))}`;
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
-  const confident = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
+  const confident = strips.flatMap((s) => s.detections).filter((d) => d.confidence >= MIN_CONF && counts(d) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
   const rows = d3.groups(confident, (d) => d.common_name).map(([name, v]) => {
     const byMinute = d3.rollup(v, (w) => ({best: d3.max(w, (d) => d.confidence), first: d3.min(w, (d) => Date.parse(d.at))}),
       (d) => Math.floor(Date.parse(d.at) / 60e3) * 60e3);
@@ -905,6 +931,12 @@ function showStatus() {
 
 async function poll() {
   try {
+    fetch(LIVE + "reviews.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!j || JSON.stringify(j) === JSON.stringify(serverReviews)) return;
+      serverReviews = j;
+      for (const [k, v] of localReviews) if ((serverReviews[k] ?? null) === v) localReviews.delete(k); // the Pi has it now
+      draw(); summarize();
+    }).catch(() => {});
     const r = await fetch(LIVE + "live.json", {cache: "no-store"});
     if (r.status === 404) { strips = []; }
     else if (!r.ok) throw new Error(`HTTP ${r.status}`);

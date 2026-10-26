@@ -45,7 +45,12 @@ export async function loadRecordedUntil() {
   }
 }
 
-export async function loadDetections() {
+/**
+ * Detections, oldest first. A listener's verdict is in `review` ("confirmed", "rejected" or null);
+ * rejected ones are left out unless includeRejected (the Detections table shows them, to undo),
+ * so every chart and count drops them.
+ */
+export async function loadDetections({includeRejected = false} = {}) {
   const table = await detectionsTable();
   // Read columns directly: Arrow's row iterator creates a proxy for every detection.
   const time = table.getChild("time");
@@ -55,19 +60,43 @@ export async function loadDetections() {
   const scientific = table.getChild("scientific");
   const confidence = table.getChild("confidence");
   const clip = table.getChild("clip");
-  const rows = new Array(table.numRows);
-  for (let i = 0; i < rows.length; ++i) {
-    rows[i] = {
+  const review = table.schema.fields.some((f) => f.name === "review") ? table.getChild("review") : null;
+  const rows = [];
+  for (let i = 0; i < table.numRows; ++i) {
+    const verdict = review?.get(i) ?? null;
+    if (verdict === "rejected" && !includeRejected) continue;
+    rows.push({
       time: new Date(Number(time.get(i))),
       date: date.get(i), // Pacific-time calendar date, "YYYY-MM-DD"
       hour: hour.get(i), // Pacific-time hour, 0-23
       species: species.get(i),
       scientific: scientific.get(i),
       confidence: confidence.get(i),
-      clip: clip.get(i)
-    };
+      clip: clip.get(i),
+      review: verdict
+    });
   }
   return rows;
+}
+
+/** A detection's key for reviews: its UTC second ("2026-10-26T14:35:39Z") and scientific name. */
+export const reviewAt = (time) => new Date(time).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+/**
+ * Send a listener's verdict on detections ("confirmed", "rejected", or null to clear it), each
+ * {at, scientific}. The Pi applies it within about 15 s; pages show it at once. Resolves to
+ * whether the server took it.
+ */
+export async function postReview(verdict, detections) {
+  try {
+    for (let i = 0; i < detections.length; i += 500) {
+      const r = await fetch("/api/reviews", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({verdict, detections: detections.slice(i, i + 500)})});
+      if (!r.ok) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Crop a photo around its bird (focal point from pipeline/photo_focus.py) when it's cropped to fit. */
@@ -1166,7 +1195,7 @@ export function speciesCards(info, {hover = null} = {}) {
   };
   const show = (el, {focus = false} = {}) => {
     const species = nameOf(el);
-    const data = species && info(species);
+    const data = species && info(species, el);
     hide();
     if (!data) return;
     anchor = el;
@@ -1180,6 +1209,7 @@ export function speciesCards(info, {hover = null} = {}) {
         </div>
       </div>
       <div class="species-pop-rows">${data.rows.map(([k, v]) => htl.html`<div><span>${k}</span><span>${v}</span></div>`)}</div>
+      ${data.actions ?? ""}
       <a class="species-pop-more" href=${speciesHref(species)}>More details →</a>
     </div>`;
     card.addEventListener("pointerenter", () => clearTimeout(hideTimer));

@@ -81,11 +81,12 @@ const detDate = detections.getChild("date"), detConf = detections.getChild("conf
 const clock = (iso) => new Date(iso).toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
 // BirdNET's confidence for each detection in the window, for the distribution card.
 const detTime = detections.getChild("time");
-const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= from).map((i) => ({at: new Date(Number(detTime.get(i))), confidence: detConf.get(i)}));
+const detReview = detections.schema.fields.some((f) => f.name === "review") ? detections.getChild("review") : null; // rejected ones don't count
+const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= from && detReview?.get(i) !== "rejected").map((i) => ({at: new Date(Number(detTime.get(i))), confidence: detConf.get(i)}));
 const confidences = confRows.map((d) => d.confidence);
 const THRESHOLD = 0.6;
 const confMedian = d3.median(confidences);
-const confFrom = d3.min(d3.range(detections.numRows).filter((i) => detDate.get(i) >= from), (i) => detDate.get(i)); // first day counted
+const confFrom = d3.min(d3.range(detections.numRows).filter((i) => detDate.get(i) >= from && detReview?.get(i) !== "rejected"), (i) => detDate.get(i)); // first day counted
 // Packet success over many minutes, pooled (all frames sent over all frames recorded), so a short
 // minute counts for its frames, not as much as a full one. From the frame counts when exported,
 // else each minute's share weighted by its seconds (close, as frames recorded follow time on).

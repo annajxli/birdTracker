@@ -2086,3 +2086,23 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 
 /* Hardware: a card that isn't Good shows it in its top bar too. */
 .card.is-alert { border-top: 3px solid var(--status); }
+
+/* Reviews: Confirm / Reject on detections you can hear; a rejected row is struck through. */
+.review-cell { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.review-button {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: var(--theme-background-alt);
+  color: var(--theme-foreground);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.review-button:hover { border-color: var(--theme-foreground-muted); }
+.review-state { font-size: 0.78rem; color: var(--theme-foreground-muted); }
+.review-cell.is-confirmed .review-state { color: var(--theme-foreground); }
+tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-through; opacity: 0.5; }
+.live-name.is-rejected { text-decoration: line-through; opacity: 0.5; font-weight: 400; }
+.species-pop-review { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0.5rem 0 0.25rem; font-size: 0.8rem; }
+.species-pop-review > span:first-child { color: var(--theme-foreground-muted); margin-right: auto; }
