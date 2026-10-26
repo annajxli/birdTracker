@@ -7,6 +7,7 @@ toc: false
 
 
 ```js
+import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds} from "./components/period.js";
@@ -48,7 +49,7 @@ const daylightOnly = Generators.input(daylightIn);
 
 ```js
 // Depends only on the threshold, so moving between periods doesn't recompute the year-round charts.
-const confident = all.filter((d) => d.confidence >= minConf);
+const confident = all.filter((d) => includedDetection(d, minConf));
 // Unidentified only where no bird was named at this confidence that minute.
 const namedMinutes = new Set(confident.map((d) => Math.floor(+d.time / 6e4)));
 const unidentified = unidentifiedMinutes.filter((u) => !namedMinutes.has(Math.floor(+u.time / 6e4)));

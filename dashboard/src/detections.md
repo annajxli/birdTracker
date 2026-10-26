@@ -6,6 +6,7 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
+import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadCategories, rangeInput, confidenceInput, RANGES, windowStart, speciesHref, speciesCards, speciesInfoFrom, minutesHeard, clipPlayer, postReview, reviewAt} from "./components/birds.js";
 ```
 
@@ -37,7 +38,7 @@ const range = Generators.input(rangeIn);
 ```js
 const start = windowStart(latest, RANGES.get(range), dataStart);
 // "" for missing clips and reviews: the table skips formatting null cells, and these need it.
-const inRange = everything.filter((d) => d.confidence >= minConf && d.date >= start).reverse() // newest first
+const inRange = everything.filter((d) => (d.review || includedDetection(d, minConf)) && d.date >= start).reverse() // newest first
   .map((d) => ({...d, clip: d.clip ?? "", review: d.review ?? ""}));
 const searchIn = Inputs.search(inRange, {placeholder: "Search species…", columns: ["species", "scientific"]});
 const found = Generators.input(searchIn);
@@ -47,7 +48,7 @@ const found = Generators.input(searchIn);
 // Tapping a species name opens its mini card (More details goes to its page).
 const [photos, categories] = await Promise.all([loadPhotos(), loadCategories()]);
 const rangeMinutes = d3.rollup(minutesHeard(inRange.filter((d) => d.review !== "rejected")), (v) => v.length, (d) => d.species);
-const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident: all.filter((d) => d.confidence >= minConf), photos, categories,
+const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident: all.filter((d) => includedDetection(d, minConf)), photos, categories,
   extraRows: (species) => [[range === "All time" ? "All time" : `Last ${range}`, `${d3.format(",")(rangeMinutes.get(species) ?? 0)} minutes heard`]]}));
 invalidation.then(stopSpeciesCards);
 ```
@@ -59,7 +60,7 @@ invalidation.then(stopSpeciesCards);
 ```js
 const narrow = width < 520;
 // Review: Confirm or Reject a detection you've listened to; the verdict shows at once (the Pi
-// applies it within about 15 s). A rejected row is struck through, with Undo; it no longer
+// applies it at its next review check). A rejected row is struck through, with Undo; it no longer
 // counts anywhere on the site.
 const reviewCell = (d) => {
   const cell = htl.html`<span class="review-cell"></span>`;

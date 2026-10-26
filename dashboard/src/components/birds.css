@@ -2105,3 +2105,11 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
 .live-name.is-rejected { text-decoration: line-through; opacity: 0.5; font-weight: 400; }
 .species-pop-review { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin: 0.5rem 0 0.25rem; font-size: 0.8rem; }
 .species-pop-review > span:first-child { color: var(--theme-foreground-muted); margin-right: auto; }
+
+/* Keep the Gantt's filter outside its frequent redraws, so focus and state persist. */
+.live-gantt-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem 1.25rem; margin-bottom: 0.75rem; }
+.live-gantt-heading .eyebrow { margin: 0; }
+.live-gantt-filter { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 13px; color: var(--theme-foreground-muted); cursor: pointer; }
+.live-gantt-filter input { margin: 0; accent-color: var(--theme-foreground-focus); }
+.live-gantt-name.is-unsure { color: var(--theme-foreground-muted); }
+.live-gantt-bar.is-unsure { background: color-mix(in srgb, var(--theme-foreground-muted) 20%, transparent); border: 1px dashed var(--theme-foreground-muted); box-sizing: border-box; }

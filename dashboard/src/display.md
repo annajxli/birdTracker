@@ -14,13 +14,14 @@ footer: false
 <div class="display-skeleton" aria-hidden="true"><div class="skeleton" data-skeleton="cards" style="height: 70vh"><observablehq-loading></observablehq-loading></div></div>
 
 ```js
+import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadSun, loadCategories, recentSpecies, dayTimeline, minutesHeard, birdsongMinutes, seriesColor, sequential, nameMargin, nameAxis, dateSpan, dateRange, formatDate, addDays} from "./components/birds.js";
 ```
 
 ```js
 const SLIDE_SECONDS = 15, RELOAD_MINUTES = 30, MIN_CONF = 0.6;
 const [all, photos, sun, categories] = await Promise.all([loadDetections(), loadPhotos(), loadSun(), loadCategories()]);
-const confident = all.filter((d) => d.confidence >= MIN_CONF);
+const confident = all.filter((d) => includedDetection(d, MIN_CONF));
 const latest = d3.max(all, (d) => d.date);
 const recorded = new Set(all.map((d) => d.date));
 const week = dateSpan(addDays(latest, -6), latest).filter((d) => recorded.has(d));

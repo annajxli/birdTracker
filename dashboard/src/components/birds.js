@@ -84,7 +84,7 @@ export const reviewAt = (time) => new Date(time).toISOString().replace(/\.\d{3}Z
 
 /**
  * Send a listener's verdict on detections ("confirmed", "rejected", or null to clear it), each
- * {at, scientific}. The Pi applies it within about 15 s; pages show it at once. Resolves to
+ * {at, scientific}. The Pi applies it at its next review check; the reviewing page shows it at once. Resolves to
  * whether the server took it.
  */
 export async function postReview(verdict, detections) {
@@ -601,13 +601,13 @@ export function dayTimeline(rows, sun, dates, {
   for (const key of order) {
     const header = key.startsWith(HEADER);
     if ((header || key === UNIDENTIFIED) && pos > 0) pos += GROUP_GAP;
-    const h = header ? HEADER_ROWS : nameWraps(width, rowKeyOf(key) === key ? key : "") ? 1.7 : 1; // room for a wrapped name
+    const h = (header || key === UNIDENTIFIED) ? HEADER_ROWS : nameWraps(width, rowKeyOf(key) === key ? key : "") ? 1.7 : 1; // room for a wrapped name
     rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2});
     pos += h;
   }
   const total = pos;
   const rowOf = (species) => rowsAt.get(rowKeyOf(species));
-  const speciesTicks = order.filter((k) => !k.startsWith(HEADER)).map((k) => rowsAt.get(k).y);
+  const speciesTicks = order.filter((k) => !k.startsWith(HEADER) && k !== UNIDENTIFIED).map((k) => rowsAt.get(k).y);
   const nameAt = new Map(order.map((k) => [rowsAt.get(k).y, k]));
 
   if (!firstHeard.size) return htl.html`<p class="sub">No detections ${daylightOnly ? "in daylight " : ""}${n === 1 ? "on this day" : "in these days"}.</p>`;
@@ -688,7 +688,9 @@ export function dayTimeline(rows, sun, dates, {
     ];
   }
 
-  const headerLabel = (key) => categoryLabel(key.slice(1), collapsedOf(key.slice(1)), groupSize.get(key.slice(1)));
+  const headerLabel = (key) => key === UNIDENTIFIED ? UNIDENTIFIED.toUpperCase()
+    : categoryLabel(key.slice(1), collapsedOf(key.slice(1)), groupSize.get(key.slice(1)));
+  const headingRows = rowsAt.has(UNIDENTIFIED) ? [...headers, UNIDENTIFIED] : headers;
 
   // Expanded headers have a horizontal rule; collapsed headers contain bars,
   // so their annotations and vertical rules start above the whole first row.
@@ -737,7 +739,7 @@ export function dayTimeline(rows, sun, dates, {
       ...recordedMarks,
       // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
-      Plot.text(headers, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
+      Plot.text(headingRows, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
       nameAxis(width, {tickFormat: (y) => nameAt.get(y)}, speciesTicks),
       ...dataMarks,
       // Over many days, sunrise and sunset are light-blue bands on top of the data, as opaque as
