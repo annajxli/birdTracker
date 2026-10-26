@@ -73,6 +73,11 @@ The following notes explain some choices:
 - An nRF52840 USB dongle, already owned, is the BLE receiver on the indoor
   computer.
 
+**Correction, October 26, 2026:** the statement above that BirdNET picks up
+fewer distant birds with the INMP441 was never measured. The ICS-43434 is
+discontinued. For a comparison of microphones and how to test one, see
+[Microphone options](plans/microphone-options.md).
+
 ## Setup
 
 The test used the steps in
