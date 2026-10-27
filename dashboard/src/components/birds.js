@@ -774,10 +774,13 @@ export function dayTimeline(rows, sun, dates, {
   const recordedPlace = recordedShown && lastUpdatedPlace(d3.scaleTime(domain, [marginLeft, width - marginRight]), recordedAt, recordedText,
     [sunriseRange, sunsetRange].filter((r) => !isBand(r)), width);
   // One day: stretches with no audio (up to where the recording so far ends) are hatched, so a
-  // missed stretch doesn't read as time without birds, nor as time not recorded yet.
+  // missed stretch doesn't read as time without birds, nor as time not recorded yet. Only up to
+  // the newest recording in `audio`, too: the table can lag the live feed (it's uploaded every few
+  // minutes, or is the site's built copy when the fresh one can't load), and after it is unknown.
   const noAudio = [];
   if (audio && n === 1) {
-    const dayFrom = +new Date(sun[dates[0]].start), dayTo = Math.min(+new Date(sun[dates[0]].end), recordedAt ? +recordedUntil : Infinity);
+    const known = d3.max(audio, ([, b]) => b) ?? -Infinity;
+    const dayFrom = +new Date(sun[dates[0]].start), dayTo = Math.min(+new Date(sun[dates[0]].end), recordedAt ? +recordedUntil : Infinity, known);
     const spans = audio.filter(([a, b]) => b > dayFrom && a < dayTo).sort((p, q) => p[0] - q[0]);
     if (spans.length) { // a day without any rows predates the recordings table: unknown, not missed
       let from = dayFrom;
