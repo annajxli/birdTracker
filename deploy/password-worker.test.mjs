@@ -107,6 +107,28 @@ check(r.status === 404, "only clips/ and live/ are served, not the database");
 r = await worker.fetch(new Request(base + "/api/live/missing.webp", {headers: {Cookie: value}}), menv);
 check(r.status === 404, "missing media -> 404");
 
+// Version checks use R2 metadata only, with the same authentication and route boundaries.
+const headKeys = [];
+const henv = {...env, MEDIA: {
+  head: async (key) => {
+    headKeys.push(key);
+    if (!(key in files)) return null;
+    return {size: files[key].length, httpEtag: '"version-2"', writeHttpMetadata: (headers) => headers.set("Content-Type", "application/octet-stream")};
+  },
+  get: async () => { throw new Error("HEAD must not fetch an R2 body"); }
+}};
+for (const path of ["/api/data/detections.parquet", "/api/data/recordings.parquet", "/api/live/live.json"]) {
+  r = await worker.fetch(new Request(base + path, {method: "HEAD", headers: {Cookie: value}}), henv);
+  check(r.status === 200 && await r.text() === "" && r.headers.get("ETag") === '"version-2"' && r.headers.get("Cache-Control") === "no-store", "HEAD returns authenticated metadata without audio or table bytes", path);
+}
+const beforeHead = headKeys.length;
+r = await worker.fetch(new Request(base + "/api/data/detections.parquet", {method: "HEAD"}), henv);
+check(r.status === 401 && headKeys.length === beforeHead, "HEAD needs a session before touching R2");
+r = await worker.fetch(new Request(base + "/api/live/missing.json", {method: "HEAD", headers: {Cookie: value}}), henv);
+check(r.status === 404, "HEAD missing object -> 404");
+r = await worker.fetch(new Request(base + "/api/clips/data/detections.sqlite", {method: "HEAD", headers: {Cookie: value}}), henv);
+check(r.status === 404, "HEAD cannot expose the database snapshot");
+
 // Reviews: saved to the bucket for the Pi; same-origin, signed in, well-formed only.
 const put = [];
 const renv = {...env, MEDIA: {...MEDIA, put: async (key, value) => { put.push([key, JSON.parse(value)]); }}};
