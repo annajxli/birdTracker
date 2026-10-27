@@ -56,7 +56,9 @@ host alias. Don't include secrets.
   again.
 - **Operating system updates.** On October 26, 2026, the first weekly check
   found 21 upgradable packages, 11 of them security updates. They aren't
-  installed. To install them, see
+  installed. The weekly install timer, `birdtracker-upgrade.timer`, isn't
+  deployed. After you deploy it, check its first run with
+  `journalctl -u birdtracker-upgrade`. For details, see
   [Update the operating system](deploy.md#update-the-operating-system).
 - **Publisher usage.** After several complete UTC days on `a9b92cd` or later, compare
   the call counts and upload bytes in `data/publish-usage.json` with R2's

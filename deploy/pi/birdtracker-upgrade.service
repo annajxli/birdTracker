@@ -1,0 +1,14 @@
+[Unit]
+Description=Bird Tracker: install operating system updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=DEBIAN_FRONTEND=noninteractive
+ExecStart=/usr/bin/apt-get update -q
+# Keeps changed configuration files instead of prompting. Doesn't reboot: the update check reports
+# when a reboot is required.
+ExecStart=/usr/bin/apt-get full-upgrade -y -q -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
+# Refreshes the update report afterward, whether or not the install succeeded.
+ExecStopPost=/usr/bin/systemctl start --no-block birdtracker-updates.service

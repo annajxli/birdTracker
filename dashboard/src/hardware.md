@@ -297,7 +297,7 @@ const updatesCard = (() => {
   if (!u) return noData("OS updates");
   const level = u.security || u.reboot_required ? "warning" : "good";
   return softwareCard("OS updates", u.upgradable ? plural(u.upgradable, "update") : "Up to date", level,
-    [u.security ? `${u.security} security` : null, u.reboot_required ? "reboot required" : null, `checked ${day(u.checked)}`, u.lists_refreshed === false ? "package lists not refreshed; counts may be stale" : null],
+    [u.security ? `${u.security} security` : null, u.reboot_required ? "reboot required" : null, u.upgradable && Date.parse(u.next_install) > Date.now() ? `install queued ${clock(u.next_install)}` : null, `checked ${day(u.checked)}`, u.lists_refreshed === false ? "package lists not refreshed; counts may be stale" : null],
     html`<div class="sub">${[u.os, u.kernel && `kernel ${u.kernel}`].filter(Boolean).join(" · ")}</div>${u.packages?.length ? html`<details class="software-packages"><summary>${u.packages.length < u.upgradable ? `First ${u.packages.length} packages` : "Packages"}</summary>
       <ul class="software-list">${u.packages.map((p) => html`<li><span>${p.name}${p.security ? html` <span class="status status-warning"><span class="status-icon" aria-hidden="true">▲</span>security</span>` : ""}</span><span class="sub">${p.from ? `${p.from} → ` : "new · "}${p.to}</span></li>`)}</ul></details>` : ""}`);
 })();

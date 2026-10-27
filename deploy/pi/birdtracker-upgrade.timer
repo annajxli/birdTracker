@@ -1,0 +1,10 @@
+[Unit]
+Description=Bird Tracker: install operating system updates weekly
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30
+# Runs at boot if the Pi was off when an install was due.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

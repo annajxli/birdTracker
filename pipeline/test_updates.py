@@ -7,6 +7,9 @@ from pathlib import Path
 
 import code_version
 from publish import Health
+from unittest import mock
+
+import updates
 from updates import parse
 
 SIMULATION = """\
@@ -24,6 +27,13 @@ class UpdatesTest(unittest.TestCase):
         self.assertEqual([p["security"] for p in packages], [True, False, False])
         self.assertEqual(packages[0]["from"], "3.5.1-1")
         self.assertIsNone(packages[2]["from"])  # a new package
+
+    def test_next_install_reads_the_timer(self):
+        with mock.patch.object(updates.subprocess, "run") as run:
+            run.return_value.stdout = "@1793529000\n"
+            self.assertEqual(updates.next_install(), "2026-11-01T10:30:00Z")
+            run.return_value.stdout = "\n"  # the timer isn't enabled
+            self.assertIsNone(updates.next_install())
 
     def test_status_includes_code_and_updates(self):
         with tempfile.TemporaryDirectory() as tmp:
