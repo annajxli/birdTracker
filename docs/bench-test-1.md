@@ -138,3 +138,7 @@ Bench test 2 uses the PPK2 and the microSD breakout to do the following:
 
 The measurements replace the energy estimates in
 [Recorder hardware options](design/hardware-design.html) and decide the board.
+
+**Note, October 27, 2026:** the plan for bench test 2 moved to
+[Bench test 2: recorder power](plans/bench-test-2.md), which replaces the
+list above.

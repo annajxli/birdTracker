@@ -92,12 +92,14 @@ about 16 times the estimate for build A in
 only and uploads in bursts. Bench test 2 measures the draw directly.
 
 Bench test 2 measures power and decides the board. For its plan, see
-[Bench test 1](bench-test-1.md#plan-for-bench-test-2).
+[Bench test 2: recorder power](plans/bench-test-2.md).
 
 ### Plans
 
 None of these plans is built or tested:
 
+- [Bench test 2: recorder power](plans/bench-test-2.md): firmware modes,
+  power measurements, and pass criteria for a winter solar budget.
 - [Indoor computer options](plans/indoor-computer-options.md): copy the Pi 3B+
   setup after the indoor computer checks above pass.
 - [Microphone options](plans/microphone-options.md): candidate microphones and
