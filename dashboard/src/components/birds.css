@@ -2086,6 +2086,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 
 /* Hardware: a card that isn't Good shows it in its top bar too. */
 .card.is-alert { border-top: 3px solid var(--status); }
+.card.unreachable { margin: 0 0 1rem; }
 
 /* Reviews: Confirm / Reject on detections you can hear; a rejected row is struck through. */
 .review-cell { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
