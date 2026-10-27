@@ -872,15 +872,18 @@ function fetchRecentWeather() {
     });
     const body = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
     const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+    const hourNow = +new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
+    // Past days in full; today, the forecast for the day and the hourly temperature so far.
     const daily = {}, hourly = {};
     body.daily.time.forEach((d, i) => {
       const v = {high: body.daily.temperature_2m_max[i], low: body.daily.temperature_2m_min[i],
         precip: body.daily.precipitation_sum[i], code: body.daily.weather_code[i]};
-      if (d < today && Object.values(v).every((x) => x != null)) daily[d] = v;
+      if (d <= today && Object.values(v).every((x) => x != null)) daily[d] = d === today ? {...v, forecast: true} : v;
     });
     body.hourly.time.forEach((t, i) => {
       const d = t.slice(0, 10), temp = body.hourly.temperature_2m[i];
-      if (d < today && temp != null) (hourly[d] ??= Array(24).fill(null))[+t.slice(11, 13)] = Math.round(temp * 10) / 10;
+      const hour = +t.slice(11, 13);
+      if ((d < today || (d === today && hour <= hourNow)) && temp != null) (hourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
     });
     return {daily, hourly};
   })().catch((error) => {

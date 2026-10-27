@@ -290,9 +290,11 @@ const historicalChanges = comparable ? [] : biggestMonthlyChanges(minutes, perio
               const f = +b.t === +a.t ? 0 : (+t - +a.t) / (+b.t - +a.t);
               return {t, temp: a.temp + f * (b.temp - a.temp), when: t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})};
             };
-            const points = hourly.length ? [at(daylightWindow[0]), ...hourly.filter((d) => d.t > daylightWindow[0] && d.t < daylightWindow[1]), at(daylightWindow[1])] : [];
+            // Today's line stops at the latest hour so far.
+            const end = hourly.length ? new Date(Math.min(+daylightWindow[1], +hourly.at(-1).t)) : null;
+            const points = end > daylightWindow[0] ? [at(daylightWindow[0]), ...hourly.filter((d) => d.t > daylightWindow[0] && d.t < end), at(end)] : [];
             return points.length ? hourlyTemperatureStrip(points, {width, domain: daylightWindow, inset: 8, ...margins}) : "";
-          })()}<div class="period-weather">${w ? `${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div></div>`;
+          })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div></div>`;
         }
         const ticks = dayTicks(period, width - margins.marginLeft - margins.marginRight);
         const tickFormat = dayTickFormat(period);
@@ -300,7 +302,7 @@ const historicalChanges = comparable ? [] : biggestMonthlyChanges(minutes, perio
         const inset = dayInset(period, width, gap, margins);
         // Strips under the detections, top to bottom.
         const availableDates = period.filter((date) => date >= dataStart && date <= latest);
-        const periodWeather = Object.fromEntries(availableDates.filter((date) => weather[date]).map((date) => [date, weather[date]]));
+        const periodWeather = Object.fromEntries(availableDates.filter((date) => weather[date] && !weather[date].forecast).map((date) => [date, weather[date]]));
         const weekTemps = selection.scale === "W"
           ? availableDates.flatMap((date) => (weatherHourly[date] ?? []).map((temp, hour) => ({
               t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
