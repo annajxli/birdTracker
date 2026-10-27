@@ -56,6 +56,7 @@ const DAYS = 90;
 const from = addDays(latest, -(DAYS - 1));
 const span = dateSpan(from, latest);
 const recent = recs.filter((d) => d.date >= from);
+const windowX = {type: "utc", label: null, domain: [new Date(from), d3.utcDay.offset(new Date(latest), 1)]};
 const byDate = d3.group(recent, (d) => d.date);
 const windowStart = d3.min(recent, (d) => d.date) ?? from; // the window's first recorded day
 // Uptime: the share of the time since launch that audio arrived. Up to the newest recording, as
@@ -269,15 +270,6 @@ const confidenceDensity = () => {
 };
 const noData = (title) => html`<div class="card"><h2>${title}</h2><div class="big">–</div><div class="sub">No data yet</div></div>`;
 const pctFormat = (v) => `${d3.format(".0f")(v)}%`;
-const piSection = pi && html`<div class="grid stats">
-  ${pi.temp_c != null ? meterCard("CPU temperature", `${d3.format(".0f")(pi.temp_c)} °C`, meter(pi.temp_c, TEMP_ZONES, (v) => `${v}°`), "CPU throttles at 80 °C", statusStrip(piHistory, "temp_c", TEMP_ZONES, (v) => `${v} °C`)) : ""}
-  ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
-  ${pi.memory_mb ? meterCard("Memory in use", `${d3.format(".0f")(pi.memory_mb.used)} MB`, meter(memPct, MEMORY_ZONES, pctFormat), `of ${d3.format(".0f")(pi.memory_mb.total)} MB`, statusStrip(piHistory, "memory_pct", MEMORY_ZONES, pctFormat)) : ""}
-  ${pi.disk_gb ? meterCard("Storage free", `${d3.format(".1f")(pi.disk_gb.free)} GB`, meter(diskPct, STORAGE_ZONES, pctFormat), `of ${d3.format(".0f")(pi.disk_gb.total)} GB`, statusStrip(piHistory, "disk_pct", STORAGE_ZONES, pctFormat)) : ""}
-  ${powerShown ? html`<div class="card${alertClass(powerShown[0])}"><h2>Power supply</h2><div class="big">${powerShown[2]}</div><div class="sub">${statusTag(powerShown[0])} · ${powerShown[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max, false)}</div>` : ""}
-  ${pi.uptime_s != null ? html`<div class="card"><h2>Time since restart</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">booted ${clock(new Date(Date.parse(pi.updated) - pi.uptime_s * 1e3))}</div></div>` : ""}
-</div>`;
-
 // The Pi's software: the code deployed on it against main, and the operating system's pending
 // updates (status.json's code and updates, absent until the Pi reports them). Code is matched
 // on the deployed files' fingerprint, not the commit, since the Pi is often deployed from a
@@ -309,6 +301,16 @@ const updatesCard = (() => {
     html`<div class="sub">${[u.os, u.kernel && `kernel ${u.kernel}`].filter(Boolean).join(" · ")}</div>${u.packages?.length ? html`<details class="software-packages"><summary>${u.packages.length < u.upgradable ? `First ${u.packages.length} packages` : "Packages"}</summary>
       <ul class="software-list">${u.packages.map((p) => html`<li><span>${p.name}${p.security ? html` <span class="status status-warning"><span class="status-icon" aria-hidden="true">▲</span>security</span>` : ""}</span><span class="sub">${p.from ? `${p.from} → ` : "new · "}${p.to}</span></li>`)}</ul></details>` : ""}`);
 })();
+const piSection = pi && html`<div class="grid stats">
+  ${pi.temp_c != null ? meterCard("CPU temperature", `${d3.format(".0f")(pi.temp_c)} °C`, meter(pi.temp_c, TEMP_ZONES, (v) => `${v}°`), "CPU throttles at 80 °C", statusStrip(piHistory, "temp_c", TEMP_ZONES, (v) => `${v} °C`)) : ""}
+  ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
+  ${pi.memory_mb ? meterCard("Memory in use", `${d3.format(".0f")(pi.memory_mb.used)} MB`, meter(memPct, MEMORY_ZONES, pctFormat), `of ${d3.format(".0f")(pi.memory_mb.total)} MB`, statusStrip(piHistory, "memory_pct", MEMORY_ZONES, pctFormat)) : ""}
+  ${pi.disk_gb ? meterCard("Storage free", `${d3.format(".1f")(pi.disk_gb.free)} GB`, meter(diskPct, STORAGE_ZONES, pctFormat), `of ${d3.format(".0f")(pi.disk_gb.total)} GB`, statusStrip(piHistory, "disk_pct", STORAGE_ZONES, pctFormat)) : ""}
+  ${powerShown ? html`<div class="card${alertClass(powerShown[0])}"><h2>Power supply</h2><div class="big">${powerShown[2]}</div><div class="sub">${statusTag(powerShown[0])} · ${powerShown[1]}</div>${statusStrip(piHistory, "power", POWER_ZONES, (v) => powerText[v], d3.max, false)}</div>` : ""}
+  ${pi.uptime_s != null ? html`<div class="card"><h2>Time since restart</h2><div class="big">${duration(pi.uptime_s)}</div><div class="sub">booted ${clock(new Date(Date.parse(pi.updated) - pi.uptime_s * 1e3))}</div></div>` : ""}
+  ${codeCard}${updatesCard}
+</div>`;
+
 ```
 
 # Hardware analytics
@@ -356,27 +358,28 @@ const updatesCard = (() => {
 
 <div class="section-top"><p class="eyebrow">Indoor computer</p>${pi ? html`<p class="sub section-sub">${pi.host} · last report ${clock(pi.updated)}${piFresh ? "" : " (over 5 min ago)"}</p>` : ""}</div>
 ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
-<div class="grid grid-cols-2">${codeCard}${updatesCard}</div>
 
 <div class="section-top"><p class="eyebrow">Coverage, last 90 days</p></div>
 <div class="card"><div class="chart-slot" data-skeleton="grid" style="--chart-height: 330px">${resize((width) => Plot.plot({
   width, height: 260, marginLeft: 40, marginRight: 64,
-  x: {type: "utc", label: null},
+  x: windowX,
   y: {domain: [24, 0], ticks: [0, 6, 12, 18, 24], tickFormat: (h) => ["12a", "6a", "12p", "6p", "12a"][h / 6], label: null},
   color: sequential(dark, {legend: true, label: "Minutes of audio received per hour", domain: [0, 60], marginLeft: 40, ticks: [0, 15, 30, 45, 60]}),
   marks: [
     Plot.rect(coverage, {x1: "date", x2: (d) => d3.utcDay.offset(d.date, 1), y1: "hour", y2: (d) => d.hour + 1, fill: "minutes", inset: 0.3,
       tip: {format: {x1: false, x2: false, y1: false, y2: false, fill: false}}, channels: {Day: (d) => formatDate(d.day), Hour: (d) => `${d.hour}:00`, Minutes: (d) => d3.format(".0f")(d.minutes)}}),
-    Plot.line(sunLines, {x: (d) => d3.utcHour.offset(d.date, 12), y: "sunrise", stroke: "#1b1a17", strokeOpacity: 0.75, strokeWidth: 1.5, strokeDasharray: "4,3"}),
-    Plot.line(sunLines, {x: (d) => d3.utcHour.offset(d.date, 12), y: "sunset", stroke: "#1b1a17", strokeOpacity: 0.75, strokeWidth: 1.5, strokeDasharray: "4,3"}),
-    Plot.text([["sunrise", "sunrise"], ["sunset", "sunset"]], {x: () => sunLines.at(-1)?.date, y: ([, k]) => sunLines.at(-1)?.[k], text: ([k]) => k, dx: 10, textAnchor: "start", fill: "currentColor", fontSize: 10})
+    ...["sunrise", "sunset"].flatMap((k) => [
+      Plot.line(sunLines, {x: (d) => d3.utcHour.offset(d.date, 12), y: k, stroke: "#f4f1e8", strokeOpacity: 0.5, strokeWidth: 3.5}),
+      Plot.line(sunLines, {x: (d) => d3.utcHour.offset(d.date, 12), y: k, stroke: "#1b1a17", strokeOpacity: 0.75, strokeWidth: 1.5, strokeDasharray: "4,3"})
+    ]),
+    Plot.text(sunLines.length ? ["sunrise", "sunset"] : [], {x: () => windowX.domain[1], y: (k) => sunLines.at(-1)[k], text: (k) => k, dx: 4, textAnchor: "start", fill: "currentColor", fontSize: 10})
   ]
 }))}</div></div>
 
 <div class="section-top"><p class="eyebrow">Background level, last 90 days</p></div>
 <div class="card"><div class="chart-slot" style="--chart-height: 220px">${resize((width) => Plot.plot({
   width, height: 220, marginLeft: 50, marginRight: 110,
-  x: {type: "utc", label: null},
+  x: windowX,
   y: {label: "Background level (dBFS)", grid: true},
   marks: [
     Plot.areaY(daily, {x: "date", y1: "rmsLow", y2: "rmsHigh", fill: seriesColor(dark), fillOpacity: 0.18, curve: "monotone-x"}),
@@ -393,7 +396,7 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
 <div class="section-top"><p class="eyebrow">Wifi signal, last 90 days</p></div>
 <div class="card"><div class="chart-slot" style="--chart-height: 200px">${resize((width) => Plot.plot({
   width, height: 200, marginLeft: 50,
-  x: {type: "utc", label: null},
+  x: windowX,
   y: {label: "Wifi signal (dBm)", grid: true, domain: [-90, -40]},
   marks: [
     Plot.ruleY([-70], {stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "4,3"}),
@@ -407,13 +410,13 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
 <div class="section-top"><p class="eyebrow">Recording → dashboard delay, last 90 days</p></div>
 <div class="card"><div class="chart-slot" style="--chart-height: 200px">${resize((width) => Plot.plot({
   width, height: 200, marginLeft: 50, marginRight: 60,
-  x: {type: "utc", label: null},
-  y: {type: "log", label: "Delay (min)", grid: true},
+  x: windowX,
+  y: {label: "Delay (min)", grid: true, zero: true},
   marks: [
     Plot.lineY(daily, {x: "date", y: "delay95", stroke: "currentColor", strokeOpacity: 0.45, strokeWidth: 1.5, curve: "step"}),
     Plot.lineY(daily, {x: "date", y: "delay", stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
     Plot.text(daily.slice(-1), {x: "date", y: "delay", text: () => "median", dx: 6, textAnchor: "start", fill: "currentColor", fontSize: 10}),
-    Plot.text(daily.length ? [d3.greatest(daily, (d) => d.delay95)] : [], {x: "date", y: "delay95", text: () => "95th percentile", dx: 6, textAnchor: "start", fill: "currentColor", fillOpacity: 0.7, fontSize: 10}),
+    Plot.text(daily.length ? [d3.greatest(daily, (d) => d.delay95)] : [], {x: "date", y: "delay95", text: () => "95th percentile", dx: 6, dy: -7, textAnchor: "start", fill: "currentColor", fillOpacity: 0.7, fontSize: 10}),
     Plot.tip(daily, Plot.pointerX({x: "date", y: "delay", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.delay)} min\n95th percentile: ${d3.format(".0f")(d.delay95)} min`}))
   ]
 }))}
