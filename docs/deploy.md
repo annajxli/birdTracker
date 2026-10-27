@@ -218,16 +218,17 @@ meant for the Pi.
 
 ### Update the operating system
 
-The Pi installs operating system updates weekly, at the time in
+The Pi installs Debian security updates weekly, at the time in
 `deploy/pi/birdtracker-upgrade.timer`, and the Hardware analytics page shows
-when the next install is queued. To install them sooner, on the Pi, run the
-following command:
+when the next install is queued. Other updates, such as Raspberry Pi kernel and
+firmware packages, wait for an install by hand. To install the security updates
+sooner, on the Pi, run the following command:
 
 ```bash
 sudo systemctl start birdtracker-upgrade
 ```
 
-To install them by hand instead, on the Pi, run the following commands:
+To install all updates by hand, on the Pi, run the following commands:
 
 ```bash
 sudo apt-get update
@@ -248,7 +249,7 @@ journalctl -u birdtracker-analyzer -f
 
 The other services are `birdtracker-receiver`, `birdtracker-publish`,
 `birdtracker-updates`, the weekly update check, and `birdtracker-upgrade`, the
-weekly install.
+weekly security install.
 
 The pages load the newest data from R2 when they open, so new detections
 appear without a rebuild. How often the publisher uploads each kind of data
