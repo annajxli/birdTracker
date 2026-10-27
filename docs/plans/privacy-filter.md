@@ -1,10 +1,10 @@
 # Voice privacy filter
 
 This page specifies a filter that silences human voices in all audio that
-leaves the indoor computer. Nothing on this page is built. It's written for an
-agent to implement on its own branch, in the order given in
-[Implementation steps](#implementation-steps), and to evaluate before anyone
-deploys it.
+leaves the indoor computer. It is a production-filter proposal; implementation
+and evaluation state belong in [Status](../status.md#voice-privacy-evaluation-branch).
+Follow [Implementation steps](#implementation-steps) on a separate branch,
+and evaluate the filter before deployment.
 
 ## Goal
 

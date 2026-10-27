@@ -15,7 +15,9 @@ same 3 s is dropped, and the confident ones go in <stem>.BirdNET.sounds.csv for 
 And one more: <stem>.BirdNET.activity.csv has, for every 3 s window, an "any bird" score (the
 chance that at least one of the expected species is there, 1 - prod(1 - score)) and the best
 single species' score, so birdsong that BirdNET can't pin to a species still counts as birdsong.
-It's 0 where a non-bird sound outscores every bird.
+It's 0 where a non-bird sound outscores every bird. The Voice column exports
+the Human vocal score for every window, independently of the display threshold
+and without changing the species results or non-bird veto.
 
 The model files ship inside the birdnet-analyzer package; on the Pi they're copied to
 models/ by deploy/pi/push.sh, and BIRDNET_MODELS points at that folder.
@@ -67,6 +69,7 @@ class BirdNET:
         self.meta = Interpreter(model_path=str(d / META_MODEL))
         self.meta.allocate_tensors()
         self.labels = [line.split("_", 1) for line in (d / LABELS).read_text(encoding="utf-8").splitlines()]
+        self.voice = next(i for i, label in enumerate(self.labels) if label == ["Human vocal", "Human vocal"])
         self.sounds = np.array([i for i, (sci, _) in enumerate(self.labels) if sci in SOUNDS])
         self.batch = None
         self.allowed = {}  # (lat, lon, week) -> boolean mask over species
@@ -115,7 +118,7 @@ class BirdNET:
             w, ws, wa = csv.writer(f), csv.writer(g), csv.writer(h)
             w.writerow(["Start (s)", "End (s)", "Scientific name", "Common name", "Confidence", "File"])
             ws.writerow(["Start (s)", "Sound", "Confidence"])
-            wa.writerow(["Start (s)", "Any bird", "Best species"])
+            wa.writerow(["Start (s)", "Any bird", "Best species", "Voice"])
             for b in range(0, len(chunks), BATCH):
                 for i, row in enumerate(self.scores(chunks[b:b + BATCH])):
                     start = starts[b + i] / RATE
@@ -128,5 +131,5 @@ class BirdNET:
                     birds = row[allowed].astype(np.float64)
                     best = birds.max() if len(birds) else 0.0
                     any_bird = 0.0 if loudest > best else 1 - np.prod(1 - birds)
-                    wa.writerow([f"{start:.1f}", f"{any_bird:.4f}", f"{best:.4f}"])
+                    wa.writerow([f"{start:.1f}", f"{any_bird:.4f}", f"{best:.4f}", f"{row[self.voice]:.4f}"])
         return out

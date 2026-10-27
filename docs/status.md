@@ -132,3 +132,29 @@ Overview date and span persist in URL parameters across refreshes. W/M/Y use
 trailing ranges ending on the selected date, including blank history before
 available recordings. Calendar selection chooses the end date. Dashboard tests
 and the site build pass. Deployment follows the automatic main workflow.
+
+
+### Voice privacy evaluation branch
+
+October 26, 2026: `codex/voice-filter` follows `claude/privacy-filter-spec`.
+It adds per-window human-vocal scores to the local activity CSV and an offline
+threshold-evaluation harness. It does not enable production muting or change
+species scores, sound labels or the non-bird veto. The specification and
+[evaluation record](plans/privacy-filter-results.md) remain in `docs/plans/`.
+
+The Pi alias `pio` is unreachable from this laptop. The local inventory has two
+station MP3 minutes, no bird clips, and 364 seconds generated to AIFF with three
+installed macOS voices. No audio was played or uploaded. LiteRT/model files are
+also unavailable in this development environment. The 24-hour corpus and bird
+preservation tests have not run, so no threshold is selected. Resume evaluation
+on a development computer with a corpus copied by the home-network session
+before implementing the production filter. Do not run a second classifier
+alongside the production analyzer on the memory-constrained Pi. This is
+an evaluation-data dependency, not evidence that a threshold passed or failed.
+
+
+Evaluation-stage checks pass: 14 pipeline tests (including six evaluation/export
+checks), 32 dashboard tests, the password Worker tests, the site build with 30
+validated links, and `git diff --check`. These checks validate code paths, not
+speech recall or real-bird preservation. The dashboard owner has the optional
+`muted` strip-field contract; no Live page was edited by this branch.

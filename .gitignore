@@ -29,3 +29,7 @@ data/merlin/
 # Local publisher usage counters
 data/publish-usage.json
 data/publish-usage.json.part
+
+# Local voice-filter evaluation inputs and muted working audio
+data/muted/
+data/privacy-eval/
