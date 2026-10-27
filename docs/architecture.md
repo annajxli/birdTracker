@@ -76,7 +76,9 @@ finished recording, the analyzer does the following:
    `data/live/`, and lists them with their detections in `live.json` for the
    dashboard's **Live** page.
 5. Deletes the recording. If you set `--keep-days`, the analyzer moves the
-   recording to `data/processed/` instead.
+   recording to `data/processed/` instead. On the Pi,
+   `deploy/pi/birdtracker-analyzer.service` sets it, so you can check a
+   missed or doubtful detection against the audio that BirdNET heard.
 
 If analysis of a file fails repeatedly, the analyzer moves the file to
 `data/failed/`. Failures that aren't caused by the file, such as a locked

@@ -6,7 +6,9 @@ After=birdtracker-receiver.service
 User=%BIRD_USER%
 WorkingDirectory=%BIRD_HOME%
 EnvironmentFile=%BIRD_HOME%/birdtracker.env
-ExecStart=%BIRD_HOME%/.venv/bin/python pipeline/analyzer.py --watch --db data/recorder.sqlite --threads 3 --interval 15
+# Keeps a day of original minutes in data/processed/, for checking a missed or doubtful detection
+# against the audio BirdNET heard (the Live MP3s are lossy and stop at 12 kHz). About 5.5 GB.
+ExecStart=%BIRD_HOME%/.venv/bin/python pipeline/analyzer.py --watch --db data/recorder.sqlite --threads 3 --interval 15 --keep-days 1
 Restart=always
 RestartSec=10
 Nice=5
