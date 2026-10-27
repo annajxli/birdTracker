@@ -15,13 +15,14 @@ footer: false
 
 ```js
 import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadSun, loadCategories, recentSpecies, dayTimeline, minutesHeard, birdsongMinutes, seriesColor, sequential, nameMargin, nameAxis, dateSpan, dateRange, formatDate, addDays} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadThresholds, recentSpecies, dayTimeline, minutesHeard, birdsongMinutes, seriesColor, sequential, nameMargin, nameAxis, dateSpan, dateRange, formatDate, addDays} from "./components/birds.js";
 ```
 
 ```js
 const SLIDE_SECONDS = 15, RELOAD_MINUTES = 30, MIN_CONF = 0.6;
-const [all, photos, sun, categories] = await Promise.all([loadDetections(), loadPhotos(), loadSun(), loadCategories()]);
-const confident = all.filter((d) => includedDetection(d, MIN_CONF));
+const [all, photos, sun, categories, thresholdsFile] = await Promise.all([loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadThresholds()]);
+// Learned per-species thresholds; MIN_CONF (or the file's default) for species without one.
+const confident = all.filter((d) => includedDetection(d, thresholdsFile?.default ?? MIN_CONF, thresholdsFile?.species));
 const latest = d3.max(all, (d) => d.date);
 const recorded = new Set(all.map((d) => d.date));
 const week = dateSpan(addDays(latest, -6), latest).filter((d) => recorded.has(d));

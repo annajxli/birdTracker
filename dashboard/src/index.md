@@ -8,16 +8,18 @@ toc: false
 
 ```js
 import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, windowChanges} from "./components/changes.js";
 ```
 
 ```js
-const [all, photos, sun, categories, weather, weatherHourly, recordedUntil, recordings] = await Promise.all([
-  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadRecordedUntil(), recordingsTable().catch(() => null)
+const [all, photos, sun, categories, weather, weatherHourly, recordedUntil, recordings, thresholdsFile] = await Promise.all([
+  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadRecordedUntil(), recordingsTable().catch(() => null), loadThresholds()
 ]);
+// Learned per-species thresholds (scientific name -> entry); the confidence control covers the rest.
+const thresholds = thresholdsFile?.species ?? null;
 // Minutes with birdsong BirdNET couldn't name (the recorder's unidentified_windows, when it has
 // them), for the day timeline's muted last row.
 const unidentifiedMinutes = (() => {
@@ -61,7 +63,7 @@ const daylightOnly = Generators.input(daylightIn);
 
 ```js
 // Depends only on the threshold, so moving between periods doesn't recompute the year-round charts.
-const confident = all.filter((d) => includedDetection(d, minConf));
+const confident = all.filter((d) => includedDetection(d, minConf, thresholds));
 // Unidentified only where no bird was named at this confidence that minute.
 const namedMinutes = new Set(confident.map((d) => Math.floor(+d.time / 6e4)));
 const unidentified = unidentifiedMinutes.filter((u) => !namedMinutes.has(Math.floor(+u.time / 6e4)));
@@ -455,7 +457,7 @@ const categoryMonth = categoryShares(month, recordedMonthDays);
 ```js
 // Mini species cards wherever a species name appears: hover on desktop, tap on phones.
 const periodMinutes = d3.rollup(minutes, (v) => v.length, (d) => d.species);
-const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident, photos, categories,
+const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident, photos, categories, thresholds, minConf,
   extraRows: (species) => [[selection.scale === "A" ? "All time" : "This period", `${d3.format(",")(periodMinutes.get(species) ?? 0)} minutes heard`]]}));
 invalidation.then(stopSpeciesCards);
 ```

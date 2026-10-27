@@ -7,12 +7,13 @@ toc: false
 
 ```js
 import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadCategories, rangeInput, confidenceInput, RANGES, windowStart, speciesHref, speciesCards, speciesInfoFrom, minutesHeard, clipPlayer, postReview, reviewAt} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadCategories, rangeInput, confidenceInput, RANGES, windowStart, speciesHref, speciesCards, speciesInfoFrom, loadThresholds, minutesHeard, clipPlayer, postReview, reviewAt} from "./components/birds.js";
 ```
 
 ```js
 // Every detection, rejected ones too (the table shows them, to undo); counts use `all`.
-const everything = await loadDetections({includeRejected: true});
+const [everything, thresholdsFile] = await Promise.all([loadDetections({includeRejected: true}), loadThresholds()]);
+const thresholds = thresholdsFile?.species ?? null; // learned per-species thresholds; the control covers the rest
 const all = everything.filter((d) => d.review !== "rejected");
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
@@ -38,7 +39,7 @@ const range = Generators.input(rangeIn);
 ```js
 const start = windowStart(latest, RANGES.get(range), dataStart);
 // "" for missing clips and reviews: the table skips formatting null cells, and these need it.
-const inRange = everything.filter((d) => (d.review || includedDetection(d, minConf)) && d.date >= start).reverse() // newest first
+const inRange = everything.filter((d) => (d.review || includedDetection(d, minConf, thresholds)) && d.date >= start).reverse() // newest first
   .map((d) => ({...d, clip: d.clip ?? "", review: d.review ?? ""}));
 const searchIn = Inputs.search(inRange, {placeholder: "Search species…", columns: ["species", "scientific"]});
 const found = Generators.input(searchIn);
@@ -48,7 +49,7 @@ const found = Generators.input(searchIn);
 // Tapping a species name opens its mini card (More details goes to its page).
 const [photos, categories] = await Promise.all([loadPhotos(), loadCategories()]);
 const rangeMinutes = d3.rollup(minutesHeard(inRange.filter((d) => d.review !== "rejected")), (v) => v.length, (d) => d.species);
-const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident: all.filter((d) => includedDetection(d, minConf)), photos, categories,
+const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident: all.filter((d) => includedDetection(d, minConf, thresholds)), photos, categories, thresholds, minConf,
   extraRows: (species) => [[range === "All time" ? "All time" : `Last ${range}`, `${d3.format(",")(rangeMinutes.get(species) ?? 0)} minutes heard`]]}));
 invalidation.then(stopSpeciesCards);
 ```

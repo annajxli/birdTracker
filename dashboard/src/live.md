@@ -20,7 +20,7 @@ toc: false
 import {UNIDENTIFIED, unidentifiedDetections, unidentifiedRuns} from "./components/live-unidentified.js";
 import {liveLabelLeft} from "./components/live-label-position.js";
 import {includedDetection, detectionPlaybackStart, shownInGantt} from "./components/detection-policy.js";
-import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview} from "./components/birds.js";
+import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview, thresholdText} from "./components/birds.js";
 ```
 
 ```js
@@ -100,7 +100,11 @@ const localReviews = new Map();
 const reviewKey = (d) => `${d.at}|${d.scientific_name}`;
 const reviewOf = (d) => (localReviews.has(reviewKey(d)) ? localReviews.get(reviewKey(d)) : serverReviews[reviewKey(d)] ?? null);
 const counts = (d) => reviewOf(d) !== "rejected";
-const accepted = (d) => includedDetection({confidence: d.confidence, review: reviewOf(d)}, MIN_CONF);
+// Per-species thresholds learned from those verdicts (live/thresholds.json, refreshed with each
+// poll): a species without one uses the file's default, or MIN_CONF without the file.
+let thresholdsFile = null;
+const minConf = () => thresholdsFile?.default ?? MIN_CONF;
+const accepted = (d) => includedDetection({confidence: d.confidence, review: reviewOf(d), scientific_name: d.scientific_name}, minConf(), thresholdsFile?.species);
 const mergeStrips = (a, b) => [...new Map([...a, ...b].map((s) => [s.start, s])).values()].sort((p, q) => p.start.localeCompare(q.start));
 let updated = null;
 let geo = null; // {t0, t1, pps}: the drawn track's time at x = 0, its last audio, and its scale
@@ -348,7 +352,7 @@ function draw() {
   // species, the candidates show side by side. Confident runs are placed first, then non-bird
   // sounds, then the rest by score, so a crowded stretch keeps its surest names.
   // Text lanes are assigned using visible, edge-clamped positions below.
-  const sure = (r) => includedDetection({confidence: r.best, review: r.review}, MIN_CONF);
+  const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets[0].scientific_name}, minConf(), thresholdsFile?.species);
   const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
     const label = r.unidentified ? UNIDENTIFIED : `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
@@ -671,7 +675,8 @@ const stopCards = speciesCards((name, el) => {
   const act = (label, verdict) => Object.assign(html`<button type="button" class="review-button">${label}</button>`, {onclick: () => reviewRun(run, verdict)});
   return {
     photo: cardMeta.photos?.[name], scientific: (heard[0] ?? run?.dets[0])?.scientific_name, category: cardMeta.categories?.species?.[name],
-    rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`]],
+    rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`],
+      ["Threshold", thresholdText((heard[0] ?? run?.dets[0])?.scientific_name, minConf(), thresholdsFile?.species)]],
     actions: run && html`<div class="species-pop-review"><span>${time(new Date(run.start))}</span>${run.review
       ? [html`<span class="review-state">${run.review === "rejected" ? "✗ Rejected" : "✓ Confirmed"}</span>`, act("Undo", null)]
       : [act("Confirm", "confirmed"), act("Reject", "rejected")]}</div>`
@@ -691,7 +696,7 @@ for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListen
 //   they sing. Low-voiced birds (doves, owls, crows) go thin with it, which is why it's a switch.
 // - Calls up front: between BirdNET's detections the sound dips DUCK_DB (never silent, so the
 //   backyard and the calls it missed still come through); it rises to full DUCK_LEAD ms before a
-//   detection's 3 s window and falls DUCK_TAIL ms after it. A "?" detection (below MIN_CONF)
+//   detection's 3 s window and falls DUCK_TAIL ms after it. A "?" detection (below its threshold)
 //   opens it halfway. The page is a minute behind, so every detection is known before it plays.
 // After it, always, leveling: the recorder keeps its gain fixed so stored audio keeps true
 // loudness, which leaves it quiet (background about -60 dBFS, bird calls peaking around -42).
@@ -932,7 +937,7 @@ function summarize() {
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
   heardHeading.textContent = `Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}`;
   const detections = [...strips.flatMap((s) => s.detections), ...unidentifiedDetections(strips)].filter((d) =>
-    shownInGantt({confidence: d.confidence, review: reviewOf(d)}, confidentOnly.checked, MIN_CONF) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
+    shownInGantt({confidence: d.confidence, review: reviewOf(d), scientific_name: d.scientific_name}, confidentOnly.checked, minConf(), thresholdsFile?.species) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
   const rows = d3.groups(detections, (d) => d.common_name).map(([name, v]) => {
     const byMinute = d3.rollup(v, (w) => ({best: d3.max(w, (d) => d.confidence), first: d3.min(w, (d) => Date.parse(d.at)), confident: w.some(accepted)}),
       (d) => Math.floor(Date.parse(d.at) / 60e3) * 60e3);
@@ -1063,6 +1068,11 @@ async function poll() {
       if (!j || JSON.stringify(j) === JSON.stringify(serverReviews)) return;
       serverReviews = j;
       for (const [k, v] of localReviews) if ((serverReviews[k] ?? null) === v) localReviews.delete(k); // the Pi has it now
+      draw(); summarize();
+    }).catch(() => {});
+    fetch(LIVE + "thresholds.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).then((j) => {
+      if (!j || JSON.stringify(j) === JSON.stringify(thresholdsFile)) return;
+      thresholdsFile = j;
       draw(); summarize();
     }).catch(() => {});
     const r = await fetch(LIVE + "live.json", {cache: "no-store"});
