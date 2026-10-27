@@ -29,8 +29,9 @@ species are:
 
 House Finch is right far below the shared threshold, so the dashboard misses
 many of its calls. Northern Saw-whet Owl, Peregrine Falcon, and Common Loon
-are wrong even at high confidence, so no threshold below 1 removes them. A
-recurring sound near the recorder probably matches the owl.
+are wrong even at high confidence, so no threshold below 1 removes them. The
+owl detections were all trucks' backup beeps, which resemble its repeated
+whistled notes.
 
 ## How thresholds are learned
 
