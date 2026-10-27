@@ -162,10 +162,11 @@ and the site build pass. Deployment follows the automatic main workflow.
 
 ### Overview automatic refresh
 
-October 27, 2026: `codex/overview-refresh` adds periodic metadata checks and
+October 27, 2026: PR #42 adds periodic metadata checks and
 refresh-on-return to Overview. Worker HEAD requests inspect R2 metadata without
 reading bodies. Only changed resources reload, and failed requests keep the
-last successful data. No Pi changes or deployment have occurred.
+last successful data. Website deployment follows the automatic main workflow.
+No Pi update is required. Reload an already-open page once to load the new code.
 
 Regression tests cover unchanged versions, hidden tabs, focus/resume, failed
 refresh retries, in-flight work, cleanup and authenticated metadata routes.
