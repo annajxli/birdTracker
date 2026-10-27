@@ -23,9 +23,9 @@ The following table lists the deployed components:
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
-- October 27, 2026: `07141fd` (`main`) to `pio` with `push.sh pio@192.168.0.113`: the weekly operating system install (`birdtracker-upgrade.timer`), and the Overview and Hardware analytics changes through #27. Verified the same morning: the three services are active, both timers are scheduled (install Sunday, November 1, 2026, at 3:30 AM PST), `deployed.json` reports `07141fd` with no uncommitted changes, and the update check found 0 upgradable packages. The check's `next_install` was empty, from a bug in reading the timer; the fix is on `claude/next-install-json`. To roll back, run `push.sh` from `b77256c`.
+- October 27, 2026: `07141fd` (`main`) to `pio` with `push.sh pio@192.168.0.113`: the weekly operating system install (`birdtracker-upgrade.timer`, running `apt-get full-upgrade`), and the Overview and Hardware analytics changes through #27. Verified the same morning: the three services are active, both timers are scheduled (install Sunday, November 1, 2026, at 3:30 AM PST), `deployed.json` reports `07141fd` with no uncommitted changes, and the update check found 0 upgradable packages. The check's `next_install` was empty, from a bug in reading the timer; the fix is on `claude/next-install-json`. To roll back, run `push.sh` from `b77256c`.
 - October 26, 2026: `b77256c` (branch `claude/pi-update-check`) to `pio` with `push.sh`: the deployed code version in `deployed.json`, and the weekly operating system update check (`birdtracker-updates.timer`). Verified the same evening: the three services are active, the timer is scheduled, the first check finished in about a minute and found 21 upgradable packages, 11 of them security updates, with no reboot required, and `status.json` includes `code` and `updates`. The Hardware analytics page doesn't show them yet. To roll back, run `push.sh` from `301a84b`.
-- October 26, 2026: `a9b92cd` to `pio` with `push.sh`, no service overrides. That commit was later rebased; its deployed code matches the merge of `claude/publisher-deploy`: the publisher checks reviews and uploads Live day files at its `--reviews-seconds` and `--history-seconds` defaults, and counts R2 usage. Includes `main`'s spectrogram fix. Verified the same evening: a new minute's spectrogram, MP3s, and `live.json` reached R2 about a minute after the minute ended, as before, with `live.json` last; `days.json` and the day file updated 5 minutes after the first pass; a test review put straight into `reviews/` was applied within 5 minutes; `data/publish-usage.json` is valid, grew, and kept its totals across a publisher restart, and no usage file is in the bucket. Not verified: playback in a browser, and a review sent through the website. To roll back, run `push.sh` from `c9d5827`.
+- October 26, 2026: `a9b92cd` to `pio` with `push.sh`, no service overrides. That commit was later rebased; its deployed code matches the merge of `claude/publisher-deploy`: the publisher checks reviews and uploads Live day files at its `--reviews-seconds` and `--history-seconds` defaults, and counts R2 usage. Includes `main`'s spectrogram fix. Verified the same evening: a new minute's spectrogram, MP3s, and `live.json` reached R2 about a minute after the minute ended, as before, with `live.json` last; `days.json` and the day file updated 5 minutes after the first pass; a test review put straight into `reviews/` was applied within 5 minutes; `data/publish-usage.json` is valid, grew, and kept its totals across a publisher restart, and no usage file is in the bucket. Not verified: a review sent through the website. Playback in a browser was verified later on October 26. To roll back, run `push.sh` from `c9d5827`.
 - October 26, 2026: `c9d5827` to `pio`: counts of birdsong windows and unidentified birdsong per minute.
 - October 26, 2026: `432e9b9` to `pio`: detection reviews applied by the publisher.
 - October 25, 2026: `65f7b38` to `pio`: non-bird sounds veto birds and are listed on Live strips.
@@ -55,11 +55,15 @@ host alias. Don't include secrets.
 - **Power.** `vcgencmd get_throttled` reports under-voltage and throttling
   with the current power supply. Replace it with a 5 V, 2.5 A supply, and check
   again.
-- **Operating system updates.** The 21 packages that the first weekly check
-  found were installed at 3:01 AM on October 27, 2026, with no reboot
-  required. The weekly install timer, `birdtracker-upgrade.timer`, is
-  deployed, but hasn't run on its schedule yet. After November 1, 2026, check
-  its first run with `journalctl -u birdtracker-upgrade`. For details, see
+- **Operating system updates.** On October 26, 2026, the first weekly check
+  found 21 upgradable packages, 11 of them security updates. A one-time
+  `apt-get full-upgrade` installed all 21 at 3:00 AM on October 27, 2026. It
+  needed no reboot, the kernel stayed at `6.18.50+rpt-rpi-v8`, the three
+  services kept running, and the check afterward found no updates. The Pi's
+  weekly install timer, `birdtracker-upgrade.timer`, is from `07141fd` and
+  runs `apt-get full-upgrade`; the security-only install on `main` isn't
+  deployed. After you deploy it, check its first run with
+  `journalctl -u birdtracker-upgrade`. For details, see
   [Update the operating system](deploy.md#update-the-operating-system).
 - **Publisher usage.** After several complete UTC days on `a9b92cd` or later, compare
   the call counts and upload bytes in `data/publish-usage.json` with R2's
@@ -76,6 +80,10 @@ against real recordings. For details, see
 [How the dashboard counts](architecture.md#how-the-dashboard-counts).
 
 ### Recorder hardware
+
+The recorder's power bank ran out at 4:21 AM on October 27, 2026, and the
+recorder streamed again from 7:50 AM on a replacement. The Live page shows the
+time between as a gap.
 
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 1](bench-test-1.md#plan-for-bench-test-2).

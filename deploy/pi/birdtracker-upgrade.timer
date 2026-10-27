@@ -1,5 +1,5 @@
 [Unit]
-Description=Bird Tracker: install operating system updates weekly
+Description=Bird Tracker: install operating system security updates weekly
 
 [Timer]
 OnCalendar=Sun *-*-* 03:30

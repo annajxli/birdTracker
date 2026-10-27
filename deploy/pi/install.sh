@@ -15,6 +15,10 @@ fi
 .venv/bin/pip install -q -r deploy/pi/requirements.txt
 mkdir -p data
 
+# The weekly install runs unattended-upgrade, limited to security updates.
+dpkg -s unattended-upgrades > /dev/null 2>&1 || sudo apt-get install -y -q unattended-upgrades
+sudo install -m 644 deploy/pi/52birdtracker-unattended-upgrades /etc/apt/apt.conf.d/
+
 for unit in receiver.service analyzer.service publish.service updates.service updates.timer upgrade.service upgrade.timer; do
   sed -e "s#%BIRD_HOME%#$HOME_DIR#g" -e "s#%BIRD_USER%#$USER_NAME#g" \
     "deploy/pi/birdtracker-$unit" | sudo tee "/etc/systemd/system/birdtracker-$unit" > /dev/null
@@ -24,7 +28,7 @@ for svc in receiver analyzer publish; do
   sudo systemctl enable "birdtracker-$svc" > /dev/null
   sudo systemctl restart "birdtracker-$svc"
 done
-# The weekly install and update check, and a check now, so the Hardware analytics page has a result.
+# The weekly security install and update check, and a check now, so the Hardware analytics page has a result.
 sudo systemctl enable --now birdtracker-upgrade.timer birdtracker-updates.timer > /dev/null
 sudo systemctl start --no-block birdtracker-updates.service
 systemctl --no-pager --lines=0 status birdtracker-receiver birdtracker-analyzer birdtracker-publish | grep -E "●|Active:"
