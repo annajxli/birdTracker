@@ -84,6 +84,17 @@ export function periodInput({first, last}) {
       root.dispatchEvent(new Event("input", {bubbles: true}));
     }
   };
+  // Extend the available data without remounting or resetting the viewer's selection.
+  root.setBounds = (limits) => {
+    if (first === limits.first && last === limits.last) return;
+    first = limits.first;
+    last = limits.last;
+    widths.clear();
+    const date = clampDate(root.value.date);
+    const changed = date !== root.value.date;
+    if (changed) root.value = {...root.value, date};
+    render(changed);
+  };
   root.move = (direction) => {
     const candidate = shiftPeriod(root.value.scale, root.value.date, direction);
     if (candidate.end < first || candidate.start > last) return;

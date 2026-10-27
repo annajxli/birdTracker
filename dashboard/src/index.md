@@ -7,6 +7,7 @@ toc: false
 
 
 ```js
+import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
@@ -15,9 +16,42 @@ import {biggestMonthlyChanges, windowChanges} from "./components/changes.js";
 ```
 
 ```js
-const [all, photos, sun, categories, weather, weatherHourly, recordedUntil, recordings, thresholdsFile] = await Promise.all([
-  loadDetections(), loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadRecordedUntil(), recordingsTable().catch(() => null), loadThresholds()
+const [photos, sun, categories, weather, weatherHourly] = await Promise.all([
+  loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly()
 ]);
+```
+
+```js
+const readOverview = async ({previous = {}, changed = ["detections", "recordings", "thresholds"]} = {}) => {
+  const firstLoad = !previous.all;
+  const [all, recordings, thresholdsFile, recordedUntil] = await Promise.all([
+    changed.includes("detections") ? loadDetections({fallback: firstLoad}) : previous.all,
+    changed.includes("recordings") ? recordingsTable({fallback: firstLoad}).catch((error) => { if (!firstLoad) throw error; return null; }) : previous.recordings,
+    changed.includes("thresholds") ? loadThresholds({required: !firstLoad}) : previous.thresholdsFile,
+    loadRecordedUntil().then((value) => value ?? previous.recordedUntil ?? null)
+  ]);
+  return {all, recordings, thresholdsFile, recordedUntil};
+};
+// Probe before the first GET, so an upload during initial loading isn't missed.
+const initialVersions = await overviewVersions();
+const initialOverview = await readOverview();
+const initialLimits = overviewLimits(initialOverview, new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}));
+```
+
+```js
+const overviewData = Generators.observe((notify) => {
+  notify(initialOverview);
+  let releaseScroll = () => {};
+  const refresh = startOverviewRefresh({initial: initialOverview, versions: initialVersions,
+    load: readOverview, publish: notify,
+    beforeUpdate: () => { releaseScroll(); releaseScroll = preserveOverviewScroll(); }
+  });
+  return () => { refresh.stop(); releaseScroll(); };
+});
+```
+
+```js
+const {all, recordings, thresholdsFile, recordedUntil} = overviewData;
 // Learned per-species thresholds (scientific name -> entry); the confidence control covers the rest.
 const thresholds = thresholdsFile?.species ?? null;
 // Minutes with birdsong BirdNET couldn't name (the recorder's unidentified_windows, when it has
@@ -74,7 +108,7 @@ const unidentified = unidentifiedMinutes.filter((u) => !namedMinutes.has(Math.fl
 </div>
 
 ```js
-const periodIn = periodInput({first: dataStart, last: latest});
+const periodIn = periodInput(initialLimits);
 invalidation.then(() => periodIn.destroy());
 const selection = Generators.input(periodIn);
 
@@ -117,6 +151,7 @@ const sortBy = Generators.input(sortIn);
 
 
 ```js
+periodIn.setBounds({first: d3.min(recordedDates), last: latest});
 const bounds = periodBounds(selection.scale, selection.date);
 const {start, end} = overviewBounds(selection.scale, selection.date, dataStart, latest);
 // Statistics use real rows, while calendar axes retain unrecorded/future dates.

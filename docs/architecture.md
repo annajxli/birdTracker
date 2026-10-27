@@ -365,3 +365,25 @@ Older strips without the field remain compatible. The analyzer writes one
 interval for each 3-second window that counts as unidentified birdsong
 (`read_unidentified` in `pipeline/analyzer.py`), the same windows that the
 per-minute `unidentified_windows` count includes.
+
+
+## Overview data refresh
+
+The Overview page checks published detection, recording and threshold file
+versions at `OVERVIEW_REFRESH_MS` in
+`dashboard/src/components/overview-refresh.js`. The password Worker answers
+authenticated HEAD requests with R2 object metadata and no file body. Unchanged
+ETags cause no table downloads or chart updates. Visibility changes and window
+focus trigger an immediate check; hidden pages suspend periodic checks.
+
+Changed resources load into one snapshot before the charts update. A failed
+refresh keeps the last successful snapshot and retries. Built-in data is a
+fallback for initial loading only. The calendar, confidence and sort controls,
+category expansion choices and open options stay mounted during data updates.
+The picker extends its available date bounds without resetting the selected
+date or span. A brief scroll hold preserves the position through chart layout
+and releases when you interact with the page.
+
+The browser check interval is independent of the publisher's
+`--detections-minutes` option in `pipeline/publish.py`. Checking more often does
+not make the Pi upload new tables more often, and needs no Pi deployment.

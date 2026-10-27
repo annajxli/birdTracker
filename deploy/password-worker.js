@@ -112,7 +112,8 @@ async function media(request, env, path) {
     : path.startsWith("/api/live/") ? "live/" + path.slice("/api/live/".length) : path.slice("/api/clips/".length);
   const valid = DATA.has(path) || (/^(clips|live)\/[\w\-./]+$/.test(key) && !key.includes(".."));
   if (!env.MEDIA || !valid) return new Response("not found", {status: 404});
-  const object = await env.MEDIA.get(key, {range: request.headers});
+  const head = request.method === "HEAD";
+  const object = head ? await env.MEDIA.head(key) : await env.MEDIA.get(key, {range: request.headers});
   if (!object) return new Response("not found", {status: 404});
   const headers = new Headers();
   object.writeHttpMetadata(headers);
@@ -131,7 +132,7 @@ async function media(request, env, path) {
   } else {
     headers.set("Content-Length", String(object.size));
   }
-  return new Response(object.body, {status, headers});
+  return new Response(head ? null : object.body, {status, headers});
 }
 
 // Sent with every page: no framing by other sites, no MIME sniffing, no referrer to
