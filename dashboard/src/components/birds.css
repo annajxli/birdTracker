@@ -1602,6 +1602,16 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   position: absolute;
   background: #14110d repeating-linear-gradient(-45deg, rgba(232, 224, 207, 0.28) 0 0.7px, transparent 0.7px 4.95px);
 }
+.live-offline-label {
+  position: sticky;
+  left: 8px;
+  display: inline-block;
+  margin: 8px;
+  padding: 2px 6px;
+  background: #14110d;
+  color: #e8e0cf;
+  font: 12.5px var(--sans-serif);
+}
 .live-tick {
   position: absolute;
   padding: 4px 0 0 4px;
@@ -2020,7 +2030,8 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 }
 
 .live-overview-bars > span { flex: 1; border-right: 1px solid var(--theme-background); }
-.live-overview-bars > .is-empty { height: 2px; background: var(--theme-foreground-faintest); }
+/* No audio: hatched like the spectrogram's gaps, so it reads apart from quiet audio. */
+.live-overview-bars > .is-empty { height: 100%; background: repeating-linear-gradient(-45deg, var(--theme-foreground-faint) 0 1px, transparent 1px 4px); }
 .live-overview-bars > .is-quiet { height: 18%; background: var(--theme-foreground-faint); }
 .live-overview-bars > .has-birds { background: #2ab610; }
 .live-overview-bars > span:hover { outline: 1px solid var(--theme-foreground-muted); }
