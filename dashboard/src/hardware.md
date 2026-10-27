@@ -301,6 +301,10 @@ const updatesCard = (() => {
     html`<div class="sub">${[u.os, u.kernel && `kernel ${u.kernel}`].filter(Boolean).join(" · ")}</div>${u.packages?.length ? html`<details class="software-packages"><summary>${u.packages.length < u.upgradable ? `First ${u.packages.length} packages` : "Packages"}</summary>
       <ul class="software-list">${u.packages.map((p) => html`<li><span>${p.name}${p.security ? html` <span class="status status-warning"><span class="status-icon" aria-hidden="true">▲</span>security</span>` : ""}</span><span class="sub">${p.from ? `${p.from} → ` : "new · "}${p.to}</span></li>`)}</ul></details>` : ""}`);
 })();
+// An open package list closes on a click outside it.
+const closePackages = (e) => document.querySelectorAll(".software-packages[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+document.addEventListener("click", closePackages);
+invalidation.then(() => document.removeEventListener("click", closePackages));
 const piSection = pi && html`<div class="grid stats">
   ${pi.temp_c != null ? meterCard("CPU temperature", `${d3.format(".0f")(pi.temp_c)} °C`, meter(pi.temp_c, TEMP_ZONES, (v) => `${v}°`), "CPU throttles at 80 °C", statusStrip(piHistory, "temp_c", TEMP_ZONES, (v) => `${v} °C`)) : ""}
   ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
