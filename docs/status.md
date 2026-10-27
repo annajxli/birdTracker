@@ -158,3 +158,13 @@ checks), 32 dashboard tests, the password Worker tests, the site build with 30
 validated links, and `git diff --check`. These checks validate code paths, not
 speech recall or real-bird preservation. The dashboard owner has the optional
 `muted` strip-field contract; no Live page was edited by this branch.
+
+
+October 27, 2026: Anna selected the home-network session to run the evaluation.
+That session isn't visible to this chat's thread tools. The plan contains the
+corpus-copy and offline-run handoff. Evaluation reports append new runs without
+rewriting the October 26 record. The full corpus evaluation and production
+implementation remain pending its results.
+
+Home-session handoff checks pass: 15 pipeline tests, 32 dashboard tests,
+password Worker tests, the site build with 30 validated links, and whitespace.

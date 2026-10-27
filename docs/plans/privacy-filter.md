@@ -289,3 +289,48 @@ Run all the checks in [AGENTS.md](../../AGENTS.md#checks) before you commit.
   enough.
 - **Passing the tests isn't proof of privacy.** The filter reduces exposure.
   It doesn't guarantee that no voice is ever published.
+
+
+## Run the evaluation from the home-network session
+
+Run inference on the development laptop, not as a second classifier on the Pi.
+Use a separate worktree for `codex/voice-filter`, and preserve any other agent's
+uncommitted changes. Confirm the laptop has the evaluator's NumPy, SciPy,
+SoundFile and LiteRT dependencies. Copy only audio and model files; don't copy
+`birdtracker.env` or other credentials.
+
+From the branch's repository root, prepare the ignored corpus as follows:
+
+```bash
+STATION_HOST=pio
+EVAL_DIR=data/privacy-eval
+mkdir -p "$EVAL_DIR/background" "$EVAL_DIR/birds" "$EVAL_DIR/models"
+rsync -az --exclude='*.clean.mp3' --include='*.mp3' --exclude='*' "$STATION_HOST:birdtracker/data/live/" "$EVAL_DIR/background/"
+rsync -az --include='*/' --include='*.ogg' --exclude='*' "$STATION_HOST:birdtracker/data/clips/" "$EVAL_DIR/birds/"
+rsync -az "$STATION_HOST:birdtracker/models/" "$EVAL_DIR/models/"
+export BIRDNET_MODELS="$PWD/$EVAL_DIR/models"
+```
+
+`STATION_HOST` is the SSH alias for the station. Replace `pio` if the laptop uses
+a different alias. `EVAL_DIR` is the ignored local evaluation folder. If the
+remote installation isn't under `birdtracker/`, use its actual path.
+
+On a macOS development laptop, generate speech files and run the evaluation:
+
+```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 .venv/bin/python pipeline/privacy_eval.py --background "$EVAL_DIR/background" --birds "$EVAL_DIR/birds" --speech "$EVAL_DIR/speech" --out "$EVAL_DIR" --generate-speech --threads 1
+```
+
+The synthesis command uses installed voices and writes AIFF files. It doesn't
+play sound or download voices. On another operating system, use the generated
+AIFFs and matching `synthesis.json` from a macOS run and omit
+`--generate-speech`. Don't download a public speech dataset without asking.
+
+Check that the corpus covers at least a full day and includes the station's
+bird clips. Don't use `--allow-incomplete` to select a production threshold.
+The process caches scores and logs progress, so it can resume on the same
+corpus after interruption. Keep its inputs, comparisons and CSV local. Return
+the threshold table, input coverage, model hashes, limitations and selected
+threshold or failure reason. Append the results to the evaluation record and
+update Status. Don't play audio, change production services, deploy or merge as
+part of this evaluation handoff.

@@ -347,10 +347,10 @@ def eligibility(inputs):
 
 def report(path, inputs, result):
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = ["# Voice-filter evaluation results", "", f"Evaluation date: {datetime.now(UTC).astimezone(ZoneInfo('America/Los_Angeles')).date().isoformat()}.", "",
-            "## Inputs", "", f"- Real background files: {len(inputs['background'])}; unique timestamped coverage: {coverage_seconds(inputs['background']) / 3600:.3f} hours.",
+    text = [f"## Evaluation {datetime.now(UTC).astimezone(ZoneInfo('America/Los_Angeles')).isoformat(timespec='seconds')}", "",
+            "### Inputs", "", f"- Real background files: {len(inputs['background'])}; unique timestamped coverage: {coverage_seconds(inputs['background']) / 3600:.3f} hours.",
             f"- Bird clips: {len(inputs['birds'])}.", f"- Speech files: {len(inputs['speech'])}; duration: {sum(x['seconds'] for x in inputs['speech']):.1f} seconds.",
-            "- Exact local input paths and SHA-256 hashes are in the ignored evaluation manifest.", "", "## Threshold results", ""]
+            "- Exact local input paths and SHA-256 hashes are in the ignored evaluation manifest.", "", "### Threshold results", ""]
     if result.get("thresholds"):
         text += ["| Threshold | Speech +10 dB | Speech 0 dB | Speech −10 dB | Speech −20 dB | Audio muted | Confident detections touched | Bird clips flagged |", "| --- | --- | --- | --- | --- | --- | --- | --- |"]
         def percent(value):
@@ -363,10 +363,16 @@ def report(path, inputs, result):
     text += ["", "Generated voice identities: " + ", ".join(sorted({x.get("voice", "unverified") for x in inputs["speech"]})) + "."]
     if len(inputs["background"]) <= 10:
         text += ["", "Background input names: " + ", ".join(Path(x["path"]).name for x in inputs["background"]) + "."]
-    text += ["", f"Selected threshold: {result.get('selected_threshold') if result.get('selected_threshold') is not None else 'none'}.", "", "## Limitations", ""]
+    text += ["", f"Selected threshold: {result.get('selected_threshold') if result.get('selected_threshold') is not None else 'none'}.", "", "### Limitations", ""]
     text += ["- " + item for item in result.get("limitations", [])]
     text += ["", "No audio was played. No production muting or deployment is enabled by this evaluation.", ""]
-    path.write_text("\n".join(text))
+    # Evaluation records are append-only: retain previous inputs and outcomes.
+    with path.open("a") as stream:
+        if path.stat().st_size == 0:
+            stream.write("# Voice-filter evaluation results\n\n")
+        else:
+            stream.write("\n---\n\n")
+        stream.write("\n".join(text))
 
 
 def main(argv=None):
@@ -405,9 +411,8 @@ def main(argv=None):
         "lat": args.lat, "lon": args.lon, "threads": args.threads,
         "python": sys.version,
     }, indent=2) + "\n")
-    # Clear any older report before loading models or running a long corpus.
+    # Clear the machine-readable result before loading models or running a long corpus.
     (args.out / "results.json").write_text(json.dumps(result, indent=2) + "\n")
-    report(args.report, inputs, result)
     if args.inventory_only:
         if importlib.util.find_spec("ai_edge_litert") is None:
             result["limitations"].append("LiteRT is unavailable in this environment; the full run needs the runtime and BirdNET model files.")

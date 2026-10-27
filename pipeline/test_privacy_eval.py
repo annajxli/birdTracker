@@ -112,3 +112,18 @@ class HarnessTests(unittest.TestCase):
             self.assertEqual(result['thresholds'][0]['speech_recall']['0'], 1)
             self.assertTrue((root/'muted-spans.csv').exists())
             self.assertEqual(len(list((root/'compare').glob('*-before.mp3'))), 2)
+
+
+class ReportTests(unittest.TestCase):
+    def test_new_results_preserve_earlier_records(self):
+        from privacy_eval import report
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'report.md'
+            inputs = {'background': [], 'birds': [], 'speech': []}
+            result = {'thresholds': [], 'selected_threshold': None, 'limitations': ['incomplete corpus']}
+            report(path, inputs, result)
+            original = path.read_text()
+            report(path, inputs, result)
+            updated = path.read_text()
+            self.assertTrue(updated.startswith(original))
+            self.assertEqual(updated.count('## Evaluation '), 2)
