@@ -44,13 +44,15 @@ def os_name() -> str | None:
 def next_install() -> str | None:
     """When the install timer runs next, as UTC ISO 8601, or None if it isn't enabled."""
     try:
-        out = subprocess.run(["systemctl", "show", "--timestamp=unix", "--property=NextElapseUSecRealtime", "--value",
-                              "birdtracker-upgrade.timer"], capture_output=True, text=True, timeout=30).stdout.strip()
-    except (OSError, subprocess.TimeoutExpired):
+        out = subprocess.run(["systemctl", "list-timers", "--all", "--output=json", "birdtracker-upgrade.timer"],
+                             capture_output=True, text=True, timeout=30).stdout
+        timers = json.loads(out or "[]")
+    except (OSError, subprocess.TimeoutExpired, ValueError):
         return None
-    if not out.startswith("@"):
+    usec = timers[0].get("next") if timers else None  # microseconds since the epoch
+    if not usec:
         return None
-    return datetime.fromtimestamp(int(out[1:]), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.fromtimestamp(usec / 1e6, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def check() -> dict:

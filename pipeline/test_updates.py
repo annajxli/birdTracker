@@ -30,9 +30,9 @@ class UpdatesTest(unittest.TestCase):
 
     def test_next_install_reads_the_timer(self):
         with mock.patch.object(updates.subprocess, "run") as run:
-            run.return_value.stdout = "@1793529000\n"
-            self.assertEqual(updates.next_install(), "2026-11-01T10:30:00Z")
-            run.return_value.stdout = "\n"  # the timer isn't enabled
+            run.return_value.stdout = '[{"next": 1793532600000000, "unit": "birdtracker-upgrade.timer"}]'
+            self.assertEqual(updates.next_install(), "2026-11-01T11:30:00Z")  # 3:30 AM PST
+            run.return_value.stdout = "[]"  # the timer isn't installed
             self.assertIsNone(updates.next_install())
 
     def test_status_includes_code_and_updates(self):
