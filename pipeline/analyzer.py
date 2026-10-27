@@ -190,6 +190,7 @@ def process(audio: Path, args, conn) -> int:
         rows = list(read_results(csv_path, args.station, None))
         sounds = read_sounds(csv_path.with_name(f"{audio.stem}.BirdNET.sounds.csv"), start)
         activity = read_activity(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"))
+        unidentified = read_unidentified(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"), start)
 
     for r in rows:
         r["source_file"] = audio.name  # BirdNET reports the full path; keep just the name
@@ -234,7 +235,7 @@ def process(audio: Path, args, conn) -> int:
             (args.data / old_path).unlink(missing_ok=True)
             (args.data / old_path).with_suffix(".webp").unlink(missing_ok=True)
     if args.live_hours > 0:
-        queue_live(audio, rows, sounds, args)
+        queue_live(audio, rows, sounds, args, unidentified)
     return inserted
 
 
@@ -251,7 +252,7 @@ def read_sounds(path: Path, start: datetime) -> list[dict]:
                  "sound": r["Sound"], "confidence": round(float(r["Confidence"]), 3)} for r in csv.DictReader(f)]
 
 
-def queue_live(audio: Path, rows: list[dict], sounds: list[dict], args) -> None:
+def queue_live(audio: Path, rows: list[dict], sounds: list[dict], args, unidentified: list[dict] = ()) -> None:
     """Hand the near-live view's work (spectrogram, cleaned copy, two MP3s: ~40 s a minute on a
     Pi 3B+) to a background thread, so BirdNET starts on the next minute meanwhile on the other
     cores; in turn, a minute took longer than a minute. The thread gets its own hard link to the
@@ -267,12 +268,12 @@ def queue_live(audio: Path, rows: list[dict], sounds: list[dict], args) -> None:
         shutil.copy2(audio, copy)
     if _live_worker is None:
         _live_worker = ThreadPoolExecutor(1, thread_name_prefix="live")
-    _live_worker.submit(live_job, copy, rows, sounds, args)
+    _live_worker.submit(live_job, copy, rows, sounds, args, unidentified)
 
 
-def live_job(copy: Path, rows: list[dict], sounds: list[dict], args) -> None:
+def live_job(copy: Path, rows: list[dict], sounds: list[dict], args, unidentified: list[dict] = ()) -> None:
     try:
-        update_live(copy, rows, args, sounds)
+        update_live(copy, rows, args, sounds, unidentified)
     except Exception:  # the near-live view is a nicety; the detections are already stored
         log.exception("couldn't add %s to the live view", copy.name)
     finally:
@@ -308,6 +309,18 @@ def read_activity(path: Path) -> tuple[int, int] | None:
     return len(birds), sum(1 for best in birds if best < LIVE_MIN_CONF)
 
 
+def read_unidentified(path: Path, start: datetime) -> list[dict]:
+    """The windows that read_activity counts as unidentified birdsong, as {"at", "seconds"} for the
+    Live page, which draws them as "Unidentified bird" (dashboard/src/components/live-unidentified.js)."""
+    if not path.exists():
+        return []
+    with path.open(newline="") as f:
+        return [{"at": (start + timedelta(seconds=float(r["Start (s)"]))).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "seconds": SEGMENT_SECONDS}
+                for r in csv.DictReader(f)
+                if float(r["Any bird"]) >= ANY_BIRD and float(r["Best species"]) < LIVE_MIN_CONF]
+
+
 def record_telemetry(audio: Path, start: datetime, args, conn, activity: tuple[int, int] | None = None) -> None:
     """The recording's row in the recordings table (Hardware analytics): its length less any
     filled-in silence, background level, and the receiver's notes in <name>.json, when there
@@ -337,7 +350,7 @@ def silence_fills(data, rate: int, min_seconds: float = 0.25) -> list[list[float
     return [[round(float(a) / rate, 2), round(float(b) / rate, 2)] for a, b in zip(edges[::2], edges[1::2]) if b - a >= min_seconds * rate]
 
 
-def update_live(audio: Path, rows: list[dict], args, sounds: list[dict] = ()) -> None:
+def update_live(audio: Path, rows: list[dict], args, sounds: list[dict] = (), unidentified: list[dict] = ()) -> None:
     """Add the recording's spectrogram strip and MP3s to live/, list it in live/live.json and its
     day's file, and drop strips older than --live-hours. Strip lists are oldest first, each strip
     with its detections."""
@@ -369,6 +382,7 @@ def update_live(audio: Path, rows: list[dict], args, sounds: list[dict] = ()) ->
         "clean": cleaned.name,
         **({"gaps": gaps} if gaps else {}),
         **({"sounds": sorted(sounds, key=lambda s: s["at"])} if sounds else {}),
+        **({"unidentified": list(unidentified)} if unidentified else {}),
         "detections": [
             {"at": r["detected_at"], "common_name": r["common_name"], "scientific_name": r["scientific_name"],
              "confidence": round(r["confidence"], 3)}
