@@ -31,13 +31,19 @@ if (!all.length) {
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
   await new Promise(() => {});
 }
-const latest = d3.max(all, (d) => d.date);
+// Days with audio from the recorder (not simulated), or with a detection.
+const recordedDates = new Set(all.map((d) => d.date));
+if (recordings) {
+  const date = recordings.getChild("date"), simulated = recordings.getChild("simulated");
+  for (let i = 0; i < recordings.numRows; ++i) if (!simulated?.get(i)) recordedDates.add(date.get(i));
+}
+// The newest of them, so a new day starts at midnight while the recorder runs.
+const latest = d3.max(recordedDates);
 const dataStart = d3.min(all, (d) => d.date);
 const yearAgo = d3.utcDay.offset(d3.utcYear.offset(new Date(latest), -1), 1).toISOString().slice(0, 10);
 // The year-round charts always span a full year; weeks before recording began stay blank.
 const presenceStart = yearAgo;
 const presenceEnd = latest;
-const recordedDates = new Set(all.map((d) => d.date));
 ```
 
 ```js
