@@ -209,11 +209,26 @@ Make sure that you have the following:
 
 ### Update the services
 
-To update the Pi after a pipeline change, run `deploy/pi/push.sh` again.
+To update the Pi after a pipeline change, run `deploy/pi/push.sh` again. The
+Hardware analytics page shows whether the Pi runs the latest code on `main`.
 
 **Caution:** `push.sh` restarts all three services, so recording stops for a
 short time. Before you run it, make sure that every change in your checkout is
 meant for the Pi.
+
+### Update the operating system
+
+The weekly update check only reports updates, on the Hardware analytics page.
+To install them, on the Pi, run the following commands:
+
+```bash
+sudo apt-get update
+sudo apt-get full-upgrade
+```
+
+If the page then shows that a reboot is required, run `sudo reboot`. The
+services start again on their own. To refresh the page's report without waiting
+for the next weekly check, run `sudo systemctl start birdtracker-updates`.
 
 ### Check the services
 
@@ -223,7 +238,8 @@ To follow a service's log, on the Pi, run the following command:
 journalctl -u birdtracker-analyzer -f
 ```
 
-The other services are `birdtracker-receiver` and `birdtracker-publish`.
+The other services are `birdtracker-receiver`, `birdtracker-publish`, and
+`birdtracker-updates`, the weekly update check.
 
 The pages load the newest data from R2 when they open, so new detections
 appear without a rebuild. How often the publisher uploads each kind of data

@@ -117,6 +117,18 @@ and contain no object keys or credentials. They aren't a bill: they leave out
 downloads, website requests, and automatic HTTP retries. For details, see
 `pipeline/publish_usage.py`.
 
+`status.json` also reports which code the indoor computer runs and whether its
+operating system has updates. When `deploy/pi/push.sh` deploys, it records the
+commit and a fingerprint of the deployed files' contents
+(`pipeline/code_version.py`) in `deployed.json` on the Pi. A weekly systemd
+timer, `deploy/pi/birdtracker-updates.timer`, runs `pipeline/updates.py`,
+which refreshes apt's package lists and simulates an upgrade without installing
+anything. The site's build exports the fingerprints of the recent commits on
+`main` that changed the deployed files (`dashboard/src/data/pi-code.json.py`).
+The Hardware analytics page finds the Pi's fingerprint in that list, so it can
+count the updates the Pi is missing, even when the Pi's code came from a branch
+that was later squash-merged.
+
 If you set the `GITHUB_TOKEN` environment variable, the publisher starts the
 deploy workflow after each snapshot, so the built site includes the newest
 data.
@@ -248,7 +260,8 @@ appears without a rebuild. The site has the following pages:
 - **Species**: every species heard, with photos and counts.
 - **Display**: a slideshow of the Overview charts for a wall screen.
 - **Hardware analytics**: recorder coverage, background level, Wi-Fi signal,
-  pipeline delay, and the indoor computer's health.
+  pipeline delay, and the indoor computer's health, code version, and
+  operating system updates.
 - **Detections**: a table of every detection, including rejected ones, where
   you can also confirm or reject detections.
 

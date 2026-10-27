@@ -6,7 +6,8 @@ with the data folder:
   live/     the near-live view's spectrogram strips and live.json, every
             --interval seconds (the analyzer writes one strip per minute), and
             status.json: the indoor computer's health (temperature, CPU,
-            memory, storage, uptime, and a day of it every 5 minutes), written
+            memory, storage, uptime, and a day of it every 5 minutes), the
+            deployed code version and the weekly OS update check, written
             here once a minute for the Hardware analytics page
   clips/    detection clips and their spectrograms, every --interval seconds
   data/detections.parquet
@@ -255,6 +256,13 @@ class Health:
                                 "under_voltage_since_boot": bool(flags & 0x10000), "throttled_since_boot": bool(flags & 0x40000)}
         except (OSError, IndexError, ValueError, subprocess.SubprocessError):
             pass
+        # Which code is deployed (deploy/pi/push.sh) and the weekly operating system update check
+        # (pipeline/updates.py), for the page to compare with main.
+        for key, path in (("code", ROOT / "deployed.json"), ("updates", self.data / "updates.json")):
+            try:
+                out[key] = json.loads(path.read_text())
+            except (OSError, ValueError):
+                pass
         return out
 
     def maybe_write(self) -> None:
