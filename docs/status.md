@@ -15,7 +15,7 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `cbc9041` since October 27, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `fc0e5f4` (branch `claude/keep-day-of-audio`) since October 27, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
 | Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
@@ -23,6 +23,7 @@ The following table lists the deployed components:
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
+- October 27, 2026: `fc0e5f4` (branch `claude/keep-day-of-audio`) to `pio` with `push.sh`: the analyzer keeps a day of original minute recordings in `data/processed/` (`--keep-days`). Verified the same morning: the three services are active, the analyzer runs with `--keep-days 1`, and new minutes appear in `data/processed/` at about 3.8 MB each. The card had 23 GB free. To roll back, run `push.sh` from `cbc9041`.
 - October 27, 2026: `cbc9041` (`main`) to `pio` with `push.sh`: the fix for reading the next install time. Verified the same morning: the three services are active, and the update check reports `next_install` as `2026-11-01T11:30:00Z`. To roll back, run `push.sh` from `d1aa066`.
 - October 27, 2026: `d1aa066` (`main`) to `pio` with `push.sh`: the weekly install limited to security updates (`unattended-upgrades` with `deploy/pi/52birdtracker-unattended-upgrades`). Verified the same morning: the three services are active, both timers are scheduled, the apt configuration allows only `trixie-security`, and a dry run of `unattended-upgrade` found nothing to install. To roll back, run `push.sh` from `07141fd`.
 - October 27, 2026: `07141fd` (`main`) to `pio` with `push.sh pio@192.168.0.113`: the weekly operating system install (`birdtracker-upgrade.timer`, running `apt-get full-upgrade`), and the Overview and Hardware analytics changes through #27. Verified the same morning: the three services are active, both timers are scheduled (install Sunday, November 1, 2026, at 3:30 AM PST), `deployed.json` reports `07141fd` with no uncommitted changes, and the update check found 0 upgradable packages. The check's `next_install` was empty, from a bug in reading the timer; the fix is on `claude/next-install-json`. To roll back, run `push.sh` from `b77256c`.
