@@ -29,6 +29,9 @@ async function latestTable(name, builtIn) {
   return builtIn();
 }
 
+/** A published table fetched fresh, or null when it can't be (no fallback to the built copy). */
+export const freshTable = (name) => latestTable(name, () => null);
+
 export const detectionsTable = () => latestTable("detections", () => FileAttachment("../data/detections.parquet").parquet());
 
 /** The recorder's telemetry, one row per recording (Hardware analytics), fresh like the detections. */

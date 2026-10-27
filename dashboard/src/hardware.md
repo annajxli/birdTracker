@@ -12,15 +12,38 @@ toc: false
      (re-read while the page is open, so it's current without a rebuild). -->
 
 ```js
-import {loadSun, detectionsTable, recordingsTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
+import {loadSun, detectionsTable, recordingsTable, freshTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
 ```
 
 ```js
 // Re-fetched while the page is open: the Pi reports each minute, and uploads the recorder's
-// tables every 10 minutes.
-const every = (ms, load) => (async function* () { for (;;) { yield await load(); await new Promise((r) => setTimeout(r, ms)); } })();
-const table = every(10 * 60e3, recordingsTable);
-const detections = every(10 * 60e3, detectionsTable);
+// tables every 10 minutes. Timers sleep in a background tab or on a sleeping laptop, so nothing is
+// fetched while the page is hidden, and everything is fetched again the moment it's visible: the
+// Unreachable cards never judge data from before the page was hidden. A failed fetch (the network
+// still waking up) keeps the last good value instead of an older one.
+const visible = () => new Promise((resolve) => {
+  if (!document.hidden) return resolve();
+  const shown = () => { if (!document.hidden) { document.removeEventListener("visibilitychange", shown); resolve(); } };
+  document.addEventListener("visibilitychange", shown);
+});
+const wait = (ms) => new Promise((resolve) => {
+  const done = () => { clearTimeout(timer); document.removeEventListener("visibilitychange", done); resolve(); };
+  const timer = setTimeout(done, ms);
+  document.addEventListener("visibilitychange", done); // hidden: stop until visible; visible: fetch now
+});
+const every = (ms, load) => (async function* () {
+  let last = null, first = true;
+  for (;;) {
+    if (!first) await visible(); // the first load runs even in a background tab, so the page isn't blank
+    const value = await load(first);
+    if (value != null || first) yield (last = value ?? last);
+    first = false;
+    await wait(ms);
+  }
+})();
+// After the first load, a table that can't be fetched fresh keeps the last one, not the site's built copy.
+const table = every(10 * 60e3, (first) => (first ? recordingsTable() : freshTable("recordings")));
+const detections = every(10 * 60e3, (first) => (first ? detectionsTable() : freshTable("detections")));
 // The indoor computer's health, as of its last report (null if it hasn't reported).
 const pi = every(60e3, () => fetch("/api/live/status.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).catch(() => null));
 const sun = await loadSun();
