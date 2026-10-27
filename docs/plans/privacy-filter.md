@@ -199,7 +199,7 @@ them.
 - **Background:** real station minutes from the Pi's `data/live/*.mp3` (a week
   is kept). Copy them with `scp`. They're 24 kHz MP3s, so resample them to
   48 kHz for BirdNET.
-- **Bird clips:** the Pi's `data/clips/**/*.ogg`, one per species per hour.
+- **Bird clips:** the Pi's `data/clips/**/*.ogg` and `*.flac`, one per species per hour. The analyzer writes FLAC when Opus doesn't support the recording's sample rate.
 - **Speech:** generate it locally with macOS `say`, with at least three voices
   and a total of at least 5 minutes, saved as AIFF. Public speech datasets
   such as LibriSpeech need a download; ask the user before downloading
@@ -306,7 +306,7 @@ STATION_HOST=pio
 EVAL_DIR=data/privacy-eval
 mkdir -p "$EVAL_DIR/background" "$EVAL_DIR/birds" "$EVAL_DIR/models"
 rsync -az --exclude='*.clean.mp3' --include='*.mp3' --exclude='*' "$STATION_HOST:birdtracker/data/live/" "$EVAL_DIR/background/"
-rsync -az --include='*/' --include='*.ogg' --exclude='*' "$STATION_HOST:birdtracker/data/clips/" "$EVAL_DIR/birds/"
+rsync -az --include='*/' --include='*.ogg' --include='*.flac' --exclude='*' "$STATION_HOST:birdtracker/data/clips/" "$EVAL_DIR/birds/"
 rsync -az "$STATION_HOST:birdtracker/models/" "$EVAL_DIR/models/"
 export BIRDNET_MODELS="$PWD/$EVAL_DIR/models"
 ```

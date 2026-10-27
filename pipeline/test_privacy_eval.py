@@ -9,7 +9,7 @@ import soundfile as sf
 
 from birdnet_lite import BirdNET, RATE
 from privacy_eval import (candidate_spans, mask_audio, active_frames, mix_speech,
-                          frame_recall, eligibility, coverage_seconds)
+                          frame_recall, eligibility, coverage_seconds, long_enough)
 
 
 class CandidateTests(unittest.TestCase):
@@ -47,6 +47,14 @@ class CandidateTests(unittest.TestCase):
         self.assertFalse(active_frames(np.zeros(RATE)).any())
         with self.assertRaises(ValueError):
             mix_speech(np.zeros_like(background), speech, active, 0)
+
+    def test_speech_skips_short_background_minutes(self):
+        files = [{'path': 'a', 'seconds': 60}, {'path': 'short', 'seconds': 39}, {'path': 'c', 'seconds': 60}]
+        self.assertEqual(long_enough(files, 1, 58)['path'], 'c')
+        self.assertEqual(long_enough(files, 2, 58)['path'], 'c')
+        self.assertEqual(long_enough(files, 3, 58)['path'], 'a')
+        with self.assertRaises(ValueError):
+            long_enough(files, 0, 61)
 
     def test_duplicate_exposure_cannot_supply_a_day(self):
         files = [{'timestamp': '2026-10-26T00:00:00+00:00', 'seconds': 60}] * 1440

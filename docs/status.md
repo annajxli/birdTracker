@@ -168,3 +168,11 @@ implementation remain pending its results.
 
 Home-session handoff checks pass: 15 pipeline tests, 32 dashboard tests,
 password Worker tests, the site build with 30 validated links, and whitespace.
+
+October 27, 2026: the home-network session ran the full evaluation on the
+development laptop, with 39.2 hours of station audio and 239 bird clips from
+`pio`. No threshold qualifies: speech recall is at most 43%, because BirdNET
+scores macOS synthetic speech near 0, while real voices in the station audio
+score up to 0.86. The false-mute and bird targets pass at 0.15. Recall needs
+real speech before a threshold can be chosen. For details, see
+[Voice-filter evaluation results](plans/privacy-filter-results.md).

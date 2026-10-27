@@ -1,6 +1,6 @@
 """Evaluate BirdNET's human-vocal detector offline, without playing audio.
 
-Inputs are local station MP3s (not .clean.mp3), bird OGG clips and local AIFF
+Inputs are local station MP3s (not .clean.mp3), bird OGG or FLAC clips and local AIFF
 speech. Nothing uploads, connects to the Pi, downloads models or plays sound.
 Run --help for corpus, synthesis, inventory and report options. Candidate masking
 here is evaluation-only; this module does not enable a production filter.
@@ -228,6 +228,17 @@ def intersects(start, end, spans):
     return any(a < end and b > start for a, b in spans)
 
 
+def long_enough(background, count, seconds):
+    """The next background minute, from the count-th on, at least `seconds` long.
+
+    Minutes cut short by a reconnect or a power loss can't hold a full speech segment."""
+    for step in range(len(background)):
+        item = background[(count + step) % len(background)]
+        if item["seconds"] >= seconds:
+            return item
+    raise ValueError("No background minute is as long as the speech segment")
+
+
 def evaluate(args, inputs):
     detector = Detector(args.out, args.lat, args.lon, args.threads)
     totals = {t: {"muted_seconds": 0.0, "confident_muted": 0, "confident": 0,
@@ -276,7 +287,7 @@ def evaluate(args, inputs):
                 active = utterance_active[offset // round(FRAME * RATE):(offset + len(speech) + round(FRAME * RATE) - 1) // round(FRAME * RATE)]
                 if not active.any():
                     continue
-                background_item = inputs["background"][count % len(inputs["background"])]
+                background_item = long_enough(inputs["background"], count, len(speech) / RATE)
                 background = read_audio(Path(background_item["path"]))
                 if len(background) < len(speech):
                     raise ValueError("Selected background minute is shorter than the speech segment")
@@ -378,7 +389,7 @@ def report(path, inputs, result):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--background", type=Path, required=True, help="local station live MP3 directory; .clean.mp3 excluded")
-    parser.add_argument("--birds", type=Path, required=True, help="local station OGG clips directory")
+    parser.add_argument("--birds", type=Path, required=True, help="local station clips directory (.ogg, or .flac at sample rates Opus lacks)")
     parser.add_argument("--speech", type=Path, required=True, help="local generated AIFF speech directory")
     parser.add_argument("--out", type=Path, default=Path("data/privacy-eval"))
     parser.add_argument("--report", type=Path, default=Path("docs/plans/privacy-filter-results.md"))
@@ -392,7 +403,7 @@ def main(argv=None):
     args.out.mkdir(parents=True, exist_ok=True)
     if args.generate_speech:
         generate_speech(args.speech)
-    inputs = {"background": inventory(args.background, {".mp3"}, True), "birds": inventory(args.birds, {".ogg"}),
+    inputs = {"background": inventory(args.background, {".mp3"}, True), "birds": inventory(args.birds, {".ogg", ".flac"}),
               "speech": inventory(args.speech, {".aiff", ".aif"})}
     synthesis = args.speech / "synthesis.json"
     if synthesis.exists():
