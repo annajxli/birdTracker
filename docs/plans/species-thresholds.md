@@ -1,9 +1,10 @@
 # Per-species confidence thresholds
 
 This page proposes a confidence threshold for each species, learned from
-people's reviews, instead of one shared threshold. Nothing on it is built. The
-reviews it learns from are collected, as
-[Architecture](../architecture.md) describes.
+people's reviews, instead of one shared threshold. Steps 1 to 3 are built: the
+indoor computer learns the thresholds and uses them to count birdsong, as
+[Architecture](../architecture.md#publisher) describes. The dashboard doesn't
+use them yet (step 4).
 
 ## Why one threshold doesn't fit
 

@@ -61,6 +61,7 @@ import soundfile as sf
 from scipy.signal import resample_poly
 
 import db
+import thresholds
 from ingest import read_results, recording_start
 from denoise import clean
 from spectrogram import render as render_spectrogram
@@ -189,8 +190,9 @@ def process(audio: Path, args, conn) -> int:
         csv_path = run_birdnet(audio, Path(tmp), args)
         rows = list(read_results(csv_path, args.station, None))
         sounds = read_sounds(csv_path.with_name(f"{audio.stem}.BirdNET.sounds.csv"), start)
-        activity = read_activity(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"))
-        unidentified = read_unidentified(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"), start)
+        species = thresholds.load(args.data / "live" / "thresholds.json")
+        activity = read_activity(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"), species)
+        unidentified = read_unidentified(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"), start, species)
 
     for r in rows:
         r["source_file"] = audio.name  # BirdNET reports the full path; keep just the name
@@ -293,32 +295,40 @@ def background_dbfs(data, rate: int) -> float | None:
     return round(20 * math.log10(float(rms[: max(1, len(rms) // 10)].mean())), 1)
 
 
-# A 3 s window counts as birdsong when BirdNET's "any bird" score reaches ANY_BIRD, and as
-# unidentified birdsong when, on top of that, no single species reaches LIVE_MIN_CONF.
-# Provisional: reviews will show where real birds start.
+# A 3 s window counts as birdsong when BirdNET's "any bird" score reaches ANY_BIRD and its likeliest
+# species isn't blocked by reviews (thresholds.py: a blocked species is usually another sound, such
+# as backup beeps for an owl), and as unidentified birdsong when, on top of that, that species
+# doesn't reach its own threshold. Provisional: labeled windows will show where real birds start.
 ANY_BIRD = 0.5
 
 
-def read_activity(path: Path) -> tuple[int, int] | None:
+def activity_windows(path: Path, species: dict) -> list[tuple[float, bool]]:
+    """(start in seconds, identified) for each birdsong window in birdnet_lite's activity file.
+    Files from before the "Best name" column use the default threshold."""
+    if not path.exists():
+        return []
+    out = []
+    with path.open(newline="") as f:
+        for r in csv.DictReader(f):
+            name, best = r.get("Best name") or None, float(r["Best species"])
+            if float(r["Any bird"]) >= ANY_BIRD and thresholds.threshold(species, name) is not None:
+                out.append((float(r["Start (s)"]), thresholds.confident(species, name, best)))
+    return out
+
+
+def read_activity(path: Path, species: dict | None = None) -> tuple[int, int] | None:
     """(bird windows, unidentified windows) from birdnet_lite's activity file, or None without one."""
     if not path.exists():
         return None
-    with path.open(newline="") as f:
-        rows = [(float(r["Any bird"]), float(r["Best species"])) for r in csv.DictReader(f)]
-    birds = [best for any_bird, best in rows if any_bird >= ANY_BIRD]
-    return len(birds), sum(1 for best in birds if best < LIVE_MIN_CONF)
+    windows = activity_windows(path, species or {})
+    return len(windows), sum(1 for _, identified in windows if not identified)
 
 
-def read_unidentified(path: Path, start: datetime) -> list[dict]:
+def read_unidentified(path: Path, start: datetime, species: dict | None = None) -> list[dict]:
     """The windows that read_activity counts as unidentified birdsong, as {"at", "seconds"} for the
     Live page, which draws them as "Unidentified bird" (dashboard/src/components/live-unidentified.js)."""
-    if not path.exists():
-        return []
-    with path.open(newline="") as f:
-        return [{"at": (start + timedelta(seconds=float(r["Start (s)"]))).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                 "seconds": SEGMENT_SECONDS}
-                for r in csv.DictReader(f)
-                if float(r["Any bird"]) >= ANY_BIRD and float(r["Best species"]) < LIVE_MIN_CONF]
+    return [{"at": (start + timedelta(seconds=s)).strftime("%Y-%m-%dT%H:%M:%SZ"), "seconds": SEGMENT_SECONDS}
+            for s, identified in activity_windows(path, species or {}) if not identified]
 
 
 def record_telemetry(audio: Path, start: datetime, args, conn, activity: tuple[int, int] | None = None) -> None:
@@ -407,9 +417,8 @@ def update_live(audio: Path, rows: list[dict], args, sounds: list[dict] = (), un
 # The Live page polls live.json (the last LIVE_JSON_HOURS) every 30 s; the rest of --live-hours is
 # in live/days/<UTC date>.json, one file per day with the same strip entries, listed in
 # live/days.json with each day's span and, per UTC hour, the minutes of audio and the minutes
-# with a bird (LIVE_MIN_CONF or more), so the page can draw a week without loading every day.
+# with a confident bird (thresholds.py), so the page can draw a week without loading every day.
 LIVE_JSON_HOURS = 24
-LIVE_MIN_CONF = 0.6  # the dashboard's threshold for a confident detection
 
 
 def read_strips(path: Path) -> list[dict]:
@@ -442,10 +451,11 @@ def write_day(path: Path, strips: list[dict]) -> None:
     if strips:
         write_json(path, {"date": date, "strips": strips})
         audio, birds = [0.0] * 24, [set() for _ in range(24)]
+        species = thresholds.load(path.parent.parent / "thresholds.json")
         for s in strips:
             audio[int(s["start"][11:13])] += (s["seconds"] - sum(b - a for a, b in s.get("gaps", []))) / 60
             for d in s["detections"]:
-                if d["confidence"] >= LIVE_MIN_CONF and d["at"][:10] == date:
+                if thresholds.confident(species, d.get("scientific_name"), d["confidence"]) and d["at"][:10] == date:
                     birds[int(d["at"][11:13])].add(d["at"][14:16])
         end = max(datetime.strptime(s["start"], "%Y-%m-%dT%H:%M:%SZ") + timedelta(seconds=s["seconds"]) for s in strips)
         listed.append({"date": date, "start": strips[0]["start"], "end": end.strftime("%Y-%m-%dT%H:%M:%SZ"),

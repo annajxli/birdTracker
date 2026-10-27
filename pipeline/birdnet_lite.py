@@ -14,9 +14,15 @@ same 3 s is dropped, and the confident ones go in <stem>.BirdNET.sounds.csv for 
 
 And one more: <stem>.BirdNET.activity.csv has, for every 3 s window, an "any bird" score (the
 chance that at least one of the expected species is there, 1 - prod(1 - score)) and the best
-single species' score, so birdsong that BirdNET can't pin to a species still counts as birdsong.
+single species' score and scientific name, so birdsong that BirdNET can't pin to a species still
+counts as birdsong.
 It's 0 where a confident non-bird sound (SOUND_MIN_CONF or more) outscores every bird; a faint one,
 such as distant traffic or rain, doesn't erase faint birdsong.
+
+Last: BirdNET sometimes spends a call's score on a sibling species that the location filter
+excludes, such as Woodhouse's Scrub-Jay for a California Scrub-Jay in Seattle. When the excluded
+species' genus has exactly one expected species, that species gets the higher of the two scores
+(rollup), before anything above is decided.
 
 The model files ship inside the birdnet-analyzer package; on the Pi they're copied to
 models/ by deploy/pi/push.sh, and BIRDNET_MODELS points at that folder.
@@ -44,6 +50,24 @@ LABELS = "BirdNET_GLOBAL_6K_V2.4_Labels.txt"
 SOUNDS = {"Dog": "Dog", "Human vocal": "Voice", "Human non-vocal": "People", "Human whistle": "Whistle", "Engine": "Engine",
           "Siren": "Siren", "Gun": "Gunshot", "Fireworks": "Fireworks", "Power tools": "Power tool"}  # label -> shown name
 SOUND_MIN_CONF = 0.5  # listed on the Live page from here, and vetoes the window's "any bird" score
+
+
+def rollup_pairs(scientific_names: list[str], allowed: np.ndarray, skip: set[int] = frozenset()) -> tuple[np.ndarray, np.ndarray]:
+    """Indexes of excluded species, and of the one expected species in each one's genus."""
+    genus = [name.split(" ")[0] for name in scientific_names]
+    expected: dict[str, list[int]] = {}
+    for i in np.flatnonzero(allowed):
+        expected.setdefault(genus[i], []).append(int(i))
+    pairs = [(i, expected[genus[i]][0]) for i in range(len(genus))
+             if not allowed[i] and i not in skip and len(expected.get(genus[i], [])) == 1]
+    return np.array([a for a, _ in pairs], dtype=int), np.array([b for _, b in pairs], dtype=int)
+
+
+def credit_siblings(row: np.ndarray, src: np.ndarray, dst: np.ndarray) -> np.ndarray:
+    """Scores with each expected species raised to its excluded siblings' best score."""
+    out = row.copy()
+    np.maximum.at(out, dst, row[src])
+    return out
 
 
 def any_bird(birds: np.ndarray, loudest: float) -> float:
@@ -80,6 +104,11 @@ class BirdNET:
         self.sounds = np.array([i for i, (sci, _) in enumerate(self.labels) if sci in SOUNDS])
         self.batch = None
         self.allowed = {}  # (lat, lon, week) -> boolean mask over species
+
+    def rollup(self, allowed: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """(excluded species, the expected species each one credits): the excluded species whose genus
+        has exactly one expected species. Non-bird sounds never roll up."""
+        return rollup_pairs([sci for sci, _ in self.labels], allowed, set(self.sounds.tolist()))
 
     def species_mask(self, lat: float, lon: float, week: int) -> np.ndarray:
         key = (lat, lon, week)
@@ -118,6 +147,7 @@ class BirdNET:
         padded = np.concatenate([sig, np.zeros(size, np.float32)])
         chunks = np.stack([padded[s:s + size] for s in starts])
         allowed = self.species_mask(lat, lon, week)
+        src, dst = self.rollup(allowed)
 
         out = out_dir / f"{audio.stem}.BirdNET.results.csv"
         with out.open("w", newline="") as f, (out_dir / f"{audio.stem}.BirdNET.sounds.csv").open("w", newline="") as g, \
@@ -125,9 +155,10 @@ class BirdNET:
             w, ws, wa = csv.writer(f), csv.writer(g), csv.writer(h)
             w.writerow(["Start (s)", "End (s)", "Scientific name", "Common name", "Confidence", "File"])
             ws.writerow(["Start (s)", "Sound", "Confidence"])
-            wa.writerow(["Start (s)", "Any bird", "Best species"])
+            wa.writerow(["Start (s)", "Any bird", "Best species", "Best name"])
             for b in range(0, len(chunks), BATCH):
                 for i, row in enumerate(self.scores(chunks[b:b + BATCH])):
+                    row = credit_siblings(row, src, dst)
                     start = starts[b + i] / RATE
                     loudest = row[self.sounds].max() if len(self.sounds) else 0.0  # the likeliest non-bird sound
                     for k in np.flatnonzero((row >= min_conf) & allowed & (row > loudest)):
@@ -136,6 +167,8 @@ class BirdNET:
                     for k in self.sounds[row[self.sounds] >= SOUND_MIN_CONF]:
                         ws.writerow([f"{start:.1f}", SOUNDS[self.labels[k][0]], f"{row[k]:.4f}"])
                     birds = row[allowed]
+                    top = int(np.flatnonzero(allowed)[birds.argmax()]) if len(birds) else None
                     best = birds.max() if len(birds) else 0.0
-                    wa.writerow([f"{start:.1f}", f"{any_bird(birds, loudest):.4f}", f"{best:.4f}"])
+                    wa.writerow([f"{start:.1f}", f"{any_bird(birds, loudest):.4f}", f"{best:.4f}",
+                                 self.labels[top][0] if top is not None else ""])
         return out
