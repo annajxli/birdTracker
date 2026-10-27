@@ -99,8 +99,23 @@ exports and database snapshots when the database changes. For the R2 layout,
 see [R2 bucket](#r2-bucket).
 
 The publisher also applies reviews. When a signed-in visitor marks a detection
-as confirmed or rejected, the Worker saves the verdict to `reviews/` in R2. On
-its next pass, the publisher writes the verdict to the database.
+as confirmed or rejected, the Worker saves the verdict to `reviews/` in R2. The
+next time the publisher checks for reviews, it writes the verdict to the
+database.
+
+The publisher uploads what the Live page needs for current playback on every
+pass: `live.json`, the minute MP3s and spectrograms, and `status.json`. It
+checks for reviews, and uploads changes to the Live page's day files (`days/`
+and `days.json`), less often, at the intervals set by `--reviews-seconds` and
+`--history-seconds` in `pipeline/publish.py`. A new day file uploads right
+away. Within each pass, files upload before the index files that list them, so
+an index never refers to a file that isn't in R2 yet.
+
+The publisher counts its R2 API calls by operation, and the bytes it tries to
+upload, per UTC day in `data/publish-usage.json`. The counts survive restarts
+and contain no object keys or credentials. They aren't a bill: they leave out
+downloads, website requests, and automatic HTTP retries. For details, see
+`pipeline/publish_usage.py`.
 
 If you set the `GITHUB_TOKEN` environment variable, the publisher starts the
 deploy workflow after each snapshot, so the built site includes the newest

@@ -15,7 +15,7 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `c9d5827` since October 26, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `a9b92cd` since October 26, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
 | Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
@@ -23,6 +23,7 @@ The following table lists the deployed components:
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
+- October 26, 2026: `a9b92cd` to `pio` with `push.sh`, no service overrides. That commit was later rebased; its deployed code matches the merge of `claude/publisher-deploy`: the publisher checks reviews and uploads Live day files at its `--reviews-seconds` and `--history-seconds` defaults, and counts R2 usage. Includes `main`'s spectrogram fix. Verified the same evening: a new minute's spectrogram, MP3s, and `live.json` reached R2 about a minute after the minute ended, as before, with `live.json` last; `days.json` and the day file updated 5 minutes after the first pass; a test review put straight into `reviews/` was applied within 5 minutes; `data/publish-usage.json` is valid, grew, and kept its totals across a publisher restart, and no usage file is in the bucket. Not verified: playback in a browser, and a review sent through the website. To roll back, run `push.sh` from `c9d5827`.
 - October 26, 2026: `c9d5827` to `pio`: counts of birdsong windows and unidentified birdsong per minute.
 - October 26, 2026: `432e9b9` to `pio`: detection reviews applied by the publisher.
 - October 25, 2026: `65f7b38` to `pio`: non-bird sounds veto birds and are listed on Live strips.
@@ -52,6 +53,11 @@ host alias. Don't include secrets.
 - **Power.** `vcgencmd get_throttled` reports under-voltage and throttling
   with the current power supply. Replace it with a 5 V, 2.5 A supply, and check
   again.
+- **Publisher usage.** After several complete UTC days on `a9b92cd`, compare
+  the call counts and upload bytes in `data/publish-usage.json` with R2's
+  metrics in the Cloudflare dashboard. Review listings should drop to about
+  one per `--reviews-seconds` interval. Don't count the deployment day, which
+  is partial.
 - **SD card wear.** The analyzer writes the database and live strips
   constantly. A high-endurance card or a USB SSD for `data/` lasts longer.
 
@@ -80,6 +86,8 @@ None of these plans is built or tested:
   pictures.
 - [Feeder camera](plans/feeder-camera.md): a window feeder with a camera, matched
   to detections.
+- [Multi-station expansion](plans/multi-station.md): more stations, their
+  storage and cost, and a possible home server.
 
 ## Work on other branches
 
@@ -92,8 +100,7 @@ The following table lists the branches and where their documentation goes:
 
 | Branch | State | Documentation migration |
 | --- | --- | --- |
-| `codex/publisher-usage-reduction` | Implemented, checked locally, not deployed. | `docs/publisher-handoff.md`: deployment steps into [Deploy](deploy.md); the deployment record into the [deployment log](#deployment-log). Additions to `docs/deploy.md` about publisher usage stay in `deploy.md`; the parts that describe behavior move to [Architecture](architecture.md). `docs/multi-station-plan.md`: see the next row. |
-| `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md` to `docs/plans/multi-station.md`. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
+| `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md`: already moved to [Multi-station expansion](plans/multi-station.md); merge its changes there. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
 | `codex/ui-live-polish` | Live page changes. | `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). |
 
 ### Live details update

@@ -58,6 +58,7 @@ import boto3
 from botocore.config import Config
 
 import db
+from publish_usage import Usage
 
 ROOT = Path(__file__).resolve().parent.parent
 REPO = "annajxli/birdTracker"
@@ -107,7 +108,7 @@ class Mirror:
                 return sizes
             token = page["NextContinuationToken"]
 
-    def sync(self) -> tuple[int, int]:
+    def sync(self, history: bool = True) -> tuple[int, int]:
         local = {}
         if self.folder.exists():
             for p in self.folder.rglob("*"):
@@ -130,7 +131,15 @@ class Mirror:
 
         sent = 0
         # live.json last, so it never lists a strip that isn't uploaded yet.
-        for key in sorted(local, key=lambda k: k.endswith(".json")):
+        def order(key):
+            if key == "live/live.json": return 3
+            if key == "live/days.json": return 2
+            if key.endswith(".json"): return 1
+            return 0
+        for key in sorted(local, key=order):
+            # The recent live index stays fresh; only historical navigation is batched.
+            if not history and (key == "live/days.json" or key.startswith("live/days/")) and key in self.uploaded:
+                continue
             path, size, mtime = local[key]
             if self.uploaded.get(key) == (size, mtime):
                 continue
@@ -332,29 +341,42 @@ if __name__ == "__main__":
     p.add_argument("--data", type=Path, default=ROOT / "data", help="holds live/ and clips/")
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
     p.add_argument("--interval", type=float, default=15, help="seconds between passes over live/ and clips/")
+    p.add_argument("--reviews-seconds", type=float, default=300, help="seconds between review checks (default: 5 minutes)")
+    p.add_argument("--history-seconds", type=float, default=300, help="seconds between historical Live index updates")
     p.add_argument("--detections-minutes", type=float, default=10, help="minutes between detections.parquet uploads")
     p.add_argument("--snapshot-hours", type=float, default=3, help="hours between database snapshots and rebuilds")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("botocore").setLevel(logging.WARNING)
+    if min(args.interval, args.reviews_seconds, args.history_seconds, args.detections_minutes, args.snapshot_hours) <= 0:
+        p.error("publishing intervals must be positive")
     s3 = bucket_client()
+    usage = Usage(args.data / "publish-usage.json")
+    usage.attach(s3)
     bucket = os.environ.get("R2_BUCKET", "birdtracker-media")
     mirrors = [Mirror(s3, bucket, args.data / "live", "live/"), Mirror(s3, bucket, args.data / "clips", "clips/")]
     last_snapshot = 0.0  # wall-clock time of the last snapshot taken
     last_detections = 0.0  # ...and of the last detections.parquet upload
     health = Health(args.data)
     first = True
+    last_reviews = last_history = None
     while True:
         try:
             health.maybe_write()
-            if args.db.exists() and apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
-                last_detections = 0.0  # let the exports catch up now, not in up to 10 minutes
-            first = False
+            now = time.monotonic()
+            if args.db.exists() and (args.once or last_reviews is None or now - last_reviews >= args.reviews_seconds):
+                if apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
+                    last_detections = 0.0  # publish corrections on this pass
+                last_reviews = now
+                first = False
+            history = args.once or last_history is None or now - last_history >= args.history_seconds
             for m in mirrors:
-                sent, deleted = m.sync()
+                sent, deleted = m.sync(history=history)
                 if sent or deleted:
                     log.info("%s: %d uploaded, %d deleted", m.prefix, sent, deleted)
+            if history:
+                last_history = now
             if args.db.exists() and (args.once or (time.time() - last_detections > args.detections_minutes * 60
                                                    and db_changed_since(args.db, last_detections))):
                 started = time.time()
@@ -370,6 +392,8 @@ if __name__ == "__main__":
             if args.once:
                 raise
             log.exception("publish pass failed; retrying in %ss", args.interval)
+        finally:
+            usage.save()
         if args.once:
             break
         time.sleep(args.interval)
