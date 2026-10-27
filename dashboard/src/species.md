@@ -6,12 +6,13 @@ toc: false
 <link rel="stylesheet" href="./components/birds.css">
 
 ```js
-import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadCategories, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
+import {includedDetection, speciesThreshold} from "./components/detection-policy.js";
+import {loadDetections, loadPhotos, loadCategories, loadThresholds, thresholdText, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
 ```
 
 ```js
-const [all, photos, categories] = await Promise.all([loadDetections(), loadPhotos(), loadCategories()]);
+const [all, photos, categories, thresholdsFile] = await Promise.all([loadDetections(), loadPhotos(), loadCategories(), loadThresholds()]);
+const thresholds = thresholdsFile?.species ?? null; // learned per-species thresholds; the control covers the rest
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
@@ -28,7 +29,7 @@ const byCount = d3.rollups(all, (v) => v.length, (d) => d.species)
 ```js
 const requested = new URLSearchParams(location.search).get("name");
 // Opened without a species named (the header link): a random one heard at the default threshold.
-const confidentSpecies = [...new Set(all.filter((d) => includedDetection(d, 0.6)).map((d) => d.species))];
+const confidentSpecies = [...new Set(all.filter((d) => includedDetection(d, 0.6, thresholds)).map((d) => d.species))];
 const pool = confidentSpecies.length ? confidentSpecies : byCount;
 const speciesIn = speciesPicker(byCount.includes(requested) ? requested : pool[Math.floor(Math.random() * pool.length)]);
 const species = Generators.input(speciesIn);
@@ -37,7 +38,7 @@ const species = Generators.input(speciesIn);
 // the open category's species, most heard first, with minutes heard at the default threshold.
 // Picking one closes it. Works as an input: .value and "input" events, like Inputs.select.
 function speciesPicker(value) {
-  const minutes = d3.rollup(minutesHeard(all.filter((d) => includedDetection(d, 0.6))), (v) => v.length, (d) => d.species);
+  const minutes = d3.rollup(minutesHeard(all.filter((d) => includedDetection(d, 0.6, thresholds))), (v) => v.length, (d) => d.species);
   const categoryOf = (s) => categories?.species?.[s] ?? "Other";
   const rank = (c) => { const i = categories?.order?.indexOf(c) ?? -1; return i < 0 ? 1e3 : i; };
   const groups = d3.groups(byCount, categoryOf).sort(([a], [b]) => rank(a) - rank(b))
@@ -84,7 +85,9 @@ history.replaceState(null, "", `?name=${encodeURIComponent(species)}`);
 
 ```js
 const sp = all.filter((d) => d.species === species);
-const heard = sp.filter((d) => includedDetection(d, minConf));
+const heard = sp.filter((d) => includedDetection(d, minConf, thresholds));
+// This species' threshold: learned from reviews, null when blocked, else the control's.
+const speciesMin = speciesThreshold(sp[0]?.scientific, minConf, thresholds);
 // Counted in minutes heard: minutes with at least one detection, not raw 3-second detections.
 const heardMinutes = minutesHeard(heard);
 const daysHeard = new Set(heard.map((d) => d.date)).size;
@@ -103,6 +106,7 @@ const photo = photos[species];
     <p class="eyebrow">Species</p>
     <h1>${species}</h1>
     <p class="sub"><i>${sp[0]?.scientific}</i> · ${html`<a href=${guideHref(species)} target="_blank" rel="noopener">All About Birds guide ↗</a>`}${photo ? html` · <a href=${photo.wikipedia} target="_blank" rel="noopener">Wikipedia ↗</a>` : ""}</p>
+    <p class="sub">Threshold: ${thresholdText(sp[0]?.scientific, minConf, thresholds)}</p>
   </div>
   <div class="species-photo-slot">${birdPhoto(species, photo)}</div>
 </div>
@@ -137,7 +141,7 @@ const photo = photos[species];
 
 </div>
 
-${heard.length ? "" : html`<p class="sub">No detections at or above ${d3.format(".0%")(minConf)} confidence. Try lowering the threshold.</p>`}
+${heard.length ? "" : html`<p class="sub">${speciesMin === null ? "No confirmed detections; this species counts only when confirmed." : `No detections at or above ${d3.format(".0%")(speciesMin)} confidence.${speciesMin === minConf ? " Try lowering the threshold." : ""}`}</p>`}
 
 ```js
 // The shortest of 1, 3, 6 or 12 months that holds all the recordings (a year at most), so early on
@@ -229,8 +233,8 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
       x: {domain: [0.25, 1], tickFormat: ".0%", label: "BirdNET confidence", labelOffset: 36},
       y: {label: "Detections", grid: true, tickFormat: "s"},
       marks: [
-        Plot.rectY(sp, Plot.binX({y: "count"}, {x: "confidence", thresholds: d3.range(0.25, 1.0001, 0.05), fill: (d) => (includedDetection(d, minConf) ? "shown" : "below threshold"), insetLeft: 1, insetRight: 1, ry2: 2, tip: {format: {x: ".0%"}}})),
-        Plot.ruleX([minConf], {stroke: "currentColor", strokeWidth: 1.5}),
+        Plot.rectY(sp, Plot.binX({y: "count"}, {x: "confidence", thresholds: d3.range(0.25, 1.0001, 0.05), fill: (d) => (includedDetection(d, minConf, thresholds) ? "shown" : "below threshold"), insetLeft: 1, insetRight: 1, ry2: 2, tip: {format: {x: ".0%"}}})),
+        speciesMin === null ? null : Plot.ruleX([speciesMin], {stroke: "currentColor", strokeWidth: 1.5}),
         Plot.ruleY([0], {strokeOpacity: 0.3})
       ],
       color: {domain: ["shown", "below threshold"], range: [seriesColor(dark), MUTED], legend: true}

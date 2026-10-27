@@ -47,6 +47,28 @@ export async function loadRecordedUntil() {
 }
 
 /**
+ * Per-species confidence thresholds learned from reviews on the Pi (live/thresholds.json; shape in
+ * pipeline/thresholds.py), or null if it can't be reached: then every species uses the shared one.
+ */
+export async function loadThresholds() {
+  try {
+    const response = await fetch("/api/live/thresholds.json", {cache: "no-store"});
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A species' threshold for its card, from loadThresholds()'s `species`: learned, blocked, or the shared `fallback`. */
+export function thresholdText(scientific, fallback, thresholds) {
+  const entry = thresholds?.[scientific];
+  const reviews = entry && `${entry.confirmed} confirmed, ${entry.rejected} rejected`;
+  return !entry ? `${Math.round(fallback * 100)}% (default)`
+    : entry.blocked ? `Blocked: confirmed only (${reviews})`
+    : `${Math.round(entry.threshold * 100)}% (learned: ${reviews})`;
+}
+
+/**
  * Detections, oldest first. A listener's verdict is in `review` ("confirmed", "rejected" or null);
  * rejected ones are left out unless includeRejected (the Detections table shows them, to undo),
  * so every chart and count drops them.
@@ -164,8 +186,11 @@ export function dateSpan(start, end) {
   return d3.utcDay.range(new Date(start), d3.utcDay.offset(new Date(end), 1)).map((d) => d.toISOString().slice(0, 10));
 }
 
+// With thresholds.json, it applies to species without a learned threshold (too few reviews).
 export function confidenceInput(value = 0.6) {
-  return Inputs.range([0.25, 1], {label: "Min confidence", step: 0.05, value});
+  const input = Inputs.range([0.25, 1], {label: "Min confidence", step: 0.05, value});
+  input.title = "For species without a learned threshold";
+  return input;
 }
 
 export function rangeInput(value = "30 days") {
@@ -1363,9 +1388,9 @@ export function speciesCards(info, {hover = null, newTab = false} = {}) {
 
 /**
  * The info function speciesCards needs, from the page's data. confident: detections at or above
- * the threshold; extraRows(species): rows to show first (e.g. minutes heard in the selected period).
+ * its threshold (learned from `thresholds`, else minConf); extraRows(species): rows to show first (e.g. minutes heard in the selected period).
  */
-export function speciesInfoFrom({all, confident, photos, categories, extraRows = () => []}) {
+export function speciesInfoFrom({all, confident, photos, categories, thresholds = null, minConf = 0.6, extraRows = () => []}) {
   const scientificOf = new Map(d3.rollups(all, (v) => v[0].scientific, (d) => d.species));
   const lastHeardAt = d3.rollup(confident, (v) => d3.max(v, (d) => d.time), (d) => d.species);
   const latest = d3.max(all, (d) => d.date);
@@ -1383,7 +1408,8 @@ export function speciesInfoFrom({all, confident, photos, categories, extraRows =
       rows: [
         ...extraRows(species),
         ["Past year", `heard on ${yearDaysHeard.get(species) ?? 0} of ${yearDaysRecorded} days`],
-        ["Last heard", last ? last.toLocaleString("en-US", {timeZone: TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "–"]
+        ["Last heard", last ? last.toLocaleString("en-US", {timeZone: TZ, month: "short", day: "numeric", hour: "numeric", minute: "2-digit"}) : "–"],
+        ["Threshold", thresholdText(scientificOf.get(species), minConf, thresholds)]
       ]
     };
   };
