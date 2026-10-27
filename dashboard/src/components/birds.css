@@ -1338,11 +1338,10 @@ a.stat-link[href]:hover {
 }
 
 
-/* Gentle snapping on the overview: when scrolling stops near a chart, it settles with the
-   chart's label just below the sticky period ribbon. "proximity" never traps you inside a
-   chart taller than the screen. One snap point per row of charts: the second of a
-   side-by-side pair would be a duplicate stop, which made flicks skip a chart. */
-html:has(.overview-navigation) { scroll-snap-type: y proximity; }
+/* Snap points on the overview, used only on phones (below): each chart settles with its label
+   just below the sticky period ribbon. One snap point per row of charts: the second of a
+   side-by-side pair would be a duplicate stop, which made flicks skip a chart. Other screens
+   scroll freely. */
 html:has(.overview-navigation) main .section-top { scroll-snap-align: start; scroll-margin-top: 56px; }
 /* Charts under the sticky ribbon settle just below it; later ones only below the page header. */
 html:has(.overview-navigation) main .period-scope .section-top { scroll-margin-top: 112px; }
