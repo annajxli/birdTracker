@@ -1,5 +1,6 @@
 """Evaluation metrics and score export tests, without model downloads or playback."""
 import csv
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,7 +10,8 @@ import soundfile as sf
 
 from birdnet_lite import BirdNET, RATE
 from privacy_eval import (candidate_spans, mask_audio, active_frames, mix_speech,
-                          frame_recall, eligibility, coverage_seconds, long_enough)
+                          frame_recall, eligibility, coverage_seconds, long_enough,
+                          prepare_librispeech)
 
 
 class CandidateTests(unittest.TestCase):
@@ -55,6 +57,19 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(long_enough(files, 3, 58)['path'], 'a')
         with self.assertRaises(ValueError):
             long_enough(files, 0, 61)
+
+    def test_librispeech_speakers_become_voice_identities(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for speaker in ('84', '174'):
+                chapter = root / 'src' / speaker / '1'
+                chapter.mkdir(parents=True)
+                for n in range(3):
+                    sf.write(chapter / f'{speaker}-1-{n:04d}.flac', np.full(16000 * 4, 0.1, np.float32), 16000)
+            prepare_librispeech(root / 'src', root / 'speech', seconds=6)
+            identities = json.loads((root / 'speech' / 'synthesis.json').read_text())
+            self.assertEqual([x['voice'] for x in identities], ['LibriSpeech speaker 84', 'LibriSpeech speaker 174'])
+            self.assertAlmostEqual(sf.info(root / 'speech' / 'librispeech-84.flac').duration, 8.6, places=2)
 
     def test_duplicate_exposure_cannot_supply_a_day(self):
         files = [{'timestamp': '2026-10-26T00:00:00+00:00', 'seconds': 60}] * 1440

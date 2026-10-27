@@ -173,6 +173,10 @@ October 27, 2026: the home-network session ran the full evaluation on the
 development laptop, with 39.2 hours of station audio and 239 bird clips from
 `pio`. No threshold qualifies: speech recall is at most 43%, because BirdNET
 scores macOS synthetic speech near 0, while real voices in the station audio
-score up to 0.86. The false-mute and bird targets pass at 0.15. Recall needs
-real speech before a threshold can be chosen. For details, see
+score up to 0.86. The false-mute and bird targets pass at 0.15. A second run
+with real speech from 26 Mini LibriSpeech speakers also selects no threshold:
+recall is at most 70% at +10 dB and 63% at 0 dB, against a target of 95%. At
+0.15, recall is 51% at +10 dB. BirdNET's voice class alone doesn't meet the
+target, so the filter needs another detector or a lower target before it's
+implemented. For details, see
 [Voice-filter evaluation results](plans/privacy-filter-results.md).

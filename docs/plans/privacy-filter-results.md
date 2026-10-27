@@ -102,3 +102,58 @@ background minutes are shorter than the 58-second speech segment, such as the
 To measure recall, the evaluation needs real speech: recordings of people
 talking, or a public speech dataset such as LibriSpeech, which needs the user's
 permission to download.
+
+---
+
+## Evaluation 2026-10-27T09:30:01-07:00
+
+### Inputs
+
+- Real background files: 2397; unique timestamped coverage: 39.176 hours.
+- Bird clips: 239.
+- Speech files: 26; duration: 916.0 seconds.
+- Exact local input paths and SHA-256 hashes are in the ignored evaluation manifest.
+
+### Threshold results
+
+| Threshold | Speech +10 dB | Speech 0 dB | Speech −10 dB | Speech −20 dB | Audio muted | Confident detections touched | Bird clips flagged |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.05 | 70.19% | 63.03% | 44.90% | 41.16% | 0.96% | 0.00% | 1.67% |
+| 0.1 | 59.46% | 47.45% | 32.56% | 26.28% | 0.57% | 0.00% | 0.84% |
+| 0.15 | 51.18% | 35.22% | 26.20% | 20.70% | 0.41% | 0.00% | 0.00% |
+| 0.2 | 42.65% | 28.64% | 21.46% | 14.93% | 0.33% | 0.00% | 0.00% |
+| 0.3 | 28.84% | 18.82% | 13.87% | 11.69% | 0.25% | 0.00% | 0.00% |
+| 0.5 | 14.42% | 9.21% | 6.12% | 2.79% | 0.13% | 0.00% | 0.00% |
+
+Voice identities: LibriSpeech speaker 1272, LibriSpeech speaker 1462, LibriSpeech speaker 174, LibriSpeech speaker 1988, LibriSpeech speaker 1993, LibriSpeech speaker 2035, LibriSpeech speaker 2412, LibriSpeech speaker 2428, LibriSpeech speaker 251, LibriSpeech speaker 2803, LibriSpeech speaker 3000, LibriSpeech speaker 3536, LibriSpeech speaker 3576, LibriSpeech speaker 3752, LibriSpeech speaker 5338, LibriSpeech speaker 5694, LibriSpeech speaker 5895, LibriSpeech speaker 6241, LibriSpeech speaker 6295, LibriSpeech speaker 6319, LibriSpeech speaker 777, LibriSpeech speaker 7850, LibriSpeech speaker 7976, LibriSpeech speaker 8297, LibriSpeech speaker 84, LibriSpeech speaker 8842.
+
+Selected threshold: none.
+
+### Limitations
+
+- Background candidates may contain genuine voices; CSV needs human review.
+- MP3 and OGG source reruns differ from original raw station input.
+- The speech set covers only its own voices; it doesn't validate every voice, singing or shouting.
+- Pi process overhead remains to be measured on the home network.
+
+No audio was played. No production muting or deployment is enabled by this evaluation.
+
+### Findings, October 27, 2026, with LibriSpeech
+
+This run replaces the macOS voices with real read speech: 30 seconds from each
+of the 26 speakers in Mini LibriSpeech's `dev-clean-2`, downloaded from
+OpenSLR with the user's permission (`dev-clean-2.tar.gz`, 126,046,265 bytes,
+SHA-256 `176ec501...`). The background, bird clips, and models are the same as
+the previous run, so those columns are unchanged.
+
+No threshold meets the targets, so no threshold is selected. Real speech
+scores higher than synthetic speech, but recall is still far from the 95%
+target: at most 70.19% at +10 dB and 63.03% at 0 dB, at 0.05, which also fails
+the false-mute target. At 0.15, the lowest threshold that meets the false-mute
+and bird targets, recall is 51.18% at +10 dB and 35.22% at 0 dB.
+
+BirdNET's `Human vocal` class alone can't meet the recall target on this
+corpus. LibriSpeech is recorded at 16 kHz, so it has no content above 8 kHz,
+but speech carries little energy there. Options for the next attempt include
+a dedicated speech detector beside BirdNET, or a lower recall target that the
+user accepts as a reduction in exposure, not a guarantee.

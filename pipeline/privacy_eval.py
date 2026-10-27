@@ -190,6 +190,35 @@ def generate_speech(folder):
     (folder / "synthesis.json").write_text(json.dumps(generated, indent=2) + "\n")
 
 
+def prepare_librispeech(source, folder, seconds=30.0, gap=0.3):
+    """Join each LibriSpeech speaker's first utterances into one FLAC of about `seconds`.
+
+    `source` is an extracted LibriSpeech folder (SPEAKER/CHAPTER/*.flac), such as Mini
+    LibriSpeech's dev-clean-2, downloaded only with the user's permission. The identities go
+    in synthesis.json, like the macOS voices, so eligibility counts distinct speakers."""
+    folder.mkdir(parents=True, exist_ok=True)
+    prepared = []
+    for speaker in sorted((d for d in source.iterdir() if d.is_dir()), key=lambda d: int(d.name) if d.name.isdigit() else d.name):
+        parts, total, rate = [], 0.0, None
+        for flac in sorted(speaker.rglob("*.flac")):
+            audio, rate_here = sf.read(flac, dtype="float32")
+            if rate is not None and rate_here != rate:
+                continue
+            rate = rate_here
+            parts += [audio, np.zeros(round(gap * rate), np.float32)]
+            total += len(audio) / rate + gap
+            if total >= seconds:
+                break
+        if not parts:
+            continue
+        path = folder / f"librispeech-{speaker.name}.flac"
+        sf.write(path, np.concatenate(parts), rate, format="FLAC")
+        prepared.append({"voice": f"LibriSpeech speaker {speaker.name}", "path": str(path.resolve()), "sha256": sha256(path)})
+    if not prepared:
+        raise ValueError(f"No LibriSpeech speakers found in {source}")
+    (folder / "synthesis.json").write_text(json.dumps(prepared, indent=2) + "\n")
+
+
 class Detector:
     def __init__(self, out, lat, lon, threads):
         from birdnet_lite import BirdNET, MODEL, META_MODEL, LABELS, models_dir
@@ -337,7 +366,7 @@ def evaluate(args, inputs):
             "comparison_threshold": comparison_threshold,
             "limitations": complete + ["Background candidates may contain genuine voices; CSV needs human review.",
                                         "MP3 and OGG source reruns differ from original raw station input.",
-                                        "macOS synthetic speech does not validate every voice, singing or shouting.",
+                                        "The speech set covers only its own voices; it doesn't validate every voice, singing or shouting.",
                                         "Pi process overhead remains to be measured on the home network."]}
 
 
@@ -371,7 +400,7 @@ def report(path, inputs, result):
             text.append("| " + " | ".join(map(str, values)) + " |")
     else:
         text.append("No inference evaluation has run. No candidate threshold has passed or failed the targets.")
-    text += ["", "Generated voice identities: " + ", ".join(sorted({x.get("voice", "unverified") for x in inputs["speech"]})) + "."]
+    text += ["", "Voice identities: " + ", ".join(sorted({x.get("voice", "unverified") for x in inputs["speech"]})) + "."]
     if len(inputs["background"]) <= 10:
         text += ["", "Background input names: " + ", ".join(Path(x["path"]).name for x in inputs["background"]) + "."]
     text += ["", f"Selected threshold: {result.get('selected_threshold') if result.get('selected_threshold') is not None else 'none'}.", "", "### Limitations", ""]
@@ -390,10 +419,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--background", type=Path, required=True, help="local station live MP3 directory; .clean.mp3 excluded")
     parser.add_argument("--birds", type=Path, required=True, help="local station clips directory (.ogg, or .flac at sample rates Opus lacks)")
-    parser.add_argument("--speech", type=Path, required=True, help="local generated AIFF speech directory")
+    parser.add_argument("--speech", type=Path, required=True, help="local speech directory: generated AIFF, or FLAC from --librispeech")
     parser.add_argument("--out", type=Path, default=Path("data/privacy-eval"))
     parser.add_argument("--report", type=Path, default=Path("docs/plans/privacy-filter-results.md"))
     parser.add_argument("--generate-speech", action="store_true", help="generate files with three installed macOS voices; never play")
+    parser.add_argument("--librispeech", type=Path, help="extracted LibriSpeech folder to prepare real speech from; never downloads")
     parser.add_argument("--inventory-only", action="store_true", help="write coverage/report without loading a model")
     parser.add_argument("--allow-incomplete", action="store_true", help="run a diagnostic subset, never qualify its threshold")
     parser.add_argument("--lat", type=float, default=47.61)
@@ -403,8 +433,10 @@ def main(argv=None):
     args.out.mkdir(parents=True, exist_ok=True)
     if args.generate_speech:
         generate_speech(args.speech)
+    if args.librispeech:
+        prepare_librispeech(args.librispeech, args.speech)
     inputs = {"background": inventory(args.background, {".mp3"}, True), "birds": inventory(args.birds, {".ogg", ".flac"}),
-              "speech": inventory(args.speech, {".aiff", ".aif"})}
+              "speech": inventory(args.speech, {".aiff", ".aif", ".flac"})}
     synthesis = args.speech / "synthesis.json"
     if synthesis.exists():
         identities = {Path(item["path"]).name: item for item in json.loads(synthesis.read_text())}
