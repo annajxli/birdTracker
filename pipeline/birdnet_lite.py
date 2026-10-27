@@ -14,7 +14,8 @@ same 3 s is dropped, and the confident ones go in <stem>.BirdNET.sounds.csv for 
 
 And one more: <stem>.BirdNET.activity.csv has, for every 3 s window, an "any bird" score (the
 chance that at least one of the expected species is there, 1 - prod(1 - score)) and the best
-single species' score, so birdsong that BirdNET can't pin to a species still counts as birdsong.
+single species' score and scientific name, so birdsong that BirdNET can't pin to a species still
+counts as birdsong.
 It's 0 where a confident non-bird sound (SOUND_MIN_CONF or more) outscores every bird; a faint one,
 such as distant traffic or rain, doesn't erase faint birdsong.
 
@@ -125,7 +126,7 @@ class BirdNET:
             w, ws, wa = csv.writer(f), csv.writer(g), csv.writer(h)
             w.writerow(["Start (s)", "End (s)", "Scientific name", "Common name", "Confidence", "File"])
             ws.writerow(["Start (s)", "Sound", "Confidence"])
-            wa.writerow(["Start (s)", "Any bird", "Best species"])
+            wa.writerow(["Start (s)", "Any bird", "Best species", "Best name"])
             for b in range(0, len(chunks), BATCH):
                 for i, row in enumerate(self.scores(chunks[b:b + BATCH])):
                     start = starts[b + i] / RATE
@@ -136,6 +137,8 @@ class BirdNET:
                     for k in self.sounds[row[self.sounds] >= SOUND_MIN_CONF]:
                         ws.writerow([f"{start:.1f}", SOUNDS[self.labels[k][0]], f"{row[k]:.4f}"])
                     birds = row[allowed]
+                    top = int(np.flatnonzero(allowed)[birds.argmax()]) if len(birds) else None
                     best = birds.max() if len(birds) else 0.0
-                    wa.writerow([f"{start:.1f}", f"{any_bird(birds, loudest):.4f}", f"{best:.4f}"])
+                    wa.writerow([f"{start:.1f}", f"{any_bird(birds, loudest):.4f}", f"{best:.4f}",
+                                 self.labels[top][0] if top is not None else ""])
         return out

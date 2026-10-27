@@ -59,6 +59,7 @@ import boto3
 from botocore.config import Config
 
 import db
+import thresholds
 from publish_usage import Usage
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -301,9 +302,10 @@ def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = Fals
     """Apply the verdicts visitors left on the site (the password Worker saves each one as
     reviews/<time>-<id>.json): set review and reviewed_at on those detections, oldest first so a
     later verdict wins, then delete the files. A rejected detection stays in the database (it's
-    what thresholds will learn from) but leaves the exports. live/reviews.json, keyed
+    what thresholds learn from) but leaves the exports. live/reviews.json, keyed
     "<UTC time>|<scientific name>", tells the Live page about the last week's verdicts, since its
-    strips were written before them. Returns how many review files were applied."""
+    strips were written before them, and live/thresholds.json has each species' threshold learned
+    from all reviews (thresholds.py). Returns how many review files were applied."""
     keys, token = [], None
     while True:
         page = s3.list_objects_v2(Bucket=bucket, Prefix="reviews/", **({"ContinuationToken": token} if token else {}))
@@ -328,10 +330,12 @@ def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = Fals
         since = datetime.fromtimestamp(time.time() - REVIEWED_DAYS * 86400, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         reviewed = {f"{at}|{sci}": verdict for at, sci, verdict in conn.execute(
             "SELECT detected_at, scientific_name, review FROM detections WHERE review IS NOT NULL AND detected_at >= ?", (since,))}
+        learned = thresholds.learn_from_db(conn)
     live.mkdir(parents=True, exist_ok=True)
     part = live / "reviews.json.part"  # the mirror skips .part files
     part.write_text(json.dumps(reviewed))
     os.replace(part, live / "reviews.json")
+    thresholds.write(live / "thresholds.json", learned)
     if keys:
         log.info("applied %d reviews", len(keys))
     return len(keys)
