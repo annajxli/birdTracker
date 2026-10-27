@@ -31,6 +31,12 @@ if (!all.length) {
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
   await new Promise(() => {});
 }
+// The recorder's audio as [start, end] ms spans (not simulated), for the day timeline's gaps.
+const audioSpans = (() => {
+  if (!recordings) return null;
+  const time = recordings.getChild("time"), seconds = recordings.getChild("seconds"), simulated = recordings.getChild("simulated");
+  return d3.range(recordings.numRows).filter((i) => !simulated?.get(i)).map((i) => [Number(time.get(i)), Number(time.get(i)) + seconds.get(i) * 1e3]);
+})();
 // Days with audio from the recorder (not simulated), or with a detection.
 const recordedDates = new Set(all.map((d) => d.date));
 if (recordings) {
@@ -164,7 +170,7 @@ const timelineDates = selection.scale === "D" ? formatDate(selection.date)
   <div id="home-timeline" class="card layout-reserve timeline-card">
     <div class="filters timeline-sort">${sortIn}</div>
     ${spanDates.length
-      ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed, recordedUntil, unidentified: unidentified.filter((u) => spanDateSet.has(u.date))}))
+      ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed, recordedUntil, audio: audioSpans, unidentified: unidentified.filter((u) => spanDateSet.has(u.date))}))
       : html`<p class="sub">No recordings ${selection.scale === "D" ? "on this day" : "in this period"}; the recorder was offline.</p>`}
   </div>
   </div>

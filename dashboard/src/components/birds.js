@@ -418,6 +418,20 @@ function sunBandMark(bands, top, bottom, color, opacity) {
   };
 }
 
+/** Hatched rects ([x1, x2] times) over rows top..bottom: stretches the recorder sent no audio. */
+function hatchMark(spans, top, bottom) {
+  return (index, {x, y}) => {
+    const id = `hatch-${Math.random().toString(36).slice(2)}`;
+    const g = htl.svg`<g aria-hidden="true"><defs><pattern id=${id} patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(-45)">
+      <line x1="0" y1="0" x2="0" y2="5" stroke="currentColor" stroke-opacity="0.22" stroke-width="1.2"></line></pattern></defs>`;
+    for (const [a, b] of spans) {
+      const [x0, x1] = [x(a), x(b)];
+      if (x1 > x0) g.append(htl.svg`<rect x=${x0} width=${x1 - x0} y=${Math.min(y(top), y(bottom))} height=${Math.abs(y(bottom) - y(top))} fill=${`url(#${id})`}><title>${`No audio ${clock(a)}–${clock(b)}`}</title></rect>`);
+    }
+    return g;
+  };
+}
+
 /**
  * Sun and moon labels sit just above the timeline's top horizontal rule. Each of sunrise and
  * sunset is [earliest, latest] over the days shown (the same time twice for one day); a range
@@ -497,6 +511,7 @@ const BIN_MINUTES = 15;
 // to last call). A guess from simulated data; see README "Tuning with real data".
 const BOUT_GAP_MINUTES = 2;
 const SEGMENT_MS = 3000; // BirdNET scores 3-second segments
+const NO_AUDIO_MINUTES = 5; // shorter breaks between recordings aren't marked
 // Over several days sunrise and sunset move; once they move this much they're drawn as a band
 // (earliest to latest) instead of a line.
 const SUN_BAND_MS = 10 * 6e4;
@@ -522,6 +537,7 @@ export function dayTimeline(rows, sun, dates, {
   rowPx = ROW_PX, // height of one species row; a full-screen display passes more
   recordedUntil = null, // end of the newest recorded audio; on that day alone, marked with a line
   unidentified = [], // minutes ({time, date}) with birdsong BirdNET couldn't name: a muted last row, never counted
+  audio = null, // the recorder's audio as [start ms, end ms] spans; for one day, stretches without it are hatched
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
@@ -732,6 +748,20 @@ export function dayTimeline(rows, sun, dates, {
   const recordedText = recordedShown && `Last updated ${clock(recordedUntil)}`;
   const recordedPlace = recordedShown && lastUpdatedPlace(d3.scaleTime(domain, [marginLeft, width - marginRight]), recordedAt, recordedText,
     [sunriseRange, sunsetRange].filter((r) => !isBand(r)), width);
+  // One day: stretches with no audio (up to where the recording so far ends) are hatched, so a
+  // missed stretch doesn't read as time without birds, nor as time not recorded yet.
+  const noAudio = [];
+  if (audio && n === 1) {
+    const dayFrom = +new Date(sun[dates[0]].start), dayTo = Math.min(+new Date(sun[dates[0]].end), recordedAt ? +recordedUntil : Infinity);
+    const spans = audio.filter(([a, b]) => b > dayFrom && a < dayTo).sort((p, q) => p[0] - q[0]);
+    if (spans.length) { // a day without any rows predates the recordings table: unknown, not missed
+      let from = dayFrom;
+      for (const [a, b] of [...spans, [dayTo, dayTo]]) {
+        if (a - from >= NO_AUDIO_MINUTES * 6e4) noAudio.push([onRef(dates[0], new Date(from)), onRef(dates[0], new Date(Math.min(a, dayTo)))]);
+        from = Math.max(from, b);
+      }
+    }
+  }
   const recordedMarks = recordedShown ? [
     Plot.rectX([recordedAt], {x1: (t) => t, x2: () => domain[1], y1: gridTop, y2: total, fill: "currentColor", fillOpacity: 0.05}),
     Plot.ruleX([recordedAt], {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.55}),
@@ -755,6 +785,7 @@ export function dayTimeline(rows, sun, dates, {
       Plot.ruleX([sunriseRange, sunsetRange].filter((r) => !isBand(r)).map(([t]) => t), {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "3,3"}),
       sunMarkers(sunriseRange, sunsetRange, gridTop),
       ...recordedMarks,
+      noAudio.length ? hatchMark(noAudio.map(([a, b]) => [new Date(Math.max(a, domain[0])), new Date(Math.min(b, domain[1]))]), gridTop, total) : null,
       // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
       Plot.text(headingRows, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
