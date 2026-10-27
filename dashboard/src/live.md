@@ -243,23 +243,28 @@ async function paintStrip(canvas, url, strip) {
   const left = parseFloat(canvas.style.left) || 0;
   for (const [a, b] of strip.gaps ?? []) {
     const x0 = Math.floor(a / strip.seconds * canvas.width), x1 = Math.ceil(b / strip.seconds * canvas.width);
-    ctx.fillStyle = "#14110d";
+    const pattern = ctx.createPattern(hatchTile, "repeat");
+    pattern.setTransform(new DOMMatrix().translate(-left, 0));
+    ctx.fillStyle = pattern;
     ctx.fillRect(x0, 0, x1 - x0, canvas.height);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(x0, 0, x1 - x0, canvas.height);
-    ctx.clip();
-    ctx.strokeStyle = "rgba(232, 224, 207, 0.28)";
-    ctx.lineWidth = 1;
-    for (let k = Math.floor((x0 + left - canvas.height) / HATCH) * HATCH - left; k < x1; k += HATCH) {
-      ctx.moveTo(k, canvas.height);
-      ctx.lineTo(k + canvas.height, 0);
-    }
-    ctx.stroke();
-    ctx.restore();
   }
 }
+// One hatching tile for the dropouts inside strips and the gaps between them, so they look
+// the same in every browser (a CSS gradient's thin lines rasterize differently from canvas).
 const HATCH = 7; // px between the hatching's lines
+const hatchTile = (() => {
+  const c = Object.assign(document.createElement("canvas"), {width: HATCH, height: HATCH});
+  const g = c.getContext("2d");
+  g.fillStyle = "#14110d";
+  g.fillRect(0, 0, HATCH, HATCH);
+  g.strokeStyle = "rgba(232, 224, 207, 0.28)";
+  g.lineWidth = 1;
+  g.beginPath();
+  for (const o of [-HATCH, 0, HATCH]) { g.moveTo(o, HATCH); g.lineTo(o + HATCH, 0); }
+  g.stroke();
+  return c;
+})();
+const hatchImage = `url(${hatchTile.toDataURL()})`;
 
 // Redraws the track; the moment at the right edge of the view stays put (while tracking, the
 // next frame puts the playhead there anyway).
@@ -314,7 +319,7 @@ function draw() {
     if (b - a < 1) continue;
     const gap = document.createElement("div");
     gap.className = "live-gap";
-    Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundPosition: `${-a}px 0`});
+    Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundImage: hatchImage, backgroundPosition: `${-a}px 0`});
     track.append(gap);
   }
   // Since the audio stopped: hatched the same way, with when it stopped.
@@ -322,7 +327,7 @@ function draw() {
     const a = Math.round(x(Math.max(offline, t0))), b = Math.round(x(t1));
     const gap = document.createElement("div");
     gap.className = "live-gap is-offline";
-    Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundPosition: `${-a}px 0`});
+    Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundImage: hatchImage, backgroundPosition: `${-a}px 0`});
     gap.append(Object.assign(document.createElement("span"), {className: "live-offline-label", textContent: `No audio since ${dayTime(new Date(offline))}`}));
     track.append(gap);
   }
@@ -357,7 +362,7 @@ function draw() {
     a.run = r;
     const text = document.createElement("span");
     text.className = "live-name-text";
-    text.textContent = r.review === "confirmed" ? `${label} ✓` : label;
+    text.textContent = r.review === "confirmed" ? `${label} ✓` : r.review === "rejected" ? `${label} ✗` : label;
     a.append(text);
     a.setAttribute("aria-label", r.unidentified ? `${UNIDENTIFIED}, ${time(new Date(r.start))}: play from here` : `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault(); // stay unfocused, so space still mutes
@@ -668,7 +673,7 @@ const stopCards = speciesCards((name, el) => {
     photo: cardMeta.photos?.[name], scientific: (heard[0] ?? run?.dets[0])?.scientific_name, category: cardMeta.categories?.species?.[name],
     rows: [["Minutes heard", String(new Set(sure.map((d) => Math.floor(Date.parse(d.at) / 6e4))).size)], ["Best confidence", `${Math.round(100 * (d3.max(heard, (d) => d.confidence) ?? 0))}%`]],
     actions: run && html`<div class="species-pop-review"><span>${time(new Date(run.start))}</span>${run.review
-      ? [html`<span class="review-state">${run.review === "rejected" ? "Rejected" : "✓ Confirmed"}</span>`, act("Undo", null)]
+      ? [html`<span class="review-state">${run.review === "rejected" ? "✗ Rejected" : "✓ Confirmed"}</span>`, act("Undo", null)]
       : [act("Confirm", "confirmed"), act("Reject", "rejected")]}</div>`
   };
 }, {hover: ".live-name", newTab: true});
