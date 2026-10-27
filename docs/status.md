@@ -15,26 +15,43 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ running the receiver, analyzer, and publisher. Deployed October 25, 2026. The deployed commit isn't recorded. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
-| Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/`, mounted outdoors. Deployed October 25, 2026. The firmware commit isn't recorded. | [Recorder hardware](hardware.md) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `c9d5827` since October 26, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
 
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
-- October 25, 2026: Raspberry Pi 3B+ pipeline and outdoor FireBeetle 2 ESP32-E recorder. Commits not recorded.
+- October 26, 2026: `c9d5827` to `pio`: counts of birdsong windows and unidentified birdsong per minute.
+- October 26, 2026: `432e9b9` to `pio`: detection reviews applied by the publisher.
+- October 25, 2026: `65f7b38` to `pio`: non-bird sounds veto birds and are listed on Live strips.
+- October 25, 2026: `3f803ab` to `pio`: the Bird boost cleaning keeps BirdNET's detection windows.
+- October 25, 2026: `7f9baf3` to `pio`: frame counts in `recordings.parquet`.
+- October 25, 2026: `19f810c` to `pio`: a week of Live strips in day files. Recorder firmware `6c6c8fe` flashed: frame counts in its health reports.
+- October 25, 2026: `e47e1f0` to `pio`: Live strips are made on a background thread.
+- October 25, 2026: `54f3c1d` to `pio`: a cleaned Live MP3 for Bird boost.
+- October 25, 2026: `8369752` to `pio`, and recorder firmware `8369752` flashed: the recorder's temperature, uptime, and signal strength.
+- October 25, 2026: `d08bbd7` to `pio`: a recorder telemetry row per minute.
+- October 25, 2026: `3598a74` to `pio`: BirdNET on TFLite in batches of 4.
+- October 25, 2026: first Raspberry Pi 3B+ pipeline and outdoor FireBeetle 2 ESP32-E recorder. Earlier commits weren't recorded.
 
 ## Open checks
 
 ### Indoor computer on a Raspberry Pi 3B+
 
 - **Speed.** The analyzer must process each minute of audio, including its
-  spectrogram and MP3 copies, in well under a minute. If the Pi can't keep up,
+  spectrogram and MP3 copies, in well under a minute. On October 26, 2026, at
+  `c9d5827`, it stored each minute's detections about 32 to 36 seconds after the
+  minute ended, with no backlog, and used about 23% of the CPU over a minute. If the Pi can't keep up,
   reduce the threads that compete with the receiver. A smaller model is
   another option, but `birdnet_lite.py` supports only the FP32 model.
 - **Temperature.** The 3B+ slows down when it's hot. Check
-  `vcgencmd measure_temp` under load.
+  `vcgencmd measure_temp` under load. On October 25 and 26, 2026, it read 53 to
+  60 °C on an open riser. An enclosed cabinet needs a check of its own.
+- **Power.** `vcgencmd get_throttled` reports under-voltage and throttling
+  with the current power supply. Replace it with a 5 V, 2.5 A supply, and check
+  again.
 - **SD card wear.** The analyzer writes the database and live strips
   constantly. A high-endurance card or a USB SSD for `data/` lasts longer.
 
@@ -49,14 +66,20 @@ against real recordings. For details, see
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 1](bench-test-1.md#plan-for-bench-test-2).
 
-### Plans for more stations and microphones
+### Plans
 
-Neither plan is built or tested:
+None of these plans is built or tested:
 
 - [Indoor computer options](plans/indoor-computer-options.md): copy the Pi 3B+
   setup after the indoor computer checks above pass.
 - [Microphone options](plans/microphone-options.md): candidate microphones and
   how to compare them.
+- [E-paper display](plans/eink-display.md): a color screen that shows what's
+  being heard.
+- [Painted species art](plans/species-art.md): paintings as the default species
+  pictures.
+- [Feeder camera](plans/feeder-camera.md): a window feeder with a camera, matched
+  to detections.
 
 ## Work on other branches
 
