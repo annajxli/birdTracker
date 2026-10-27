@@ -108,6 +108,11 @@ let drawnWindow = null; // the overview window [w0, w1] the track was last drawn
 const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
 const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
 const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
+// A time, with its date when that isn't today (Pacific).
+const dayTime = (d) => (d.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}) === new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"})
+  ? time(d) : `${d.toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric"})}, ${time(d)}`);
+// Where the recorder's audio stopped, when nothing has come for STALE_MINUTES; else null.
+const offlineSince = () => (strips.length && Date.now() - endOf(strips.at(-1)) > STALE_MINUTES * 6e4 ? endOf(strips.at(-1)) : null);
 
 // The playhead: the moment shown or heard, marked by a line. Time always runs: with the sound on
 // it's the sound's own position, otherwise the wall clock minus `lag` (held at the newest audio
@@ -268,7 +273,9 @@ function draw() {
   if (!strips.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
   // The whole window scrolls, loaded or not: older days load as the view nears them (loadNearView).
-  const t1 = Math.min(w.w1, endOf(strips.at(-1)));
+  // Offline, it runs on to now, so the stretch without audio shows.
+  const offline = offlineSince();
+  const t1 = Math.min(w.w1, offline ? Date.now() : endOf(strips.at(-1)));
   // At least one full span before the newest audio, so the view can always be filled.
   const t0 = Math.min(w.w0, t1 - span * 1e3);
   geo = {t0, t1, pps};
@@ -308,6 +315,15 @@ function draw() {
     const gap = document.createElement("div");
     gap.className = "live-gap";
     Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundPosition: `${-a}px 0`});
+    track.append(gap);
+  }
+  // Since the audio stopped: hatched the same way, with when it stopped.
+  if (offline && t1 > offline) {
+    const a = Math.round(x(Math.max(offline, t0))), b = Math.round(x(t1));
+    const gap = document.createElement("div");
+    gap.className = "live-gap is-offline";
+    Object.assign(gap.style, {left: a + "px", width: b - a + "px", top: SPEC_TOP + "px", height: SPEC_H + "px", backgroundPosition: `${-a}px 0`});
+    gap.append(Object.assign(document.createElement("span"), {className: "live-offline-label", textContent: `No audio since ${dayTime(new Date(offline))}`}));
     track.append(gap);
   }
   // Time ticks under the strips, far enough apart that their labels don't touch.
@@ -428,7 +444,8 @@ setInterval(loadIndex, 10 * 60e3);
 // now), or where ‹ › put it.
 function ovWindow() {
   const [len, bin] = OV_FOR[span] ?? OV_FOR[3600], days = len >= 72 * HOUR;
-  const now = Date.now(), p = Math.min(playhead ?? now, now);
+  // Live and offline, it follows now, so it shows how long the audio has been missing.
+  const now = Date.now(), p = live && tracking && offlineSince() ? now : Math.min(playhead ?? now, now);
   const w1 = ovEnd ?? (days ? midnight(dayShift(pacificDate(p), 1)) : Math.min(Math.ceil(now / bin) * bin, Math.ceil((p + len / 4) / bin) * bin));
   return {w0: w1 - len, w1, len, bin, days};
 }
@@ -463,9 +480,11 @@ function drawOverview() {
     const t = Date.parse(d.date + "T00:00:00Z") + i * HOUR;
     for (const half of [t, t + bin]) indexed.set(half, [m * 30, (d.birds?.[i] ?? 0) * 30]);
   });
+  // Bars after the newest audio are left blank while its next strip may still come.
+  const pending = strips.length && !offlineSince() ? endOf(strips.at(-1)) : Infinity;
   document.getElementById("live-overview-bars").replaceChildren(...d3.range(w0, w1, bin).map((t) => {
     const el = document.createElement("span");
-    if (t > now) { el.className = "is-future"; return el; }
+    if (t > now || t >= pending) { el.className = "is-future"; return el; }
     const [a, b] = audio.has(t) ? [audio.get(t), birdSeconds(t)] : indexed.get(t) ?? [0, 0];
     el.className = a < (bin / 1e3) * 0.05 ? "is-empty" : b ? "has-birds" : "is-quiet";
     if (b) el.style.height = 30 + 70 * Math.min(1, (2 * b * 1e3) / bin) + "%";
@@ -587,8 +606,11 @@ function loadNearView() {
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
 function frame() {
   if (geo && strips.length) {
-    const newest = endOf(strips.at(-1));
-    if (playhead === null) { playhead = newest - FOLLOW_MARGIN; lag = Date.now() - playhead; }
+    const newest = endOf(strips.at(-1)), offline = offlineSince();
+    // Offline, the playhead starts at the newest audio, so nothing replays; when audio comes back,
+    // live jumps to it.
+    if (playhead === null || (wasOffline && !offline && live && tracking && !soundOn)) { playhead = offline ? newest : newest - FOLLOW_MARGIN; lag = Date.now() - playhead; }
+    wasOffline = !!offline;
     // The sound's position, once it has loaded and found its place (until then, where it was sent).
     if (paused) {} // held where it is
     else if (soundOn && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
@@ -596,7 +618,8 @@ function frame() {
     lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
     playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
-    if (tracking) scroller.scrollLeft = x(playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
+    // Live and offline, the view ends at now, with the stretch without audio in it.
+    if (tracking) scroller.scrollLeft = x(live && offline ? geo.t1 : playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
   }
   loadNearView();
   positionNames();
@@ -606,6 +629,7 @@ function frame() {
   updateDuck();
   raf = requestAnimationFrame(frame);
 }
+let wasOffline = false;
 let raf = requestAnimationFrame(frame);
 
 // "Live" only while the view follows the live point; scrolled away from it, the button goes back.
@@ -827,7 +851,7 @@ function goLive() {
   paused = false;
   live = true;
   tracking = true;
-  playhead = endOf(strips.at(-1)) - FOLLOW_MARGIN;
+  playhead = endOf(strips.at(-1)) - (offlineSince() ? 0 : FOLLOW_MARGIN);
   lag = Date.now() - playhead;
   if (soundOn) playFrom(playhead);
   markLive();
@@ -1019,7 +1043,7 @@ function showStatus() {
   const end = new Date(Date.parse(last.start) + last.seconds * 1e3);
   const quiet = (Date.now() - end) / 60e3 > STALE_MINUTES;
   status.textContent = quiet && live && !soundOn
-    ? `No audio from the recorder since ${time(end)}.`
+    ? `No audio from the recorder since ${dayTime(end)}.`
     : soundOn && waitingFor !== null
     ? "Waiting for the next minute of audio…"
     : playhead !== null
@@ -1041,7 +1065,7 @@ async function poll() {
     else if (!r.ok) throw new Error(`HTTP ${r.status}`);
     else {
       const j = await r.json();
-      if (j.updated === updated) return;
+      if (j.updated === updated) { if (offlineSince()) draw(); return; }
       updated = j.updated;
       strips = mergeStrips(older, j.strips ?? []);
     }

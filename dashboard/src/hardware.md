@@ -122,6 +122,13 @@ const slots = d3.range(Math.max(1, Math.ceil((dataEnd - dayStart) / STEP))).map(
 ```js
 // Cards: each reading now (its value, a meter, its status) above its last 24 hours.
 const piFresh = pi && Date.now() - Date.parse(pi.updated) < 5 * 60e3;
+// The recorder's audio reaches this page in batches (the recordings table), so it counts as
+// unreachable only once nothing has come for longer than a batch takes.
+const RECORDER_STALE = 20 * 60e3;
+const recorderFresh = hasRecs && Date.now() - dataEnd < RECORDER_STALE;
+// A part with no recent data: a full-width card above its readings, which are from then.
+const unreachable = (since) => html`<div class="card is-alert status-critical unreachable"><div class="big">Unreachable</div>
+  <div class="sub">${statusTag("critical")} · no data since ${clock(since)} · readings below are from then</div></div>`;
 const duration = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60); return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m} min`; };
 // Status: each level has its own shape and word, so it never rests on color alone.
 const STATUS = {good: ["●", "Good"], warning: ["▲", "Okay"], critical: ["■", "Bad"]};
@@ -333,6 +340,7 @@ const piSection = pi && html`<div class="grid stats">
 </div>
 
 <div class="section-top"><p class="eyebrow">Outdoor recorder</p>${hasRecs ? html`<p class="sub section-sub">FireBeetle · last recording ${clock(last.time)}</p>` : ""}</div>
+${hasRecs && !recorderFresh ? unreachable(dataEnd) : ""}
 <div class="grid stats">
   ${hasRecs ? [
     meterCard("Wifi signal", `${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm`, meter(d3.median(recent, (d) => d.rssi), WIFI_ZONES, (v) => `${v}`.replace("-", "−")), `median since ${formatDate(windowStart)}`, statusStrip(slots, "rssi", WIFI_ZONES, (v) => `${d3.format(".0f")(v)} dBm`)),
@@ -361,6 +369,7 @@ const piSection = pi && html`<div class="grid stats">
 </div>
 
 <div class="section-top"><p class="eyebrow">Indoor computer</p>${pi ? html`<p class="sub section-sub">${pi.host} · last report ${clock(pi.updated)}${piFresh ? "" : " (over 5 min ago)"}</p>` : ""}</div>
+${pi && !piFresh ? unreachable(pi.updated) : ""}
 ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
 
 <div class="section-top"><p class="eyebrow">Coverage, last 90 days</p></div>
