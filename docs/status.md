@@ -93,6 +93,8 @@ None of these plans is built or tested:
   to detections.
 - [Multi-station expansion](plans/multi-station.md): more stations, their
   storage and cost, and a possible home server.
+- [Voice privacy filter](plans/privacy-filter.md): silence human voices in
+  published audio, specified for an agent to implement and evaluate.
 
 ## Work on other branches
 
