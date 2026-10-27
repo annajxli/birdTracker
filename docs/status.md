@@ -15,7 +15,7 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `a9b92cd` since October 26, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `b77256c` since October 26, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
 | Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
@@ -23,6 +23,7 @@ The following table lists the deployed components:
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
+- October 26, 2026: `b77256c` (branch `claude/pi-update-check`) to `pio` with `push.sh`: the deployed code version in `deployed.json`, and the weekly operating system update check (`birdtracker-updates.timer`). Verified the same evening: the three services are active, the timer is scheduled, the first check finished in about a minute and found 21 upgradable packages, 11 of them security updates, with no reboot required, and `status.json` includes `code` and `updates`. The Hardware analytics page doesn't show them yet. To roll back, run `push.sh` from `301a84b`.
 - October 26, 2026: `a9b92cd` to `pio` with `push.sh`, no service overrides. That commit was later rebased; its deployed code matches the merge of `claude/publisher-deploy`: the publisher checks reviews and uploads Live day files at its `--reviews-seconds` and `--history-seconds` defaults, and counts R2 usage. Includes `main`'s spectrogram fix. Verified the same evening: a new minute's spectrogram, MP3s, and `live.json` reached R2 about a minute after the minute ended, as before, with `live.json` last; `days.json` and the day file updated 5 minutes after the first pass; a test review put straight into `reviews/` was applied within 5 minutes; `data/publish-usage.json` is valid, grew, and kept its totals across a publisher restart, and no usage file is in the bucket. Not verified: playback in a browser, and a review sent through the website. To roll back, run `push.sh` from `c9d5827`.
 - October 26, 2026: `c9d5827` to `pio`: counts of birdsong windows and unidentified birdsong per minute.
 - October 26, 2026: `432e9b9` to `pio`: detection reviews applied by the publisher.
@@ -53,7 +54,11 @@ host alias. Don't include secrets.
 - **Power.** `vcgencmd get_throttled` reports under-voltage and throttling
   with the current power supply. Replace it with a 5 V, 2.5 A supply, and check
   again.
-- **Publisher usage.** After several complete UTC days on `a9b92cd`, compare
+- **Operating system updates.** On October 26, 2026, the first weekly check
+  found 21 upgradable packages, 11 of them security updates. They aren't
+  installed. To install them, see
+  [Update the operating system](deploy.md#update-the-operating-system).
+- **Publisher usage.** After several complete UTC days on `a9b92cd` or later, compare
   the call counts and upload bytes in `data/publish-usage.json` with R2's
   metrics in the Cloudflare dashboard. Review listings should drop to about
   one per `--reviews-seconds` interval. Don't count the deployment day, which
@@ -91,26 +96,21 @@ None of these plans is built or tested:
 
 ## Work on other branches
 
-The following branches change documentation that isn't on `main`. When you
-merge one, move its documentation into the structure in
-[AGENTS.md](../AGENTS.md#documentation), as the migration column says, and then
-delete its row.
-
-The following table lists the branches and where their documentation goes:
-
-| Branch | State | Documentation migration |
-| --- | --- | --- |
-| `codex/privacy-and-home-server` | Contains the publisher branch. Evaluation only. Don't merge or deploy it whole: its privacy filter fails the synthetic chirp check. | `docs/multi-station-plan.md`: already moved to [Multi-station expansion](plans/multi-station.md); merge its changes there. `docs/home-server-spec.md` to `docs/plans/home-server.md`. `docs/privacy-filter.md` and `docs/privacy-public-results.json` to `docs/plans/privacy-filter.md` and its results file. `docs/station-isolation.md`: implemented behavior into [Architecture](architecture.md), station configuration into [Deploy](deploy.md), and rollout limits into this page. `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). README additions into the README's documentation map. |
-| `codex/ui-live-polish` | Live page changes. | `CONTRIBUTING.md` into [AGENTS.md](../AGENTS.md). |
+No other branch has documentation waiting to merge. On October 26, 2026, the
+unmerged `codex/live-unidentified-export`, `codex/solar-activity-context`, and
+`codex/privacy-and-home-server` branches were deleted without merging; their
+privacy filter, station isolation, home-server spec, and time-of-day context
+aren't on `main`. If a branch adds documentation that isn't on `main`, list it
+here with where its documentation goes when it merges.
 
 ### Live details update
 
 The Live UI supports edge-clamped labels, centered mute text, and unidentified
 intervals. The embedded species pane was removed; the popup's **More details**
 link now opens the species page in a new tab. A native drawer, rendered from data
-Live already loads, remains an option if a new tab proves clumsy. The analyzer export is a separate pending update;
-no Pi deployment has happened, so existing production strips don't gain
-unidentified intervals. Site deployment is automatic after merging this update.
+Live already loads, remains an option if a new tab proves clumsy. The analyzer doesn't export unidentified
+intervals: the branch with that export was deleted unmerged, so Live strips
+don't include them. Site deployment is automatic after merging this update.
 Dashboard tests and build pass; browser interaction verification remains open.
 
 The Live spectrogram's scroll range now matches the overview window: 1 hour at
