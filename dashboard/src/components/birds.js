@@ -423,6 +423,29 @@ function sunBandMark(bands, top, bottom, color, opacity) {
  * sunset is [earliest, latest] over the days shown (the same time twice for one day); a range
  * is labelled "6:58a–7:40a".
  */
+// The sunrise or sunset label's text, and the span it takes to the right of its line.
+const sunText = ([t, last]) => (+last - +t >= 6e4 ? `${clockShort(t)}–${clockShort(last)}` : clockShort(t));
+let measureCtx;
+function textWidth(text, size = 10) {
+  measureCtx ??= document.createElement("canvas").getContext("2d");
+  measureCtx.font = `${size}px ${getComputedStyle(document.body).fontFamily}`;
+  return measureCtx.measureText(text).width;
+}
+const sunSpan = (px, range) => [px + 3, px + 22 + textWidth(sunText(range))];
+
+// Where the label on today's "last updated" line goes: beside the line, left if it fits, else
+// right; or, where the sunrise or sunset label or the chart's edge is in the way, on a line
+// above them (`raised`), on whichever side fits.
+function lastUpdatedPlace(x, t, text, suns, width) {
+  const px = x(t), w = textWidth(text);
+  const taken = suns.map((r) => sunSpan(x(r[0]), r));
+  const fits = ([a, b]) => a >= 0 && b <= width;
+  const clear = (span) => fits(span) && taken.every(([s0, s1]) => span[1] + 3 < s0 || span[0] - 3 > s1);
+  if (clear([px - 4 - w, px - 4])) return {left: true, raised: false};
+  if (clear([px + 4, px + 4 + w])) return {left: false, raised: false};
+  return {left: !fits([px + 4, px + 4 + w]), raised: true};
+}
+
 function sunMarkers(sunrise, sunset, top) {
   return (index, {x, y}, values, {marginLeft, width, marginRight}) => {
     const g = htl.svg`<g fill="currentColor" font-size="10" aria-label="sunrise and sunset">`;
@@ -436,7 +459,7 @@ function sunMarkers(sunrise, sunset, top) {
       g.append(htl.svg`<g transform=${`translate(${px + 10},${y(top) - 6})`} fill-opacity="0.75">
         <title>${range ? `${kind} ${clock(t)} to ${clock(last)}` : `${kind} ${clock(t)}`}</title>
         <g transform="translate(0,-3.5)">${icon}</g>
-        <text x="12" y="0" text-anchor="start">${range ? `${clockShort(t)}–${clockShort(last)}` : clockShort(t)}</text>
+        <text x="12" y="0" text-anchor="start">${sunText([t, last])}</text>
       </g>`);
     }
     return g;
@@ -704,29 +727,23 @@ export function dayTimeline(rows, sun, dates, {
   // time not recorded yet doesn't read as time without birds.
   const pacificDate = (t) => t.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
   const recordedAt = recordedUntil && n === 1 && pacificDate(recordedUntil) === dates[0] ? onRef(dates[0], recordedUntil) : null;
-  // Its label goes left of the line, or right when that would overlap the sunrise or sunset
-  // label above the chart; if both would, just inside the top of the chart.
-  const recordedText = recordedAt && `Recorded to ${clock(recordedUntil)}`;
-  const recordedSide = (() => {
-    if (!recordedAt) return null;
-    const px = (width - nameMargin(width) - (width < 520 ? 30 : 16)) / (domain[1] - domain[0]);
-    const x = (t) => (t - domain[0]) * px, w = recordedText.length * 5.6, rx = x(recordedAt);
-    const suns = [sunriseRange, sunsetRange].filter((r) => !isBand(r)).map(([t]) => [x(t) - 24, x(t) + 24]);
-    const clear = ([a, b]) => suns.every(([s0, s1]) => b < s0 || a > s1);
-    return clear([rx - w - 4, rx - 4]) ? "left" : clear([rx + 4, rx + w + 4]) ? "right" : "inside";
-  })();
-  const recordedMarks = recordedAt && recordedAt >= domain[0] && recordedAt <= domain[1] ? [
+  const marginLeft = nameMargin(width), marginRight = width < 520 ? 30 : 16; // room for the sunset time on phones
+  const recordedShown = recordedAt && recordedAt >= domain[0] && recordedAt <= domain[1];
+  const recordedText = recordedShown && `Last updated ${clock(recordedUntil)}`;
+  const recordedPlace = recordedShown && lastUpdatedPlace(d3.scaleTime(domain, [marginLeft, width - marginRight]), recordedAt, recordedText,
+    [sunriseRange, sunsetRange].filter((r) => !isBand(r)), width);
+  const recordedMarks = recordedShown ? [
     Plot.rectX([recordedAt], {x1: (t) => t, x2: () => domain[1], y1: gridTop, y2: total, fill: "currentColor", fillOpacity: 0.05}),
     Plot.ruleX([recordedAt], {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.55}),
-    Plot.text([recordedAt], {x: (t) => t, y: gridTop, text: () => recordedText, textAnchor: recordedSide === "left" ? "end" : "start",
-      lineAnchor: recordedSide === "inside" ? "top" : "bottom", dx: recordedSide === "left" ? -4 : 4, dy: recordedSide === "inside" ? 4 : -4, fontSize: 10, fill: "currentColor", fillOpacity: 0.75})
+    Plot.text([recordedAt], {x: (t) => t, y: gridTop, text: () => recordedText, textAnchor: recordedPlace.left ? "end" : "start", lineAnchor: "bottom",
+      dx: recordedPlace.left ? -4 : 4, dy: recordedPlace.raised ? -19 : -4, fontSize: 10, fill: "currentColor", fillOpacity: 0.75})
   ] : [];
   const plot = Plot.plot({
     width,
-    height: Math.round(total * rowPx) + 50,
-    marginLeft: nameMargin(width),
-    marginRight: width < 520 ? 30 : 16, // room for the sunset time on phones
-    marginTop: 18,
+    height: Math.round(total * rowPx) + 50 + (recordedPlace?.raised ? 15 : 0),
+    marginLeft,
+    marginRight,
+    marginTop: recordedPlace?.raised ? 33 : 18,
     x: {type: "time", domain, ticks: d3.timeHour.every(hourStep), tickFormat: clockShort, label: null},
     y: {domain: [total, 0], axis: null},
     color,
