@@ -108,6 +108,8 @@ None of these plans is built or tested:
   how to compare them.
 - [E-paper display](plans/eink-display.md): a color screen that shows what's
   being heard.
+- [Per-species confidence thresholds](plans/species-thresholds.md): a
+  threshold or a block for each species, learned from reviews.
 - [Painted species art](plans/species-art.md): paintings as the default species
   pictures.
 - [Feeder camera](plans/feeder-camera.md): a window feeder with a camera, matched
