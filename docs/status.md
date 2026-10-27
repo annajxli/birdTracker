@@ -178,3 +178,20 @@ its ETag changes. The production timer retains its one-minute interval.
 
 Final checks pass: 40 dashboard tests, 23 pipeline tests, password Worker tests,
 the site build with 30 validated links, and `git diff --check`.
+
+
+### Live active-detection cue
+
+October 27, 2026: `codex/live-active-cue` adds an accent-green activity dot to
+Live species labels and species rows. It follows real detection windows at the
+playhead, including historical seeks; grouped gaps and rejected windows stay
+quiet. Confidence weight and inclusion rules are unchanged. No Pi changes or
+production deployment have occurred.
+
+A local synthetic preview uses generated chirps, ambient noise, overlapping
+illustrative species labels and uncertain candidates, without real station
+audio. In-app browser checks verify a green active cue, no cue between calls,
+backward seek restoration and steady dots when paused. No audio was played.
+
+Checks pass: 45 dashboard tests, 23 pipeline tests, password Worker tests,
+the site build with 30 validated links, and whitespace.
