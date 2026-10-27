@@ -67,7 +67,13 @@ port. This forwarding is best effort and never delays the minute files.
 when its size and modification time stay the same across two checks. For each
 finished recording, the analyzer does the following:
 
-1. Runs BirdNET with the station's location and the week of the year.
+1. Runs BirdNET with the station's location and the week of the year. The
+   location filter keeps only the species expected at the station that week.
+   When BirdNET scores an excluded species, and its genus has exactly one
+   expected species, the expected species gets the higher of the two scores,
+   because BirdNET often splits a call between siblings. For example, a
+   California Scrub-Jay in Seattle often scores as Woodhouse's Scrub-Jay.
+   For the details, see the docstring of `pipeline/birdnet_lite.py`.
 2. Adds the detections to the `detections` table, and the recorder telemetry
    to the `recordings` table.
 3. Cuts a short Opus clip of the most confident detection of each species per
