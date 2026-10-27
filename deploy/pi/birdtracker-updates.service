@@ -1,0 +1,10 @@
+[Unit]
+Description=Bird Tracker: check the operating system for updates (installs nothing)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Root, for apt-get update; the system Python in isolated mode, so nothing from the project runs as root
+# except this standard-library script.
+ExecStart=/usr/bin/python3 -I %BIRD_HOME%/pipeline/updates.py --out %BIRD_HOME%/data/updates.json

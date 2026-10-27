@@ -18,6 +18,8 @@ rsync -az deploy/pi/ "$HOST:$DEST/deploy/pi/"
 rsync -az dashboard/src/data/detections.parquet.py dashboard/src/data/recordings.parquet.py "$HOST:$DEST/dashboard/src/data/"
 rsync -az "$MODELS/BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite" "$MODELS/BirdNET_GLOBAL_6K_V2.4_MData_Model_V2_FP16.tflite" \
   "$MODELS/BirdNET_GLOBAL_6K_V2.4_Labels.txt" "$HOST:$DEST/models/"
+# Which commit this is, for the Hardware analytics page (pipeline/code_version.py).
+.venv/bin/python pipeline/code_version.py | ssh "$HOST" "cat > $DEST/deployed.json"
 
 if ! ssh "$HOST" "test -f $DEST/birdtracker.env"; then
   TOKEN=$(sed -n 's/.*RECEIVER_TOKEN "\(.*\)"/\1/p' firmware/recorder_test/secrets.h)
