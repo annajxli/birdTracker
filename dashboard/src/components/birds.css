@@ -1595,6 +1595,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-track {
   position: relative;
   min-height: 216px;
+  overflow-x: clip; /* a tick label near the newest audio would otherwise widen the scroll range past live */
 }
 .live-strip { position: absolute; display: block; } /* a canvas, painted through a colormap */
 .live-gap { position: absolute; background: #14110d; } /* missing audio between strips; live.md sets its hatching */
