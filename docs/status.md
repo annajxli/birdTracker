@@ -81,9 +81,15 @@ against real recordings. For details, see
 
 ### Recorder hardware
 
-The recorder's power bank ran out at 4:21 AM on October 27, 2026, and the
-recorder streamed again from 7:50 AM on a replacement. The Live page shows the
-time between as a gap.
+The recorder's 10,000 mAh power bank ran out at 4:21 AM on October 27, 2026,
+and the recorder streamed again from 7:50 AM on a replacement. The Live page
+shows the time between as a gap. The bank lasted about 33 hours: the board's
+uptime (`board_uptime_s` in `recordings`) last reset at 7:21 PM on October 25.
+With about 85% of the bank's 37 Wh usable, the bench firmware averaged about
+0.95 W, or about 23 Wh a day, while it streamed continuously over Wi-Fi. That's
+about 16 times the estimate for build A in
+[the hardware design](design/hardware-design.html), which records in daylight
+only and uploads in bursts. Bench test 2 measures the draw directly.
 
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 1](bench-test-1.md#plan-for-bench-test-2).
