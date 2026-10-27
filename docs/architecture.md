@@ -400,6 +400,8 @@ calls. Multiple species can be active together.
 
 The cue leaves confidence styling and manual reviews unchanged. Rejected
 windows, non-bird sounds and unidentified labels don't light a species cue.
-Space is reserved for the dot to prevent label movement. The pulse is steady
+The dot sits outside the spectrogram label, leaving the name aligned with its
+detection start. Viewport clamping and lane spacing reserve room for the dot
+without shifting an otherwise aligned name. The pulse is steady
 when playback is paused or reduced motion is requested. Activity changes use
 `aria-current="time"` without announcing every playback frame.

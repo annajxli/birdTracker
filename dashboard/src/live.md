@@ -603,12 +603,14 @@ function positionNames() {
   }
   for (const n of names) n.width = n.text.offsetWidth;
   for (const {button, text, width, start, end} of names) {
-    const left = liveLabelLeft(start, width, viewLeft, viewRight);
+    const cueWidth = button.dataset.species ? 11 : 0;
+    const left = liveLabelLeft(start, width, viewLeft, viewRight, cueWidth);
+    const laneLeft = left - cueWidth;
     const right = Math.max(left + width, Math.min(end, viewRight));
-    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || left >= r + 6));
+    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || laneLeft >= r + 6));
     button.style.visibility = lane < 0 ? "hidden" : "visible";
     if (lane < 0) continue;
-    lanes[lane].push([left, right]);
+    lanes[lane].push([laneLeft, right]);
     button.style.top = lane * LANE + "px";
     text.style.transform = `translateX(${left - start}px)`;
   }

@@ -195,3 +195,9 @@ backward seek restoration and steady dots when paused. No audio was played.
 
 Checks pass: 45 dashboard tests, 23 pipeline tests, password Worker tests,
 the site build with 30 validated links, and whitespace.
+
+
+October 27, 2026: the spectrogram cue sits outside the label text, keeping the
+name aligned with its detection start. Incoming-edge clamping still holds text
+inside the plot until the detection catches up. Lane and left-edge spacing
+include the dot so it doesn't overlap another label or clip at the viewport.

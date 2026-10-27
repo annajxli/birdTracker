@@ -2156,6 +2156,14 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
   opacity: 0;
   transition: opacity 160ms ease;
 }
+/* Put the cue before the name without shifting the name off its detection start. */
+.live-name[data-species] .live-name-text::before {
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+}
 .live-name.is-detecting .live-name-text::before,
 .live-gantt-name.is-detecting::before { opacity: 1; }
 @media (prefers-reduced-motion: no-preference) {
