@@ -352,7 +352,8 @@ function draw() {
   // species, the candidates show side by side. Confident runs are placed first, then non-bird
   // sounds, then the rest by score, so a crowded stretch keeps its surest names.
   // Text lanes are assigned using visible, edge-clamped positions below.
-  const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets[0].scientific_name}, minConf(), thresholdsFile?.species);
+  // Unidentified runs have no detections (`dets`), so no species threshold: never sure.
+  const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets?.[0]?.scientific_name}, minConf(), thresholdsFile?.species);
   const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
     const label = r.unidentified ? UNIDENTIFIED : `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
