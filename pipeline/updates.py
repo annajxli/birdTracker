@@ -2,7 +2,8 @@
 
 Runs as root from a weekly systemd timer (deploy/pi/birdtracker-updates.timer):
 refreshes apt's package lists, simulates a full upgrade, and writes what it
-would install to data/updates.json. pipeline/publish.py adds that file to
+would install to data/updates.json, with when the weekly install
+(deploy/pi/birdtracker-upgrade.timer) runs next. pipeline/publish.py adds that file to
 live/status.json for the Hardware analytics page. Uses only the standard
 library, so it runs on the system Python, outside the project's environment.
 
@@ -40,6 +41,18 @@ def os_name() -> str | None:
         return None
 
 
+def next_install() -> str | None:
+    """When the install timer runs next, as UTC ISO 8601, or None if it isn't enabled."""
+    try:
+        out = subprocess.run(["systemctl", "show", "--timestamp=unix", "--property=NextElapseUSecRealtime", "--value",
+                              "birdtracker-upgrade.timer"], capture_output=True, text=True, timeout=30).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if not out.startswith("@"):
+        return None
+    return datetime.fromtimestamp(int(out[1:]), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def check() -> dict:
     env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive", "LC_ALL": "C"}
     refreshed = subprocess.run(["apt-get", "update", "-qq"], env=env, capture_output=True, text=True, timeout=600)
@@ -53,6 +66,7 @@ def check() -> dict:
         "upgradable": len(packages),
         "security": sum(p["security"] for p in packages),
         "reboot_required": Path("/var/run/reboot-required").exists(),
+        "next_install": next_install(),
         "packages": packages[:50],
     }
 

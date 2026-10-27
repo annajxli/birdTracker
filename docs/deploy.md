@@ -218,8 +218,16 @@ meant for the Pi.
 
 ### Update the operating system
 
-The weekly update check only reports updates, on the Hardware analytics page.
-To install them, on the Pi, run the following commands:
+The Pi installs operating system updates weekly, at the time in
+`deploy/pi/birdtracker-upgrade.timer`, and the Hardware analytics page shows
+when the next install is queued. To install them sooner, on the Pi, run the
+following command:
+
+```bash
+sudo systemctl start birdtracker-upgrade
+```
+
+To install them by hand instead, on the Pi, run the following commands:
 
 ```bash
 sudo apt-get update
@@ -238,8 +246,9 @@ To follow a service's log, on the Pi, run the following command:
 journalctl -u birdtracker-analyzer -f
 ```
 
-The other services are `birdtracker-receiver`, `birdtracker-publish`, and
-`birdtracker-updates`, the weekly update check.
+The other services are `birdtracker-receiver`, `birdtracker-publish`,
+`birdtracker-updates`, the weekly update check, and `birdtracker-upgrade`, the
+weekly install.
 
 The pages load the newest data from R2 when they open, so new detections
 appear without a rebuild. How often the publisher uploads each kind of data
