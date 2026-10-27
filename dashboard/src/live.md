@@ -600,6 +600,7 @@ function frame() {
   }
   loadNearView();
   positionNames();
+  followView();
   showView();
   showOverviewView();
   updateDuck();
@@ -607,14 +608,16 @@ function frame() {
 }
 let raf = requestAnimationFrame(frame);
 
+// "Live" only while the view follows the live point; scrolled away from it, the button goes back.
 function markLive() {
-  followButton.classList.toggle("is-live", live);
+  const following = live && tracking;
+  followButton.classList.toggle("is-live", following);
   fwdButton.disabled = live; // nothing newer to step to
-  followButton.textContent = live ? "Live" : "Back to live";
+  followButton.textContent = following ? "Live" : "Back to live";
   pauseButton.setAttribute("aria-pressed", String(paused));
   pauseButton.title = paused ? "Play (K)" : "Pause (K)";
   pauseButton.setAttribute("aria-label", paused ? "Play" : "Pause");
-  followButton.setAttribute("aria-pressed", String(live));
+  followButton.setAttribute("aria-pressed", String(following));
   soundButton.setAttribute("aria-pressed", String(soundOn));
   soundButton.title = soundOn ? "Mute (space)" : "Unmute (space)";
   summarize(); // its hour ends at the playhead only while live
@@ -797,7 +800,7 @@ function seek(t, at = anchor) {
 function step(ms) {
   if (!strips.length) return;
   const t = (playhead ?? endOf(strips.at(-1))) + ms;
-  if (ms > 0 && t >= endOf(strips.at(-1)) - FOLLOW_MARGIN) { if (!live) goLive(); return; }
+  if (ms > 0 && t >= endOf(strips.at(-1)) - FOLLOW_MARGIN) { if (!(live && tracking)) goLive(); return; }
   seek(t, live ? liveAnchor() : anchor);
 }
 
@@ -842,7 +845,7 @@ function togglePause() {
   showStatus();
 }
 pauseButton.onclick = togglePause;
-followButton.onclick = () => { if (!live) goLive(); };
+followButton.onclick = () => { if (!(live && tracking)) goLive(); };
 soundButton.onclick = toggleSound;
 document.getElementById("live-back").onclick = () => step(-STEP);
 fwdButton.onclick = () => step(STEP);
@@ -861,7 +864,8 @@ track.addEventListener("click", (event) => {
 // is added at the bottom), with a cell for each clock minute it was heard in (the site's
 // "minutes heard"); neighbouring minutes join into one bar, the latest drawn darker. On the
 // right: the minutes in total and when it was last heard. The stretch the spectrogram shows is
-// shaded; clicking the chart takes the spectrogram (and the sound, if on) to that moment.
+// shaded, and scrolling the spectrogram moves the chart's hour with it; clicking the chart takes
+// the spectrogram (and the sound, if on) to that moment.
 let hourView = null; // {w0, w1}: the chart's time range
 // Row order: first heard (the default; new birds join at the bottom), total minutes or last heard,
 // either way round. Clicking a column's header sorts by it, again reverses it; First heard resets.
@@ -888,12 +892,13 @@ function header(by, label, className = "") {
 }
 
 function summarize() {
-  // While live, the hour ends at the moment shown (so the chart never gets ahead of the
-  // spectrogram); otherwise it's the hour around the playhead, so a jump back fills it in.
+  // While live and the view follows, the hour ends at the moment shown (so the chart never gets
+  // ahead of the spectrogram); otherwise it's the hour around the middle of the spectrogram's view.
   const newest = strips.length ? endOf(strips.at(-1)) : Date.now();
-  const w1 = playhead === null ? newest : live ? Math.min(playhead, newest) : Math.min(playhead + HOUR / 2, newest);
+  const lastHour = playhead === null || (live && tracking);
+  const w1 = playhead === null ? newest : lastHour ? Math.min(playhead, newest) : hourEndAround(viewMiddle() ?? playhead, newest);
   const w0 = w1 - HOUR;
-  const hourLabel = live || playhead === null ? "the last hour" : `${time(new Date(w0))}–${time(new Date(w1))}`;
+  const hourLabel = lastHour ? "the last hour" : `${time(new Date(w0))}–${time(new Date(w1))}`;
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
   heardHeading.textContent = `Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}`;
@@ -965,14 +970,27 @@ function summarize() {
   }
 }
 
+const viewMiddle = () => (geo ? tAt(scroller.scrollLeft + scroller.clientWidth / 2) : null);
+const hourEndAround = (t, newest) => Math.min(t + HOUR / 2, newest);
+// Unless live and following, the hour chart follows the spectrogram's view: once the view's middle
+// is more than a fifth of an hour from the chart's, the chart re-centres on it (called every frame).
+let wasLastHour = true;
+function followView() {
+  const lastHour = live && tracking;
+  if (lastHour !== wasLastHour) { wasLastHour = lastHour; markLive(); return; } // which also redraws the chart
+  if (lastHour || !hourView || !strips.length || viewMiddle() === null) return;
+  if (Math.abs(hourEndAround(viewMiddle(), endOf(strips.at(-1))) - hourView.w1) > HOUR / 5) summarize();
+}
+
 // Shade, on the hour chart, the stretch the spectrogram shows now (called every frame).
 function showView() {
   const view = document.getElementById("live-gantt-view");
   if (!view || !geo || !hourView) return;
   const {w0, w1} = hourView;
-  // The playhead, dashed as over the spectrogram; while live the chart ends there, so it's left out.
+  // The playhead, dashed as over the spectrogram; while live and following, the chart ends there,
+  // so it's left out.
   const head = document.getElementById("live-gantt-playhead");
-  head.hidden = live || playhead === null || playhead < w0 || playhead > w1;
+  head.hidden = (live && tracking) || playhead === null || playhead < w0 || playhead > w1;
   if (!head.hidden) head.style.left = ((playhead - w0) / (w1 - w0)) * 100 + "%";
   const a = Math.max(w0, tAt(scroller.scrollLeft)), b = Math.min(w1, tAt(scroller.scrollLeft + scroller.clientWidth));
   view.hidden = b <= a;
