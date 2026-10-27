@@ -387,3 +387,21 @@ and releases when you interact with the page.
 The browser check interval is independent of the publisher's
 `--detections-minutes` option in `pipeline/publish.py`. Checking more often does
 not make the Pi upload new tables more often, and needs no Pi deployment.
+
+
+## Live playback activity cues
+
+Live species labels and the species rows below the spectrogram use a small
+accent-green dot to identify detections at the playback position. The cue
+follows the playhead during live viewing, historical playback and seeks.
+`dashboard/src/components/live-activity.js` defines the detection window and
+indexes its start times. Gaps inside a grouped label run don't count as active
+calls. Multiple species can be active together.
+
+The cue leaves confidence styling and manual reviews unchanged. Rejected
+windows, non-bird sounds and unidentified labels don't light a species cue.
+The dot sits outside the spectrogram label, leaving the name aligned with its
+detection start. Viewport clamping and lane spacing reserve room for the dot
+without shifting an otherwise aligned name. The pulse is steady
+when playback is paused or reduced motion is requested. Activity changes use
+`aria-current="time"` without announcing every playback frame.

@@ -2140,3 +2140,39 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
   background: var(--theme-background-alt); border: 1px solid var(--rule);
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
 }
+
+
+/* A time cue, independent of confidence: reserve its space to prevent label jumps. */
+.live-name[data-species] .live-name-text::before,
+.live-gantt-name[data-active-species]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  vertical-align: 0.12em;
+  border-radius: 50%;
+  background: var(--theme-foreground-focus);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+/* Put the cue before the name without shifting the name off its detection start. */
+.live-name[data-species] .live-name-text::before {
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+}
+.live-name.is-detecting .live-name-text::before,
+.live-gantt-name.is-detecting::before { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .live-name.is-detecting:not(.is-playback-paused) .live-name-text::before,
+  .live-gantt-name.is-detecting:not(.is-playback-paused)::before {
+    animation: live-detection-pulse 1.2s ease-in-out infinite;
+  }
+}
+@keyframes live-detection-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
