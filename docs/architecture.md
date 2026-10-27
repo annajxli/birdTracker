@@ -67,7 +67,13 @@ port. This forwarding is best effort and never delays the minute files.
 when its size and modification time stay the same across two checks. For each
 finished recording, the analyzer does the following:
 
-1. Runs BirdNET with the station's location and the week of the year.
+1. Runs BirdNET with the station's location and the week of the year. The
+   location filter keeps only the species expected at the station that week.
+   When BirdNET scores an excluded species, and its genus has exactly one
+   expected species, the expected species gets the higher of the two scores,
+   because BirdNET often splits a call between siblings. For example, a
+   California Scrub-Jay in Seattle often scores as Woodhouse's Scrub-Jay.
+   For the details, see the docstring of `pipeline/birdnet_lite.py`.
 2. Adds the detections to the `detections` table, and the recorder telemetry
    to the `recordings` table.
 3. Cuts a short Opus clip of the most confident detection of each species per
@@ -104,6 +110,18 @@ The publisher also applies reviews. When a signed-in visitor marks a detection
 as confirmed or rejected, the Worker saves the verdict to `reviews/` in R2. The
 next time the publisher checks for reviews, it writes the verdict to the
 database.
+
+Each time it applies reviews, the publisher also learns a confidence threshold
+for each species from all reviews so far (`pipeline/thresholds.py`), and
+writes `live/thresholds.json`. A species with enough reviews gets the lowest
+threshold that keeps its reviewed detections mostly right. A species whose
+detections are mostly wrong even at high confidence is blocked, so it counts
+only when a person confirms it. Other species keep a shared default. The
+module's docstring has the rule and its constants. The analyzer reads the file
+when it counts birdsong: a window whose likeliest species is blocked isn't
+birdsong, and a window counts as identified when that species reaches its own
+threshold. The Live page's day index uses the same thresholds for its minutes
+with a bird.
 
 The publisher uploads what the Live page needs for current playback on every
 pass: `live.json`, the minute MP3s and spectrograms, and `status.json`. It
@@ -183,7 +201,7 @@ them:
 | `processed/` | Analyzed recordings kept by `--keep-days` | Analyzer |
 | `failed/` | Recordings that failed analysis repeatedly | Analyzer |
 | `clips/` | Detection clips and their spectrograms | Analyzer |
-| `live/` | Minute strips, MP3s, `live.json`, `days/`, `reviews.json`, and `status.json` | Analyzer and publisher |
+| `live/` | Minute strips, MP3s, `live.json`, `days/`, `reviews.json`, `thresholds.json`, and `status.json` | Analyzer and publisher |
 
 The repository includes the following files in `data/`. To regenerate them,
 see
