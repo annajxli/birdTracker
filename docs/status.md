@@ -84,6 +84,11 @@ Simulated data, not real recordings, set the counting choices. Check them
 against real recordings. For details, see
 [How the dashboard counts](architecture.md#how-the-dashboard-counts).
 
+- **Per-species thresholds.** After two weeks of reviews, from November 10,
+  2026, compare each learned threshold with a sample of detections just above
+  and below it. If needed, adjust `MIN_REVIEWS` or `TARGET_PRECISION` in
+  `pipeline/thresholds.py`.
+
 ### Recorder hardware
 
 The recorder's 10,000 mAh power bank ran out at 4:21 AM on October 27, 2026,
@@ -111,8 +116,6 @@ None of these plans is built or tested:
   how to compare them.
 - [E-paper display](plans/eink-display.md): a color screen that shows what's
   being heard.
-- [Per-species confidence thresholds](plans/species-thresholds.md): a
-  threshold or a block for each species, learned from reviews.
 - [Painted species art](plans/species-art.md): paintings as the default species
   pictures.
 - [Feeder camera](plans/feeder-camera.md): a window feeder with a camera, matched

@@ -121,7 +121,8 @@ module's docstring has the rule and its constants. The analyzer reads the file
 when it counts birdsong: a window whose likeliest species is blocked isn't
 birdsong, and a window counts as identified when that species reaches its own
 threshold. The Live page's day index uses the same thresholds for its minutes
-with a bird.
+with a bird, and the dashboard uses them to count detections, as
+[How the dashboard counts](#how-the-dashboard-counts) describes.
 
 The publisher uploads what the Live page needs for current playback on every
 pass: `live.json`, the minute MP3s and spectrograms, and `status.json`. It
@@ -307,6 +308,19 @@ choices, so check them against real recordings:
   sample of clips near the Overview's default threshold.
 - **Simulated bout lengths.** The bout lengths in `pipeline/simulate.py` are
   an estimate of real singing. Compare them with several real mornings.
+
+A detection counts when its BirdNET confidence reaches its species' threshold
+from `live/thresholds.json`, which the pages load from the Worker beside
+`reviews.json`. A blocked species counts only the detections that a person
+confirmed. Species without a learned threshold use the confidence control on
+the Overview, Detections, and Species pages, or the file's default on the Live
+page and the display. A confirmed review always counts, and a rejected one
+never does. Without the file, every species uses the shared threshold. The
+rule is `includedDetection` in `dashboard/src/components/detection-policy.js`,
+and it matches `threshold()` in `pipeline/thresholds.py`. Species cards and the
+Species page show each species' threshold, or that it's blocked, with its
+review counts. People review the detections they doubt, not a random sample,
+so a learned threshold is an estimate.
 
 The dashboard links species photos from Wikimedia Commons instead of copying
 them. Most photos are licensed CC BY-SA, so the dashboard shows each photo's
