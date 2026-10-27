@@ -1,0 +1,11 @@
+// Installed in /etc/apt/apt.conf.d/ by deploy/pi/install.sh. birdtracker-upgrade.service runs
+// unattended-upgrade weekly with this configuration: Debian security updates only, no reboot.
+// Other updates wait for an install by hand (docs/deploy.md).
+#clear Unattended-Upgrade::Origins-Pattern;
+Unattended-Upgrade::Origins-Pattern {
+        "origin=Debian,codename=${distro_codename}-security,label=Debian-Security";
+        "origin=Debian,codename=${distro_codename},label=Debian-Security";
+};
+Unattended-Upgrade::Automatic-Reboot "false";
+// The weekly timer runs it, not apt's daily one.
+APT::Periodic::Unattended-Upgrade "0";
