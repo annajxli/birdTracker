@@ -329,5 +329,7 @@ underlines and seek positions retain their recording timestamps.
 Live accepts optional `unidentified` intervals on strips, showing Unidentified
 bird separately from species detections. These intervals have no species score,
 species link or species review controls. Confident-only omits their Gantt row.
-Older strips without the field remain compatible. See [Status](status.md) for
-analyzer rollout requirements.
+Older strips without the field remain compatible. The analyzer writes one
+interval for each 3-second window that counts as unidentified birdsong
+(`read_unidentified` in `pipeline/analyzer.py`), the same windows that the
+per-minute `unidentified_windows` count includes.

@@ -131,9 +131,8 @@ here with where its documentation goes when it merges.
 The Live UI supports edge-clamped labels, centered mute text, and unidentified
 intervals. The embedded species pane was removed; the popup's **More details**
 link now opens the species page in a new tab. A native drawer, rendered from data
-Live already loads, remains an option if a new tab proves clumsy. The analyzer doesn't export unidentified
-intervals: the branch with that export was deleted unmerged, so Live strips
-don't include them. Site deployment is automatic after merging this update.
+Live already loads, remains an option if a new tab proves clumsy. Since October 27, 2026, the analyzer writes
+unidentified intervals to new Live strips. Site deployment is automatic after merging this update.
 Dashboard tests and build pass; browser interaction verification remains open.
 
 The Live spectrogram's scroll range now matches the overview window: 1 hour at
