@@ -129,10 +129,11 @@ let paused = false; // time stops: the playhead holds still (and the sound, if o
 // Offline, the view ends at now (LIVE_INSET px in), with the stretch without audio in it.
 const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
 const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
-// Live, the playhead holds this far across and the audio scrolls under it, with the stretch it
-// hasn't reached dimmed. Strips come a minute at a time, so between them the newest audio slides
-// left and blank space opens at the right until the next one lands.
-const LIVE_PLAYHEAD_AT = 0.7;
+// Live, the playhead holds near the right edge and the audio scrolls under it, with only
+// LIVE_AHEAD of the stretch it hasn't reached shown, dimmed. That's well inside FOLLOW_MARGIN,
+// so the view stays filled while the next strip is on its way.
+const LIVE_AHEAD = 15e3;
+const liveAt = () => 1 - Math.min(0.3, LIVE_AHEAD / (span * 1e3));
 let tracking = true, anchor = PLAYHEAD_AT;
 // Sound (muted to start): one audio element for the whole session, so browsers that only allow
 // sound after a tap (Safari) keep allowing it from one minute to the next.
@@ -652,7 +653,7 @@ function showActiveDetections() {
 // Room for the line at the newest audio and, live, for the view right of the held playhead
 // (set each frame too, since going live or leaving it doesn't redraw).
 function sizeTrack() {
-  const ahead = live && tracking && !offlineSince() ? (1 - LIVE_PLAYHEAD_AT) * scroller.clientWidth : LIVE_INSET;
+  const ahead = live && tracking && !offlineSince() ? (1 - liveAt()) * scroller.clientWidth : LIVE_INSET;
   const width = Math.max(scroller.clientWidth, x(geo.t1) + ahead) + "px";
   if (track.style.width !== width) track.style.width = width;
 }
@@ -675,12 +676,12 @@ function frame() {
     const ahead = live && !offline && playhead < geo.t1;
     aheadShade.hidden = !ahead;
     if (ahead) Object.assign(aheadShade.style, {left: x(playhead) + "px", width: x(geo.t1) - x(playhead) + "px"});
-    // Live, the playhead holds LIVE_PLAYHEAD_AT across; offline, the view ends at now.
+    // Live, the playhead holds liveAt() across; offline, the view ends at now.
     const cw = scroller.clientWidth;
     sizeTrack();
     if (tracking) scroller.scrollLeft = !live ? x(playhead) - anchor * cw
       : offline ? x(geo.t1) - liveAnchor() * cw
-      : x(playhead) - LIVE_PLAYHEAD_AT * cw;
+      : x(playhead) - liveAt() * cw;
   }
   loadNearView();
   positionNames();
