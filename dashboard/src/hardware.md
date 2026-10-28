@@ -180,20 +180,17 @@ const TEMP_ZONES = [[20, 70, "good"], [70, 80, "warning"], [80, 90, "critical"]]
 const CPU_ZONES = [[0, 75, "good"], [75, 90, "warning"], [90, 100, "critical"]];
 const MEMORY_ZONES = [[0, 80, "good"], [80, 92, "warning"], [92, 100, "critical"]];
 const STORAGE_ZONES = [[0, 5, "critical"], [5, 15, "warning"], [15, 100, "good"]];
-const power = !pi?.throttled ? null
+// Power: Bad while under-voltage or throttling is flagged now or was in the last hour of history,
+// else Good. The since-boot flags don't count, so a fix shows as Good without a reboot; the
+// history strip shows earlier trouble.
+const piHistory = (pi?.history ?? []).map((h) => ({...h, at: new Date(h.at)}));
+const lastHour = piHistory.filter((h) => +h.at >= Date.now() - 3600e3);
+const powerShown = !pi?.throttled ? null
   : pi.throttled.under_voltage ? ["critical", "below 4.63 V now", "Under-voltage"]
   : pi.throttled.throttled ? ["critical", "CPU clock reduced now", "Throttled"]
-  : pi.throttled.under_voltage_since_boot ? ["warning", "below 4.63 V at least once since boot", "Under-voltage"]
-  : pi.throttled.throttled_since_boot ? ["warning", "CPU clock reduced at least once since boot", "Throttled"]
-  : ["good", "no under-voltage or throttling since boot", "Normal"];
-const piHistory = (pi?.history ?? []).map((h) => ({...h, at: new Date(h.at)}));
-// Power trouble in the last hour of history counts as now (Bad): a since-boot flag alone can't
-// tell a dip at startup from ones that keep happening.
-const lastHour = piHistory.filter((h) => +h.at >= Date.now() - 3600e3);
-const powerShown = !power ? null
-  : lastHour.some((h) => h.under_voltage) && power[0] !== "critical" ? ["critical", "below 4.63 V in the last hour", "Under-voltage"]
-  : lastHour.some((h) => h.throttled) && power[0] !== "critical" ? ["critical", "CPU clock reduced in the last hour", "Throttled"]
-  : power;
+  : lastHour.some((h) => h.under_voltage) ? ["critical", "below 4.63 V in the last hour", "Under-voltage"]
+  : lastHour.some((h) => h.throttled) ? ["critical", "CPU clock reduced in the last hour", "Throttled"]
+  : ["good", "no under-voltage or throttling in the last hour", "Normal"];
 const hourTick = (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric"});
 const UPTIME_ZONES = [[50, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
 const WIFI_ZONES = [[-90, -80, "critical"], [-80, -70, "warning"], [-70, -40, "good"]];

@@ -678,7 +678,12 @@ function frame() {
     else if (soundOn && current && !player.paused && positioned && !player.seeking) playhead = Date.parse(current.start) + player.currentTime * 1e3;
     else if (!(soundOn && waitingFor !== null)) playhead = Math.min(Date.now() - lag, newest);
     lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
-    playheadLine.style.left = x(playhead) + "px";
+    // Going live from nearby, the view and the line glide there instead of jumping (goLive).
+    const g = glide && tracking ? Math.min(1, (performance.now() - glide.start) / GLIDE_MS) : 1;
+    const eased = g < 0.5 ? 4 * g ** 3 : 1 - (-2 * g + 2) ** 3 / 2; // ease in and out
+    if (g >= 1) glide = null;
+    const between = (from, to) => (glide ? from + (to - from) * eased : to);
+    playheadLine.style.left = between(glide?.line, x(playhead)) + "px";
     playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
     const ahead = live && !offline && playhead < geo.t1;
     aheadShade.hidden = !ahead;
@@ -686,9 +691,9 @@ function frame() {
     // Live, the playhead holds liveAt() across; offline, the view ends at now.
     const cw = scroller.clientWidth;
     sizeTrack();
-    if (tracking) scroller.scrollLeft = !live ? x(playhead) - anchor * cw
+    if (tracking) scroller.scrollLeft = between(glide?.scroll, !live ? x(playhead) - anchor * cw
       : offline ? x(geo.t1) - liveAnchor() * cw
-      : x(playhead) - liveAt() * cw;
+      : x(playhead) - liveAt() * cw);
   }
   loadNearView();
   positionNames();
@@ -915,9 +920,15 @@ function toggleSound() {
   showStatus();
 }
 
-// Back to live: just behind the newest audio, the view tracking it (and the sound, if on).
+// Back to live: just behind the newest audio, the view tracking it (and the sound, if on). From
+// within two view widths of the newest audio, the view glides there over GLIDE_MS.
+const GLIDE_MS = 450;
+let glide = null; // {start, scroll, line}: where the glide began, in px
 function goLive() {
   if (!strips.length) return;
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const near = geo && playhead !== null && Math.abs(x(endOf(strips.at(-1))) - (scroller.scrollLeft + scroller.clientWidth)) <= 2 * scroller.clientWidth;
+  glide = near && !reduced ? {start: performance.now(), scroll: scroller.scrollLeft, line: x(playhead)} : null;
   ovEnd = null; // the overview follows again
   paused = false;
   live = true;
