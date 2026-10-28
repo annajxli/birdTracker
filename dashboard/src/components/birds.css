@@ -288,7 +288,6 @@
 
 .activity-layout .activity-stats .card h2 { font-size: 0.62rem; letter-spacing: 0.08em; margin: 0 0 2px; }
 .activity-layout .activity-stats .big { font-size: 1.15rem; line-height: 1.2; }
-.activity-layout .activity-stats .big a.stat-link { white-space: normal; overflow: visible; }
 .activity-layout .activity-stats .sub { font-size: 0.72rem; }
 .activity-layout > .day-stack { min-width: 0; }
 

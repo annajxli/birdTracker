@@ -534,7 +534,7 @@ const UNIDENTIFIED = "Unidentified bird"; // the day timeline's row for birdsong
 const HEADER_ROWS = 1.4; // a category header is this many species rows tall...
 const GROUP_GAP = 0.2; // ...plus this much extra space above every group but the first
 const ROW_PX = 17;
-const DENSITY_FROM = 30; // spans this long are drawn as density strips, not ticks
+const DENSITY_FROM = 2; // spans this long are drawn as density strips, not ticks
 const BIN_MINUTES = 15;
 // Detections of a species less than this far apart are drawn as one bout (a bar from first
 // to last call). A guess from simulated data; see README "Tuning with real data".
@@ -550,10 +550,10 @@ const SUN_BAND_MS = 10 * 6e4;
  * categories (songbirds, woodpeckers, ...) and ordered within each group by
  * when the species usually starts singing.
  *
- * Up to a week, each detection is a tick, like a ticker tape; several days are
- * overlaid on one 24-hour clock with fainter ticks. From 30 days, ticks would
- * smear together, so rows become density strips: detections per day in each
- * 15-minute slot, and species heard on fewer than 10% of days are left out.
+ * For one day, each detection is a tick, like a ticker tape. Over several days,
+ * ticks from different days overlaid on one clock don't read as anything, so rows
+ * become density strips: minutes heard per day in each 15-minute slot, and species
+ * heard on fewer than 10% of days are left out.
  *
  * rows: detections from the days in `dates` (Pacific "YYYY-MM-DD", last = reference day).
  * spanDays: calendar days in the span (dates holds only days with recordings).
@@ -657,7 +657,7 @@ export function dayTimeline(rows, sun, dates, {
     }
   }
   // Unidentified birdsong: one muted row after everything else, on tick views only (it's large;
-  // the 30-day density view leaves it out). Not a species: no card, no counts, no sorting.
+  // the multi-day density view leaves it out). Not a species: no card, no counts, no sorting.
   const unidentifiedShown = density ? [] : unidentified.map((u) => ({...u, clock: onRef(u.date, u.time)}))
     .filter((u) => u.clock >= domain[0] && u.clock <= domain[1]);
   if (unidentifiedShown.length && order.length) order.push(UNIDENTIFIED);
