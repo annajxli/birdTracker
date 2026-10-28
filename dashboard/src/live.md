@@ -449,9 +449,12 @@ const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "Amer
 const midnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - pacificHour(t) * HOUR; };
 const dayShift = (date, n) => new Date(Date.parse(date + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const loadedDays = new Set(); // UTC dates of live/days/ files fetched
-// Whether every day file between a and b has been fetched (live.json holds the last 24 hours).
-const loadedBetween = (a, b) => d3.utcDay.range(d3.utcDay.floor(new Date(a)), new Date(Math.min(b, Date.now() - 23 * HOUR)))
-  .every((d) => loadedDays.has(d.toISOString().slice(0, 10)));
+// Whether every day file between a and b has been fetched (live.json holds the last 24 hours, so
+// only the part before that needs one).
+const loadedBetween = (a, b) => {
+  const stop = Math.min(b, Date.now() - 23 * HOUR);
+  return a >= stop || d3.utcDay.range(d3.utcDay.floor(new Date(a)), new Date(stop)).every((d) => loadedDays.has(d.toISOString().slice(0, 10)));
+};
 async function loadDay(date) { // the UTC-dated files covering a Pacific day
   const [w0, w1] = [midnight(date), midnight(dayShift(date, 1))];
   const files = [...new Set([new Date(w0).toISOString().slice(0, 10), new Date(w1 - 1).toISOString().slice(0, 10)])].filter((f) => !loadedDays.has(f));
