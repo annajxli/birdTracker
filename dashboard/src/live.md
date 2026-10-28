@@ -126,12 +126,13 @@ let live = true, lag = null, playhead = null;
 let paused = false; // time stops: the playhead holds still (and the sound, if on, pauses)
 // Tracking: the view scrolls to keep the playhead `anchor` of the way across it (where it was
 // clicked, or PLAYHEAD_AT); scrolling by hand stops that until the next seek, step or Live.
-// While live the playhead keeps to the right edge (LIVE_INSET px in), with nothing newer shown.
+// Offline, the view ends at now (LIVE_INSET px in), with the stretch without audio in it.
 const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
 const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
-// Live, the view ends at the newest audio, with the stretch the playhead hasn't reached dimmed;
-// in a short span the playhead is kept at least this far in from the left instead.
-const LIVE_PLAYHEAD_MIN = 0.2;
+// Live, the playhead holds this far across and the audio scrolls under it, with the stretch it
+// hasn't reached dimmed. Strips come a minute at a time, so between them the newest audio slides
+// left and blank space opens at the right until the next one lands.
+const LIVE_PLAYHEAD_AT = 0.7;
 let tracking = true, anchor = PLAYHEAD_AT;
 // Sound (muted to start): one audio element for the whole session, so browsers that only allow
 // sound after a tap (Safari) keep allowing it from one minute to the next.
@@ -298,8 +299,7 @@ function draw() {
   // At least one full span before the newest audio, so the view can always be filled.
   const t0 = Math.min(w.w0, t1 - span * 1e3);
   geo = {t0, t1, pps};
-  const width = Math.max(scroller.clientWidth, x(t1) + LIVE_INSET); // room for the line at the newest audio
-  track.style.width = width + "px";
+  sizeTrack();
   if (specHeight() !== SPEC_H) { SPEC_H = specHeight(); drawFreqLabels(); }
   track.style.height = SPEC_TOP + SPEC_H + AXIS_H + "px";
 
@@ -649,6 +649,14 @@ function showActiveDetections() {
   for (const node of activityRows) set(node, detectingAt(activityIndex.get(node.dataset.activeSpecies) ?? [], playhead));
 }
 
+// Room for the line at the newest audio and, live, for the view right of the held playhead
+// (set each frame too, since going live or leaving it doesn't redraw).
+function sizeTrack() {
+  const ahead = live && tracking && !offlineSince() ? (1 - LIVE_PLAYHEAD_AT) * scroller.clientWidth : LIVE_INSET;
+  const width = Math.max(scroller.clientWidth, x(geo.t1) + ahead) + "px";
+  if (track.style.width !== width) track.style.width = width;
+}
+
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
 function frame() {
   if (geo && strips.length) {
@@ -667,12 +675,12 @@ function frame() {
     const ahead = live && !offline && playhead < geo.t1;
     aheadShade.hidden = !ahead;
     if (ahead) Object.assign(aheadShade.style, {left: x(playhead) + "px", width: x(geo.t1) - x(playhead) + "px"});
-    // Live, the view ends at the newest audio (offline, at now, with the stretch without audio in
-    // it), unless that would push the playhead out of the view.
+    // Live, the playhead holds LIVE_PLAYHEAD_AT across; offline, the view ends at now.
     const cw = scroller.clientWidth;
+    sizeTrack();
     if (tracking) scroller.scrollLeft = !live ? x(playhead) - anchor * cw
       : offline ? x(geo.t1) - liveAnchor() * cw
-      : Math.min(x(geo.t1) - liveAnchor() * cw, x(playhead) - LIVE_PLAYHEAD_MIN * cw);
+      : x(playhead) - LIVE_PLAYHEAD_AT * cw;
   }
   loadNearView();
   positionNames();
