@@ -433,7 +433,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       <div id="home-trends" class="card layout-reserve">
         ${comparable
           ? changes.length
-            ? resize((width) => changeChart(changes, {width, dark, beforeLabel: cmp.prevLabel, nowLabel: cmp.nowLabel, ...(trendScale === "D" ? {xLabel: "Minutes heard"} : {})}))
+            ? resize((width) => changeChart(changes, {width, dark, beforeLabel: cmp.prevLabel, nowLabel: cmp.nowLabel, ...(trendScale === "D" ? {xLabel: "Minutes heard", daily: true, asOf: Number.isFinite(dayCutoff) ? untilTime : null} : {})}))
             : html`<p class="sub">${trendScale === "D" ? "No daily trends detected" : "No changes beyond normal day-to-day variation."}</p>`
           : trendScale === "D"
             ? html`<p class="sub">Not enough data</p>`
