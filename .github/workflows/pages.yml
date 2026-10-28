@@ -1,7 +1,7 @@
 # Build the dashboard and deploy it to Cloudflare as the password Worker's
 # static assets (deploy/wrangler.toml), so the site is only reachable through
-# the password. Runs on every push to main, weekly, and on demand from the
-# Actions tab. The pages load the latest detections from the recorder's R2
+# the password. Runs on pushes to main that change what the site is built
+# from (the paths below), weekly, and on demand from the Actions tab. The pages load the latest detections from the recorder's R2
 # bucket and the last month of weather from Open-Meteo when they open, so new
 # data never waits for a build; the weekly run only refreshes the copies built
 # into the site (the fallbacks, and weather older than a month).
@@ -19,6 +19,16 @@ name: Deploy dashboard
 on:
   push:
     branches: [main]
+    # The site's sources, and the Pi's code that the Hardware page compares
+    # with (DEPLOYED in pipeline/code_version.py). Other changes, such as
+    # documentation, don't deploy.
+    paths:
+      - "dashboard/**"
+      - "pipeline/**"
+      - "data/**"
+      - "deploy/**"
+      - "requirements-dashboard.txt"
+      - ".github/workflows/pages.yml"
   schedule:
     - cron: "10 13 * * 1" # Mondays, 6am Pacific (daylight time)
   workflow_dispatch:
@@ -30,8 +40,10 @@ concurrency:
   group: deploy
   cancel-in-progress: true
 
+# One job: GitHub bills each job in whole minutes, so a separate deploy job
+# would cost an extra minute per run.
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -81,27 +93,6 @@ jobs:
         run: |
           npm ci
           npm run build
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: site
-          path: dashboard/dist
-          retention-days: 3
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: site
-          path: dashboard/dist
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
 
       - name: Deploy to Cloudflare
         working-directory: deploy

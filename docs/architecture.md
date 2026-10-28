@@ -236,9 +236,9 @@ The Worker writes visitors' review verdicts to `reviews/`.
 
 ### Build
 
-The workflow in `.github/workflows/pages.yml` builds and deploys the site. It
-runs on every push to `main`, on a schedule, on demand, and when the
-publisher starts it. During the build, it does the following:
+The workflow in `.github/workflows/pages.yml` builds and deploys the site, in
+one job. It runs on a push to `main` that changes a path in its `paths` list,
+on a schedule, on demand, and when the publisher starts it. During the build, it does the following:
 
 1. Updates `data/weather.csv` from Open-Meteo. If the fetch fails, the build
    keeps the checked-in copy.
