@@ -1200,13 +1200,19 @@ function barSpan(date) {
  *
  * changes: [{species, before, now}], average minutes heard per day.
  */
-export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annotatePeriods = false, xLabel = "Average minutes heard per day"}) {
+// `daily`: one day's minutes against the day before's, untested, and `asOf` the time a day still
+// being recorded runs until; otherwise per-day averages with their adjusted p-values.
+export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annotatePeriods = false, xLabel = "Average minutes heard per day", daily = false, asOf = null}) {
   const up = increaseColor(dark);
   const down = declineColor(dark);
   const colorOf = (d) => (d.now >= d.before ? up : down);
   const max = d3.max(changes, (d) => Math.max(d.before, d.now)) ?? 1;
   const ring = "var(--theme-background-alt)";
-  const num = d3.format(".1~f");
+  // Whole minutes; averages rounded, keeping a decimal under 1 so 0.3 doesn't read as 0.
+  const round = (v) => (v > 0 && v < 1 ? d3.format(".1f")(v) : d3.format(",.0f")(v));
+  const num = (v) => `${round(v)} ${daily ? "min" : "min/day"}`;
+  // A day cut off at `asOf`: the day before "before" that time, the day itself "as of" it.
+  const tipValue = (v, side) => (daily ? `${round(v)} min${asOf ? ` ${side === "now" ? "as of" : "before"} ${asOf}` : ""}` : `${round(v)} min per day`);
   const ups = changes.filter((d) => d.now >= d.before);
   const downs = changes.filter((d) => d.now < d.before);
   const label = (data, x, side, text, strong) => Plot.text(data, {
@@ -1251,14 +1257,14 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
         x: "now", y: "species",
         channels: {
           Species: "species",
-          [beforeLabel]: (d) => `${d3.format(".1f")(d.before)} per day`,
-          [nowLabel]: (d) => `${d3.format(".1f")(d.now)} per day`,
+          [beforeLabel]: (d) => tipValue(d.before, "before"),
+          [nowLabel]: (d) => tipValue(d.now, "now"),
           ...(annotatePeriods ? {
             "Earlier dates": (d) => dateRange(d.prevFrom, d.prevTo),
             "Following dates": (d) => dateRange(d.nowFrom, d.nowTo),
             "Change (min/day)": (d) => d3.format("+.1f")(d.delta)
           } : {}),
-          "Adjusted p": (d) => (d.q < 0.001 ? "< 0.001" : d3.format(".3f")(d.q))
+          ...(daily ? {} : {"Adjusted p": (d) => (d.q < 0.001 ? "< 0.001" : d3.format(".3f")(d.q))})
         },
         format: {x: false, y: false}
       }))
