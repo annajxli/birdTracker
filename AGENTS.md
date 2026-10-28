@@ -34,7 +34,11 @@ the exact text, and don't invent wording to fill a gap.
 
 - Keep each change in a few logical commits, usually one commit per update.
   Write a title that describes the resulting behavior.
-- Keep unrelated work in separate commits and branches.
+- Keep unrelated work in separate commits.
+- Each push to `main` deploys the website and uses GitHub Actions minutes.
+  Collect a session's changes on one branch and merge them as one pull request
+  at the end of the session, unless the owner asks for a change sooner. Keep
+  separate topics in separate commits on that branch.
 - Squash-merge pull requests, so that `main` has one commit per update. You
   don't need to rewrite a branch that others already use.
 - After your pull request merges, delete your local branch and remove the
