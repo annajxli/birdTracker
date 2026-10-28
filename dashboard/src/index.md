@@ -277,12 +277,14 @@ cmp.prevLabel = dateRange(cmp.prevFrom, cmp.prevTo);
 const minDays = trendScale === "D" ? 1 : trendScale === "W" ? MIN_WEEK_DAYS : MIN_RECORDED_DAYS;
 const comparable = cmp.prevFrom >= dataStart
   && recordedIn(cmp.nowFrom, cmp.nowTo) >= minDays && recordedIn(cmp.prevFrom, cmp.prevTo) >= minDays;
-// "Sep 1 – 30 vs. Oct 1 – 22": the exact dates, beside the section label.
-const compareDates = comparable ? `${cmp.prevLabel} vs. ${cmp.nowLabel}` : "";
 // A day still being recorded faces the day before only up to the same time of day (Pacific).
 // Its end is the last audio, or the last detection where there's no recordings table.
 const coveredUntil = audioSpans?.length ? d3.max(audioSpans, ([, b]) => b) : d3.max(all, (d) => +d.time);
 const dayCutoff = trendScale === "D" && cmp.nowTo === latest ? coveredUntil - pacificMidnight(cmp.nowTo) : Infinity;
+// "Sep 1 – 30 vs. Oct 1 – 22": the exact dates, beside the section label, and for a day still
+// being recorded, the time its data runs until: "Oct 27 vs. Oct 28 (data until 11:02 AM)".
+const untilTime = new Date(coveredUntil).toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"});
+const compareDates = !comparable ? "" : `${cmp.prevLabel} vs. ${cmp.nowLabel}${Number.isFinite(dayCutoff) ? ` (data until ${untilTime})` : ""}`;
 const trendMinutes = minutesHeard(confident.filter((d) => d.date >= cmp.prevFrom && d.date <= cmp.nowTo
   && +d.time - pacificMidnight(d.date) < dayCutoff));
 const changes = !comparable ? []
