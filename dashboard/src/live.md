@@ -404,6 +404,7 @@ function draw() {
     const a = document.createElement("button");
     a.type = "button";
     a.className = "live-name is-sound";
+    a.run = r; // for positionNames, which fades labels ahead of the playhead
     a.innerHTML = `<span class="live-name-text"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg></span>`;
     a.querySelector(".live-name-text").append(label);
     a.setAttribute("aria-label", `${r.name} (not a bird), ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
