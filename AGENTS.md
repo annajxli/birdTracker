@@ -37,6 +37,9 @@ the exact text, and don't invent wording to fill a gap.
 - Keep unrelated work in separate commits and branches.
 - Squash-merge pull requests, so that `main` has one commit per update. You
   don't need to rewrite a branch that others already use.
+- After your pull request merges, delete your local branch and remove the
+  worktree that you made for it. GitHub deletes the branch on GitHub when the
+  pull request merges. Leave branches and worktrees that you didn't create.
 - Never commit secrets. `publish.env`, `firmware/**/secrets.h`, and
   `birdtracker.env` hold credentials, and Git ignores the first two.
 
