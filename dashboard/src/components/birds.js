@@ -509,6 +509,45 @@ function sunMarkers(sunrise, sunset, top) {
   };
 }
 
+/**
+ * Sunrise and sunset ticks below the x axis: a bar under the axis, pale yellow by day and dark blue
+ * by night, crossed by a tick at each sunrise and sunset with the timeline's sun or moon icon below.
+ * points: [{t, kind: "Sunrise" | "Sunset", at}], where t places the tick and at is the true time.
+ * Needs about 28 px of marginBottom. Add sunTip(points) to the same plot for hover text.
+ */
+export function sunTicks(points) {
+  return (index, {x}, values, {marginLeft, width, marginRight, height, marginBottom}) => {
+    const axis = height - marginBottom, left = marginLeft, right = width - marginRight;
+    const g = htl.svg`<g fill="currentColor" aria-label="sunrise and sunset">`;
+    // Day and night bar: each stretch runs from one tick to the next.
+    const sorted = [...points].sort((p, q) => +p.t - +q.t);
+    const edges = [left, ...sorted.map((p) => Math.max(left, Math.min(right, x(p.t)))), right];
+    edges.slice(1).forEach((x1, i) => {
+      // The stretch before a sunrise, or after the last sunset, is night.
+      const x0 = edges[i], night = i < sorted.length ? sorted[i].kind === "Sunrise" : sorted.at(-1)?.kind === "Sunset";
+      if (x1 > x0) g.append(htl.svg`<rect x=${x0} width=${x1 - x0} y=${axis + 4} height="4" fill=${night ? "#2c4a7c" : "#f0d68f"} fill-opacity="0.8"></rect>`);
+    });
+    for (const {t, kind} of sorted) {
+      const px = x(t);
+      if (px < left || px > right) continue;
+      const icon = kind === "Sunrise"
+        ? htl.svg`<path d=${SUN_ICON}></path><path d=${SUN_RAYS} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>`
+        : htl.svg`<path d=${MOON_ICON}></path>`;
+      g.append(htl.svg`<g>
+        <line x1=${px} x2=${px} y1=${axis} y2=${axis + 11} stroke="currentColor" stroke-opacity="0.6"></line>
+        <g transform=${`translate(${px},${axis + 20})`} fill-opacity="0.75">${icon}</g>
+      </g>`);
+    }
+    return g;
+  };
+}
+
+/** The chart's own tip for sunTicks: "Sunrise 7:44 AM" when the pointer is near a tick's icon. */
+export function sunTip(points) {
+  return Plot.tip(points, Plot.pointer({x: "t", y: () => 0, frameAnchor: "bottom", dy: 20, maxRadius: 20, anchor: "bottom",
+    title: ({kind, at}) => `${kind} ${clock(at)}`}));
+}
+
 export const SPANS = new Map([["1 day", 1], ["3 days", 3], ["7 days", 7], ["30 days", 30], ["90 days", 90], ["All time", Infinity]]);
 
 /** First date of a window of `days` ending on `end`; Infinity means from the first date with data. */
@@ -936,8 +975,9 @@ function fetchRecentWeather() {
     const body = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
     const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
     const hourNow = +new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
-    // Past days in full; today, the forecast for the day and the hourly temperature so far.
-    const daily = {}, hourly = {};
+    // Past days in full; today, the forecast for the day and the hourly temperature so far, with
+    // the rest of today's hours kept apart as a forecast (from the current hour on, so it joins up).
+    const daily = {}, hourly = {}, forecastHourly = {};
     body.daily.time.forEach((d, i) => {
       const v = {high: body.daily.temperature_2m_max[i], low: body.daily.temperature_2m_min[i],
         precip: body.daily.precipitation_sum[i], code: body.daily.weather_code[i]};
@@ -946,12 +986,14 @@ function fetchRecentWeather() {
     body.hourly.time.forEach((t, i) => {
       const d = t.slice(0, 10), temp = body.hourly.temperature_2m[i];
       const hour = +t.slice(11, 13);
-      if ((d < today || (d === today && hour <= hourNow)) && temp != null) (hourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
+      if (temp == null) return;
+      if (d < today || (d === today && hour <= hourNow)) (hourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
+      if (d === today && hour >= hourNow) (forecastHourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
     });
-    return {daily, hourly};
+    return {daily, hourly, forecastHourly};
   })().catch((error) => {
     console.warn("Recent weather unavailable; using the built copy.", error);
-    return {daily: {}, hourly: {}};
+    return {daily: {}, hourly: {}, forecastHourly: {}};
   });
   return recentWeather;
 }
@@ -959,6 +1001,11 @@ function fetchRecentWeather() {
 export async function loadWeatherHourly() {
   const [built, recent] = await Promise.all([FileAttachment("../data/weather-hourly.json").json(), fetchRecentWeather()]);
   return {...built, ...recent.hourly};
+}
+
+/** The rest of today's hourly temperatures, forecast: {date: [24 values, null outside it]}. */
+export async function loadForecastHourly() {
+  return (await fetchRecentWeather()).forecastHourly;
 }
 
 export async function loadWeather() {
@@ -1090,9 +1137,10 @@ export function temperatureStrip(dates, weather, {width, ...margins}) {
 /**
  * Hourly temperature as a line, colored by temperature like the high-low ribbon. For the day
  * and week views. points: [{t: Date, temp, when}]; domain: the chart above's x domain, so the
- * line sits under the bars it belongs to.
+ * line sits under the bars it belongs to; forecast: points for the rest of today, dashed, starting
+ * where points end.
  */
-export function hourlyTemperatureStrip(points, {width, domain, inset = 0, ...margins}) {
+export function hourlyTemperatureStrip(points, {width, domain, inset = 0, forecast = [], ...margins}) {
   const id = `temp-gradient-${++gradientId}`;
   const gradient = (index, {y}) => {
     const [lo, hi] = [TEMP_STOPS[0][0], TEMP_STOPS.at(-1)[0]];
@@ -1111,9 +1159,11 @@ export function hourlyTemperatureStrip(points, {width, domain, inset = 0, ...mar
     marks: [
       gradient,
       Plot.line(points, {x: "t", y: "temp", stroke: `url(#${id})`, strokeWidth: 2.5, curve: "monotone-x"}),
-      Plot.tip(points, Plot.pointerX({
+      // The rest of today, forecast: the same colours, dashed.
+      Plot.line(forecast, {x: "t", y: "temp", stroke: `url(#${id})`, strokeWidth: 2.5, strokeDasharray: "7,8", curve: "monotone-x"}),
+      Plot.tip([...points, ...forecast.slice(1)], Plot.pointerX({
         x: "t", y: "temp",
-        channels: {When: "when", Temp: (d) => `${Math.round(d.temp)}°F`},
+        channels: {When: "when", Temp: (d) => `${Math.round(d.temp)}°F${d.forecast ? " (forecast)" : ""}`},
         format: {x: false, y: false, When: true, Temp: true}
       }))
     ]
