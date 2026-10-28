@@ -8,7 +8,7 @@ import wave
 from datetime import UTC, datetime
 from pathlib import Path
 
-from receiver import MinuteFiles, Pause
+from receiver import MinuteFiles, Pause, remove_stale_parts
 
 RATE = 100  # samples per second, small so a minute is cheap
 T0 = 1_800_000_000 - 1_800_000_000 % 60  # a whole UTC minute
@@ -85,6 +85,16 @@ class PauseTest(unittest.TestCase):
         os.utime(self.path, ns=(time.time_ns(), time.time_ns() + 2000))
         with self.assertLogs("receiver", "WARNING"):
             self.assertFalse(pause.active(T0))
+
+
+class StalePartsTest(unittest.TestCase):
+    def test_only_part_files_are_removed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            for name in ("20261028T053200Z.wav.part", "20261028T053300Z.wav", "20261028T053300Z.json"):
+                (d / name).write_text("x")
+            self.assertEqual(remove_stale_parts(d), 1)
+            self.assertEqual(sorted(p.name for p in d.iterdir()), ["20261028T053300Z.json", "20261028T053300Z.wav"])
 
 
 if __name__ == "__main__":
