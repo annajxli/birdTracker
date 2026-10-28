@@ -9,7 +9,7 @@ toc: false
 ```js
 import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip, splitAt} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, dayChanges, windowChanges} from "./components/changes.js";
@@ -335,20 +335,22 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             // interpolated between hours), 8 px in from the axis like the bars.
             const temps = weatherHourly[selection.date] ?? [];
             const midnight = +new Date(daySun.start);
-            const hourly = temps.map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)})).filter((d) => d.temp != null);
+            const observed = temps.map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)})).filter((d) => d.temp != null);
+            // Today, the forecast continues it.
+            const forecast = (forecastHourly[selection.date] ?? []).map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)}))
+              .filter((d) => d.temp != null && (!observed.length || d.t > observed.at(-1).t));
+            const hourly = [...observed, ...forecast];
             const at = (t) => {
               const i = d3.bisector((d) => +d.t).left(hourly, +t);
               const a = hourly[Math.max(0, i - 1)], b = hourly[Math.min(hourly.length - 1, i)];
               const f = +b.t === +a.t ? 0 : (+t - +a.t) / (+b.t - +a.t);
               return {t, temp: a.temp + f * (b.temp - a.temp), when: t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})};
             };
-            // Today's line stops at the latest hour so far.
             const end = hourly.length ? new Date(Math.min(+daylightWindow[1], +hourly.at(-1).t)) : null;
-            const points = end > daylightWindow[0] ? [at(daylightWindow[0]), ...hourly.filter((d) => d.t > daylightWindow[0] && d.t < end), at(end)] : [];
-            // Today's forecast from the latest hour on, up to the chart's right edge.
-            const ahead = (forecastHourly[selection.date] ?? []).map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour), forecast: true}))
-              .filter((d) => d.temp != null && d.t >= daylightWindow[0] && d.t <= daylightWindow[1]);
-            return points.length || ahead.length ? hourlyTemperatureStrip(points, {width, domain: daylightWindow, inset: 8, forecast: ahead, ...margins}) : "";
+            const line = end > daylightWindow[0] ? [at(daylightWindow[0]), ...hourly.filter((d) => d.t > daylightWindow[0] && d.t < end), at(end)] : [];
+            // Solid up to now, then dashed: the forecast. A past day is all solid.
+            const [points, ahead] = forecast.length ? splitAt(line, new Date(), (t) => at(t).when) : [line, []];
+            return line.length ? hourlyTemperatureStrip(points, {width, domain: daylightWindow, inset: 8, forecast: ahead, ...margins}) : "";
           })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div></div>`;
         }
         const ticks = dayTicks(period, width - margins.marginLeft - margins.marginRight);
@@ -358,16 +360,18 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
         // Strips under the detections, top to bottom.
         const availableDates = period.filter((date) => date >= dataStart && date <= latest);
         const periodWeather = Object.fromEntries(availableDates.filter((date) => weather[date] && !weather[date].forecast).map((date) => [date, weather[date]]));
-        const weekTemps = selection.scale === "W"
-          ? availableDates.flatMap((date) => (weatherHourly[date] ?? []).map((temp, hour) => ({
-              t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
-              when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(hour)}`
-            }))).filter((d) => d.temp != null)
-          : null;
-        const weekForecast = weekTemps ? availableDates.flatMap((date) => (forecastHourly[date] ?? []).map((temp, hour) => ({
-              t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
-              when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(hour)}`, forecast: true
-            }))).filter((d) => d.temp != null) : [];
+        // Week: each hour's temperature at the middle of its slot, observed and then (today) the
+        // forecast, solid up to now and dashed after.
+        const weekHourly = (byDate) => availableDates.flatMap((date) => (byDate[date] ?? []).map((temp, hour) => ({
+          t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
+          when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(hour)}`
+        }))).filter((d) => d.temp != null);
+        const weekObserved = selection.scale === "W" ? weekHourly(weatherHourly) : null;
+        const weekAhead = weekObserved ? weekHourly(forecastHourly).filter((d) => !weekObserved.length || d.t > weekObserved.at(-1).t) : [];
+        const nowDate = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+        const [weekTemps, weekForecast] = !weekObserved ? [null, []] : !weekAhead.length ? [weekObserved, []]
+          : splitAt([...weekObserved, ...weekAhead], new Date(+new Date(nowDate) - 12 * 36e5 + wallHours(new Date().toISOString()) * 36e5),
+              () => `${formatDate(nowDate, {weekday: "short", month: "short", day: "numeric"})}, ${new Date().toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})}`);
         const strips = [
           conditionsStrip(period, periodWeather, {width, dark, ...margins}),
           weekTemps ? hourlyTemperatureStrip(weekTemps, {width, domain: frame.x.domain, forecast: weekForecast, ...margins}) : temperatureStrip(period, periodWeather, {width, ...margins})
