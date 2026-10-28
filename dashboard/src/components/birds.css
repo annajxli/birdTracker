@@ -1570,6 +1570,13 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-sound-label > span { grid-area: 1 / 1; text-align: center; }
 .live-sound .when-on, .live-sound[aria-pressed="true"] .when-off { visibility: hidden; }
 .live-sound[aria-pressed="true"] .when-on { visibility: visible; }
+.live-ahead { /* live: audio newer than the playhead, not heard yet */
+  position: absolute;
+  background: var(--theme-background);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.live-name.is-ahead { opacity: 0.5; }
 .live-playhead { /* the moment shown or heard */
   position: absolute;
   width: 0;

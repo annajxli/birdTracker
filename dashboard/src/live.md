@@ -129,6 +129,9 @@ let paused = false; // time stops: the playhead holds still (and the sound, if o
 // While live the playhead keeps to the right edge (LIVE_INSET px in), with nothing newer shown.
 const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
 const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
+// Live, the view ends at the newest audio, with the stretch the playhead hasn't reached dimmed;
+// in a short span the playhead is kept at least this far in from the left instead.
+const LIVE_PLAYHEAD_MIN = 0.2;
 let tracking = true, anchor = PLAYHEAD_AT;
 // Sound (muted to start): one audio element for the whole session, so browsers that only allow
 // sound after a tap (Safari) keep allowing it from one minute to the next.
@@ -137,6 +140,7 @@ let loads = 0, positioned = false; // the sound has loaded and been moved to its
 let activityLabels = [], activityRows = [], activityIndex = new Map();
 let activityTick = null;
 const playheadLine = Object.assign(document.createElement("div"), {className: "live-playhead"});
+const aheadShade = Object.assign(document.createElement("div"), {className: "live-ahead"}); // live: newer audio than the playhead
 
 const LANE = 22, LANES = 4, SPEC_TOP = LANE * LANES + 6, AXIS_H = 22;
 // The spectrogram's height: 160 px, or in fullscreen about half the screen.
@@ -416,7 +420,8 @@ function draw() {
   birdRuns.filter((r) => !sure(r)).forEach(placeBird);
   unidentifiedRuns(shown).forEach(placeBird);
   Object.assign(playheadLine.style, {top: SPEC_TOP - 6 + "px", height: SPEC_H + 6 + "px"}); // the spectrogram, and a little above
-  track.append(playheadLine);
+  Object.assign(aheadShade.style, {top: SPEC_TOP + "px", height: SPEC_H + "px"});
+  track.append(aheadShade, playheadLine);
   if (!tracking && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
   else if (rightEdge === null) scroller.scrollLeft = scroller.scrollWidth;
   positionNames();
@@ -609,6 +614,7 @@ function positionNames() {
     const right = Math.max(left + width, Math.min(end, viewRight));
     const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || laneLeft >= r + 6));
     button.style.visibility = lane < 0 ? "hidden" : "visible";
+    button.classList.toggle("is-ahead", !aheadShade.hidden && button.run.start > playhead);
     if (lane < 0) continue;
     lanes[lane].push([laneLeft, right]);
     button.style.top = lane * LANE + "px";
@@ -657,8 +663,15 @@ function frame() {
     lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
     playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
-    // Live and offline, the view ends at now, with the stretch without audio in it.
-    if (tracking) scroller.scrollLeft = x(live && offline ? geo.t1 : playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
+    const ahead = live && !offline && playhead < geo.t1;
+    aheadShade.hidden = !ahead;
+    if (ahead) Object.assign(aheadShade.style, {left: x(playhead) + "px", width: x(geo.t1) - x(playhead) + "px"});
+    // Live, the view ends at the newest audio (offline, at now, with the stretch without audio in
+    // it), unless that would push the playhead out of the view.
+    const cw = scroller.clientWidth;
+    if (tracking) scroller.scrollLeft = !live ? x(playhead) - anchor * cw
+      : offline ? x(geo.t1) - liveAnchor() * cw
+      : Math.min(x(geo.t1) - liveAnchor() * cw, x(playhead) - LIVE_PLAYHEAD_MIN * cw);
   }
   loadNearView();
   positionNames();
