@@ -251,10 +251,10 @@ const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, 
   const trend = line && medians.size > 1 ? html`<svg class="strip-line" viewBox="0 0 ${BARS} 100" preserveAspectRatio="none" aria-hidden="true"><path d="${path}"/></svg>` : "";
   return html`<div class="card-history"><div class="status-strip">${trend}${d3.range(BARS).map((i) => {
     const m = medians.get(i), when = clock(new Date(start + i * HALF_HOUR));
-    if (m == null) return html`<span class="strip-bar" title="${when}: no data"></span>`;
-    if (!zones) return html`<span class="strip-bar is-plain" style="height: ${size(m)}%" title="${when}: ${format(m)}"></span>`;
+    if (m == null) return html`<span class="strip-bar" data-tip="${when}: no data"></span>`;
+    if (!zones) return html`<span class="strip-bar is-plain" style="height: ${size(m)}%" data-tip="${when}: ${format(m)}"></span>`;
     const level = levelOf(m, zones);
-    return html`<span class="strip-bar status-${level}" title="${when}: ${format(m)}, ${STATUS[level][1].toLowerCase()}"></span>`;
+    return html`<span class="strip-bar status-${level}" data-tip="${when}: ${format(m)}, ${STATUS[level][1].toLowerCase()}"></span>`;
   })}</div><div class="strip-axis"><span>24 h ago</span><span>now</span></div></div>`;
 };
 const STATUS_COLOR = {good: "#0ca30c", warning: "#fab219", critical: "#a82a2a"};
@@ -335,6 +335,20 @@ const updatesCard = (() => {
 const closePackages = (e) => document.querySelectorAll(".software-packages[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
 document.addEventListener("click", closePackages);
 invalidation.then(() => document.removeEventListener("click", closePackages));
+// The history bars' values, shown at once on hover (a title attribute waits about a second).
+const stripTip = document.body.appendChild(html`<div class="strip-tip" hidden></div>`);
+const showStripTip = (e) => {
+  const bar = e.target.closest?.(".strip-bar[data-tip]");
+  if (!bar) { stripTip.hidden = true; return; }
+  const r = bar.getBoundingClientRect();
+  stripTip.textContent = bar.dataset.tip;
+  stripTip.hidden = false;
+  const w = stripTip.offsetWidth;
+  stripTip.style.left = `${Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2)) + scrollX}px`;
+  stripTip.style.top = `${r.top + scrollY - stripTip.offsetHeight - 6}px`;
+};
+document.addEventListener("pointerover", showStripTip);
+invalidation.then(() => { document.removeEventListener("pointerover", showStripTip); stripTip.remove(); });
 const piSection = pi && html`<div class="grid stats">
   ${pi.temp_c != null ? meterCard("CPU temperature", `${d3.format(".0f")(pi.temp_c)} °C`, meter(pi.temp_c, TEMP_ZONES, (v) => `${v}°`), "CPU throttles at 80 °C", statusStrip(piHistory, "temp_c", TEMP_ZONES, (v) => `${v} °C`)) : ""}
   ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}
