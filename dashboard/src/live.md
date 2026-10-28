@@ -193,6 +193,38 @@ function setSpan(seconds) {
 // Detections at least `minConf` sure, joined into runs: one per species per stretch of song.
 // Each run keeps its detections (`dets`, for reviewing it) and its verdict: "rejected" when all
 // of them are, "confirmed" when any is.
+// One species' runs close enough that their names would collide become one label: the group's
+// best score, its first start and last end, and the runs themselves (runs). Measured with the
+// labels' font, so "close enough" is the name's own width.
+const RUN_SCORE_ROOM = 22; // px between runs' middles for their scores to fit side by side
+const measure = document.createElement("canvas").getContext("2d");
+function groupRuns(list, sure) {
+  measure.font = `600 13.5px ${getComputedStyle(document.body).getPropertyValue("--sans-serif") || "sans-serif"}`;
+  const out = [];
+  const bySpecies = d3.group(list.filter((r) => !r.unidentified), (r) => r.name);
+  for (const [, rs] of bySpecies) {
+    let group = null;
+    for (const r of rs.sort((a, b) => a.start - b.start)) {
+      const label = `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
+      if (group && x(r.start) < x(group.start) + group.width + 6) {
+        group.runs.push(r);
+        group.end = Math.max(group.end, r.end);
+        group.best = Math.max(group.best, r.best);
+        group.dets = [...group.dets, ...r.dets];
+        continue;
+      }
+      group = {...r, runs: [r], dets: [...r.dets], width: measure.measureText(label).width + 11};
+      out.push(group);
+    }
+  }
+  for (const g of out) {
+    if (g.runs.length === 1) { delete g.runs; continue; }
+    const v = g.dets.map(reviewOf);
+    g.review = v.every((x) => x === "rejected") ? "rejected" : v.includes("confirmed") ? "confirmed" : null;
+  }
+  return [...out, ...list.filter((r) => r.unidentified)];
+}
+
 function runs(list, minConf = MIN_CONF) {
   const out = [];
   const open = new Map();
@@ -366,7 +398,7 @@ function draw() {
   // Text lanes are assigned using visible, edge-clamped positions below.
   // Unidentified runs have no detections (`dets`), so no species threshold: never sure.
   const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets?.[0]?.scientific_name}, minConf(), thresholdsFile?.species);
-  const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
+  const birdRuns = groupRuns(runs(shown, 0), sure).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
     const label = r.unidentified ? UNIDENTIFIED : `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
     const left = x(r.start);
@@ -380,6 +412,19 @@ function draw() {
       activityLabels.push({node: a, starts: detectionStarts(r.dets, reviewOf)});
     }
     a.run = r;
+    // Runs grouped under one name: each keeps its own underline, with its score under it where
+    // there's room beside the next one's.
+    if (r.runs) {
+      a.classList.add("is-group");
+      r.runs.forEach((sr, i) => {
+        const a0 = x(sr.start) - left, w = Math.max(2, x(sr.end) - x(sr.start));
+        a.append(Object.assign(document.createElement("span"), {className: `live-name-run${sure(sr) ? "" : " is-unsure"}`, style: `left: ${a0}px; width: ${w}px`}));
+        const mid = (q) => (x(q.start) + x(q.end)) / 2, prev = r.runs[i - 1], next = r.runs[i + 1];
+        if ((!prev || mid(sr) - mid(prev) >= RUN_SCORE_ROOM) && (!next || mid(next) - mid(sr) >= RUN_SCORE_ROOM)) {
+          a.append(Object.assign(document.createElement("span"), {className: "live-name-score", textContent: `${Math.round(sr.best * 100)}%`, style: `left: ${a0 + w / 2}px`}));
+        }
+      });
+    }
     const text = document.createElement("span");
     text.className = "live-name-text";
     text.textContent = r.review === "confirmed" ? `${label} ✓` : r.review === "rejected" ? `${label} ✗` : label;
@@ -621,7 +666,13 @@ function positionNames() {
     const left = liveLabelLeft(start, width, viewLeft, viewRight, cueWidth);
     const laneLeft = left - cueWidth;
     const right = Math.max(left + width, Math.min(end, viewRight));
-    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || laneLeft >= r + 6));
+    const free = (i) => i < LANES && lanes[i].every(([l, r]) => right + 6 <= l || laneLeft >= r + 6);
+    const lane = lanes.findIndex((_, i) => free(i));
+    // A group's scores hang below its row: they show only when the row below is free there too,
+    // and then take that space.
+    const scores = button.classList.contains("is-group") && lane >= 0 && free(lane + 1);
+    button.classList.toggle("no-scores", !scores);
+    if (scores) lanes[lane + 1].push([laneLeft, right]);
     button.style.visibility = lane < 0 ? "hidden" : "visible";
     button.classList.toggle("is-ahead", !aheadShade.hidden && button.run.start > playhead);
     if (lane < 0) continue;
