@@ -24,6 +24,12 @@ work, follow these rules:
 - Deploy to the indoor computer only from a session on the home network, and
   record the deployment on the [Status](docs/status.md) page.
 
+## Wording
+
+Get the owner's explicit approval for any new user-facing wording before you
+merge it, such as headings, labels, buttons, messages, and help text. Propose
+the exact text, and don't invent wording to fill a gap.
+
 ## Commits and merges
 
 - Keep each change in a few logical commits, usually one commit per update.

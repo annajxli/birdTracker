@@ -420,7 +420,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
     </section>
     <section class="zoom">
       <div class="section-top">
-        <p class="eyebrow">${comparable || trendScale !== "30" ? (trendScale === "D" ? "Compared with the day before" : "Trends in detected species") : "Largest monthly changes"}</p>
+        <p class="eyebrow">${comparable || trendScale !== "30" ? (trendScale === "D" ? "Daily trends" : "Trends in detected species") : "Largest monthly changes"}</p>
         <p class="sub section-sub">${comparable ? compareDates : dateRange(start, end)}</p>
       </div>
       <div id="home-trends" class="card layout-reserve">
