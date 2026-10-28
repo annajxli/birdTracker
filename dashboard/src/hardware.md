@@ -510,7 +510,9 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
   const send = async (minutes) => {
     start.disabled = resume.disabled = true;
     try {
-      const r = await fetch("/api/pause", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({password: form.password.value, minutes})});
+      const password = form.password.value;
+      form.password.value = ""; // never left filled in on the page
+      const r = await fetch("/api/pause", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({password, minutes})});
       if (r.ok) { until = (await r.json()).until; show(until); return; }
       show(until);
       const error = (await r.json().catch(() => null))?.error;
