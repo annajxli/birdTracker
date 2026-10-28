@@ -9,7 +9,7 @@ toc: false
 ```js
 import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesHref, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup} from "./components/birds.js";
 import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, windowChanges} from "./components/changes.js";
@@ -219,7 +219,6 @@ const timelineDates = selection.scale === "D" ? formatDate(selection.date)
 const minutes = minutesHeard(rows);
 const songMinutes = birdsongMinutes(rows);
 
-const mostHeard = d3.greatest(d3.rollups(minutes, (v) => v.length, (d) => d.species), ([, n]) => n);
 const daysUp = period.filter((d) => recordedDates.has(d)).length;
 const speciesCount = new Set(rows.map((d) => d.species)).size;
 ```
@@ -290,7 +289,7 @@ const historicalChanges = comparable ? [] : biggestMonthlyChanges(minutes, perio
       <p class="sub section-sub">${dateRange(start, end)}</p>
     </div>
     <div class="card activity-layout">
-    <div class="grid grid-cols-3 stats activity-stats">
+    <div class="grid grid-cols-2 stats activity-stats">
       <div class="card">
         <h2>Species heard</h2>
         <div class="big">${speciesCount}</div>
@@ -300,11 +299,6 @@ const historicalChanges = comparable ? [] : biggestMonthlyChanges(minutes, perio
         <h2>Minutes of birdsong</h2>
         <div class="big">${d3.format(",")(songMinutes.size)}</div>
         ${selection.scale === "D" ? "" : html`<div class="sub">${daysUp ? d3.format(",")(Math.round(songMinutes.size / daysUp)) : 0} minutes per day</div>`}
-      </div>
-      <div class="card">
-        <h2>Most heard</h2>
-        <div class="big">${mostHeard ? html`<a class="stat-link" href=${speciesHref(mostHeard[0])}>${mostHeard[0]}</a>` : "–"}</div>
-        <div class="sub">${mostHeard ? `${d3.format(",")(mostHeard[1])} minutes heard` : "No birds heard"}</div>
       </div>
     </div>
     <div id="home-activity" class="day-stack layout-reserve">
