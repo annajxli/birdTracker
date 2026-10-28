@@ -5,7 +5,7 @@ what is in progress, and what is unverified. Other pages describe how the
 system works and link here for status. When you deploy, merge, or finish a
 check, update this page in the same commit.
 
-Last reviewed: October 27, 2026.
+Last reviewed: October 28, 2026.
 
 ## Deployed
 
@@ -15,7 +15,7 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `1469cf6` (branch `claude/species-thresholds`) since October 27, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `e95cafe` (`main`) since October 28, 2026. Its power supply is too weak: `vcgencmd get_throttled` reports under-voltage. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
 | Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
@@ -23,6 +23,7 @@ The following table lists the deployed components:
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
+- October 28, 2026: `e95cafe` (`main`) to `pio` with `push.sh pio@192.168.0.113`: the recorder pause, set on the Hardware analytics page with the `CONTROL_PASSWORD` secret (set the same day). Verified the same afternoon: the three services are active, and a test pause set at 3:56:14 PM reached the Pi 12 seconds later; the receiver closed the open minute and stored no audio until Resume now reached it at 3:57:05 PM, when recording restarted. To roll back, run `push.sh` from `1469cf6`.
 - October 27, 2026: `1469cf6` (branch `claude/species-thresholds`) to `pio` with `push.sh`: an excluded species' score credits the one expected species in its genus. Verified the same morning: the three services are active, and the analyzer stored new minutes and detections with no errors. Before the deploy, the same code on the laptop found the 10:15 AM California Scrub-Jay at 0.74 in that morning's kept audio. To roll back, run `push.sh` from `05b0afc`.
 - October 27, 2026: `05b0afc` (branch `claude/species-thresholds`) to `pio` with `push.sh`: per-species thresholds learned from reviews (`live/thresholds.json`), used by the analyzer's birdsong counts. Verified the same morning: the three services are active with no errors, and the first learned file gives House Finch a threshold of 0.257 (17 confirmed) and blocks Northern Saw-whet Owl (213 rejected) and Peregrine Falcon (10 rejected). Common Loon has 9 reviews, one short of the minimum. The dashboard doesn't use the file yet. To roll back, run `push.sh` from `fd77529`.
 - October 27, 2026: `59fd623` (branch `claude/live-unidentified`) to `pio` with `push.sh`: the analyzer writes unidentified birdsong windows to Live strips. Verified the same morning: the three services are active, the analyzer logged no errors, and in the first 9 minutes, 2 strips listed one window each, matching each minute's `unidentified_windows`. To roll back, run `push.sh` from `681bd38`.
@@ -47,13 +48,6 @@ host alias. Don't include secrets.
 - October 25, 2026: first Raspberry Pi 3B+ pipeline and outdoor FireBeetle 2 ESP32-E recorder. Earlier commits weren't recorded.
 
 ## Open checks
-
-### Recorder pause
-
-- **Not deployed.** The pause on the Hardware analytics page is on `main`, but
-  pausing stays off until the `CONTROL_PASSWORD` secret is set and the indoor
-  computer runs the new publisher and receiver. After deploying, check that a
-  pause leaves missing audio and ends on time.
 
 ### Indoor computer on a Raspberry Pi 3B+
 
