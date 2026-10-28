@@ -45,6 +45,12 @@ recorder disconnect closes that connection, and the next audio reopens it.
 It's best effort: when live.py isn't running or falls behind, live audio is
 dropped, and the minute files never wait on it.
 
+While the recorder is paused (<data>/pause.json, which publish.py keeps from the
+Hardware analytics page's pause), audio is thrown away before anything is
+written: streamed samples and uploaded files recorded inside the pause, by
+their recording time, not when they arrive. The minute being written closes at the pause, so paused time is
+missing audio. Health frames are still read. A pause always ends on its own.
+
 Meant for the home network only: plain HTTP, one shared token. Run it on the
 indoor computer:
 
@@ -140,12 +146,49 @@ class LiveFeed:
             sock.close()
 
 
+class Pause:
+    """The recorder pause in pause.json: {"set_at": ..., "until": ...} (UTC times, or null).
+
+    Audio recorded from set_at until `until` falls in the pause; audio recorded before it was set
+    (a late upload, say) doesn't. Shared by the handler threads, so it's re-read under a lock.
+    """
+
+    def __init__(self, path: Path):
+        self.path, self.mtime, self.span = path, None, (0.0, 0.0)
+        self.lock = threading.Lock()
+
+    @staticmethod
+    def epoch(value) -> float | None:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() if isinstance(value, str) else None
+
+    def active(self, start: float, end: float | None = None) -> bool:
+        """Whether audio recorded from `start` (to `end`, epoch seconds) overlaps the pause."""
+        with self.lock:
+            try:
+                mtime = self.path.stat().st_mtime_ns
+            except FileNotFoundError:
+                mtime = None
+            if mtime != self.mtime:
+                span = (0.0, 0.0)
+                try:
+                    pause = json.loads(self.path.read_text()) if mtime else {}
+                    until = self.epoch(pause.get("until"))
+                    if until:
+                        span = (self.epoch(pause.get("set_at")) or 0.0, until)
+                except (OSError, ValueError, AttributeError):
+                    log.warning("can't read %s; recording", self.path)
+                self.mtime, self.span = mtime, span
+            set_at, until = self.span
+        return start < until and (start if end is None else end) >= set_at
+
+
 class MinuteFiles:
     """Writes a stream of indexed samples into one WAV per UTC minute in incoming/."""
 
     def __init__(self, incoming: Path, rate: int, index: int, epoch_ms: int, source: str, live: LiveFeed | None,
-                 rssi: int | None = None):
-        self.incoming, self.rate, self.source, self.live, self.rssi = incoming, rate, source, live, rssi
+                 rssi: int | None = None, pause: Pause | None = None):
+        self.incoming, self.rate, self.source, self.live, self.rssi, self.pause = incoming, rate, source, live, rssi, pause
+        self.paused = False  # dropping samples for a pause
         self.anchor_index, self.anchor_time = index, epoch_ms / 1000
         self.wav = None  # the open file: a wave writer on <name>.part
         self.next_index = None  # index of the next sample the open file expects
@@ -224,6 +267,17 @@ class MinuteFiles:
 
     def add(self, index: int, pcm: bytes) -> None:
         """Add samples starting at `index` (16-bit little-endian mono)."""
+        if self.pause and self.pause.active(self.time_of(index)):
+            if not self.paused:
+                log.info("stream from %s: paused; dropping audio", self.source)
+                self.paused = True
+                self.close()
+                if self.live:
+                    self.live.restart()
+            return
+        if self.paused:
+            log.info("stream from %s: pause over; recording", self.source)
+            self.paused = False
         if self.wav and index < self.next_index:  # overlaps what's written: keep only the new part
             skip = self.next_index - index
             pcm, index = pcm[2 * skip:], self.next_index
@@ -259,6 +313,7 @@ class MinuteFiles:
 class Handler(BaseHTTPRequestHandler):
     incoming: Path
     token: str
+    pause: Pause | None = None
     live_port: int = 0
     station: str = "backyard"
 
@@ -298,6 +353,17 @@ class Handler(BaseHTTPRequestHandler):
         final = self.incoming / name
         if final.exists():
             return self.reply(409, "already have it")
+        # By when it was recorded, not when it arrived; upload files are a minute at most.
+        begun = datetime.strptime(name[:16], "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC).timestamp()
+        if self.pause and self.pause.active(begun, begun + 60):
+            remaining = length  # read it so the connection stays usable, but keep none of it
+            while remaining:
+                chunk = self.rfile.read(min(CHUNK, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+            log.info("%s from %s: paused; not stored", name, self.client_address[0])
+            return self.reply(202, "paused; not stored")
 
         part = self.incoming / (name + ".part")
         started = time.monotonic()
@@ -339,7 +405,7 @@ class Handler(BaseHTTPRequestHandler):
             dbm = int(rssi) if rssi else None
         except ValueError:
             dbm = None
-        files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live, dbm)
+        files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live, dbm, self.pause)
         received = 0
         try:
             while True:
@@ -386,6 +452,7 @@ if __name__ == "__main__":
     Handler.incoming = args.data / "incoming"
     Handler.incoming.mkdir(parents=True, exist_ok=True)
     Handler.token = args.token
+    Handler.pause = Pause(args.data / "pause.json")
     Handler.live_port = args.live_port
     Handler.station = args.station
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)

@@ -23,6 +23,11 @@
 // {"verdict": "rejected" | "confirmed" | null (clears), "detections": [{"at": "<UTC time>",
 // "scientific": "<name>"}, ...]}. It's saved to the bucket as reviews/<time>-<id>.json, and the
 // Pi's publish.py applies it to the database on its next pass.
+//
+// /api/pause pauses the recorder for a while. GET returns the pause, {"until": "<UTC time>" | null,
+// "set_at": ...}. POST {"password": ..., "minutes": 30 | 60 | 120 | 240 | 0 (resume now)} also needs
+// the CONTROL_PASSWORD secret, rate-limited like sign-in, and saves control/pause.json, which the
+// Pi's publish.py fetches and receiver.py follows. Pauses always end on their own.
 
 const COOKIE = "bt_session";
 const DATA = new Set(["/api/data/detections.parquet", "/api/data/recordings.parquet"]);
@@ -31,6 +36,8 @@ const VERDICTS = new Set(["rejected", "confirmed", null]);
 const MAX_REVIEWED = 500; // detections in one review
 const SIGN_IN = "/__signin";
 const SIGN_OUT = "/__signout";
+const PAUSE_KEY = "control/pause.json";
+const PAUSE_MINUTES = new Set([0, 30, 60, 120, 240]); // 0 ends the pause now
 
 export default {
   async fetch(request, env) {
@@ -63,6 +70,8 @@ export default {
     if (!(await validSession(env, readCookie(request, COOKIE)))) {
       return signInPage(url.pathname + url.search, false);
     }
+
+    if (url.pathname === "/api/pause") return request.method === "POST" ? setPause(request, env, url) : request.method === "GET" ? getPause(env) : new Response("GET or POST only", {status: 405});
 
     if (url.pathname === "/api/reviews") return request.method === "POST" ? review(request, env, url) : new Response("POST only", {status: 405});
 
@@ -104,6 +113,51 @@ async function review(request, env, url) {
   await env.MEDIA.put(`reviews/${at.replace(/[-:.]/g, "")}-${crypto.randomUUID()}.json`, JSON.stringify(record),
     {httpMetadata: {contentType: "application/json"}});
   return new Response(JSON.stringify({ok: true}), {headers: {"Content-Type": "application/json", "Cache-Control": "no-store"}});
+}
+
+const json = (value, status = 200) => new Response(JSON.stringify(value), {status, headers: {"Content-Type": "application/json", "Cache-Control": "no-store"}});
+
+// The saved pause while it lasts, else null.
+async function currentPause(env) {
+  const object = await env.MEDIA.get(PAUSE_KEY);
+  let pause = null;
+  try { pause = object ? JSON.parse(await object.text()) : null; } catch {}
+  return typeof pause?.until === "string" && Date.parse(pause.until) > Date.now() ? pause : null;
+}
+
+// The recorder's pause, or none.
+async function getPause(env) {
+  if (!env.MEDIA) return new Response("no bucket", {status: 503});
+  const pause = await currentPause(env);
+  return json({until: pause?.until ?? null, set_at: pause?.set_at ?? null});
+}
+
+// Pause the recorder, or end a pause. Only from the site's own pages, with the control password.
+async function setPause(request, env, url) {
+  if (request.headers.get("Origin") !== url.origin) return new Response("forbidden", {status: 403});
+  if (!env.MEDIA) return new Response("no bucket", {status: 503});
+  if (!env.CONTROL_PASSWORD) return new Response("CONTROL_PASSWORD secret is not set", {status: 503});
+  if (Number(request.headers.get("Content-Length") ?? 0) > 4 * 1024) return new Response("too large", {status: 413});
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  if (env.SIGN_IN_LIMIT && !(await env.SIGN_IN_LIMIT.limit({key: "pause:" + ip})).success) return json({error: "limit"}, 429);
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response("not JSON", {status: 400});
+  }
+  if (body === null || typeof body !== "object" || typeof body.password !== "string" || !PAUSE_MINUTES.has(body.minutes)) return new Response("bad pause", {status: 400});
+  if (!(await sameSecret(body.password, env.CONTROL_PASSWORD))) {
+    await new Promise((r) => setTimeout(r, 600)); // slow down guessing a little
+    return json({error: "password"}, 403);
+  }
+  // A new end for a pause that's on keeps its start, so the receiver still drops audio recorded
+  // since then that arrives late.
+  const now = Date.now(), on = body.minutes ? await currentPause(env) : null;
+  const record = {until: body.minutes ? new Date(now + body.minutes * 6e4).toISOString() : null,
+    set_at: typeof on?.set_at === "string" ? on.set_at : new Date(now).toISOString()};
+  await env.MEDIA.put(PAUSE_KEY, JSON.stringify(record), {httpMetadata: {contentType: "application/json"}});
+  return json(record);
 }
 
 // A file from the MEDIA bucket. Supports Range requests: Safari won't play audio without them.

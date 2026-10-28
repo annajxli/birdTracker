@@ -473,3 +473,61 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
 </div>
 </div>
 </div>
+
+<div class="pause-section">
+<div class="section-top"><p class="eyebrow">Pause recording</p></div>
+<div class="card pause-card">
+  <p class="sub">Stops saving recorder audio. Takes effect within 2 minutes.</p>
+  <form class="pause-form" id="pause-form">
+    <label class="pause-field"><span>Control password</span><input type="password" name="password" autocomplete="current-password"></label>
+    <select name="minutes" class="pause-field" aria-label="Duration">
+      <option value="30">30 minutes</option>
+      <option value="60" selected>1 hour</option>
+      <option value="120">2 hours</option>
+      <option value="240">4 hours</option>
+    </select>
+    <button type="submit" class="live-button" id="pause-start">Pause</button>
+    <button type="button" class="live-button" id="pause-resume" hidden>Resume now</button>
+  </form>
+  <p class="sub" id="pause-status">Recording</p>
+</div>
+</div>
+
+```js
+// The recorder pause (deploy/password-worker.js /api/pause). Paused, Pause is grayed out until
+// another duration is picked, which sets a new end from now; Resume now ends it.
+{
+  const form = document.getElementById("pause-form"), status = document.getElementById("pause-status");
+  const start = document.getElementById("pause-start"), resume = document.getElementById("pause-resume");
+  const show = (until) => {
+    const paused = until && Date.parse(until) > Date.now();
+    status.textContent = paused ? `Paused until ${new Date(until).toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})}` : "Recording";
+    start.disabled = !!paused;
+    resume.hidden = !paused;
+  };
+  let until = null;
+  const refresh = () => fetch("/api/pause", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) { until = j.until; show(until); } }).catch(() => {});
+  const send = async (minutes) => {
+    start.disabled = resume.disabled = true;
+    try {
+      const r = await fetch("/api/pause", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({password: form.password.value, minutes})});
+      if (r.ok) { until = (await r.json()).until; show(until); return; }
+      show(until);
+      const error = (await r.json().catch(() => null))?.error;
+      status.textContent = error === "password" ? "Wrong password" : "Couldn't change the pause. Try again.";
+    } catch {
+      show(until);
+      status.textContent = "Couldn't change the pause. Try again.";
+    } finally {
+      resume.disabled = false;
+    }
+  };
+  form.onsubmit = (e) => { e.preventDefault(); send(Number(form.minutes.value)); };
+  // Opening the menu counts as picking, so the same duration can be picked again to extend.
+  for (const type of ["change", "pointerdown", "keydown"]) form.minutes.addEventListener(type, () => { start.disabled = false; });
+  resume.onclick = () => send(0);
+  refresh();
+  const timer = setInterval(() => { if (until && Date.parse(until) <= Date.now()) show(until = null); }, 15e3);
+  invalidation.then(() => clearInterval(timer));
+}
+```

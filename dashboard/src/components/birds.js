@@ -1135,6 +1135,21 @@ export function temperatureStrip(dates, weather, {width, ...margins}) {
 }
 
 /**
+ * Splits a temperature line ([{t, temp, when}], sorted by t) at time t, for hourlyTemperatureStrip:
+ * [up to t, from t on], joined by a point interpolated at t (labelled when(t)); the second part is
+ * marked forecast.
+ */
+export function splitAt(line, t, when) {
+  const i = d3.bisector((d) => +d.t).left(line, +t);
+  const ahead = (d) => ({...d, forecast: true});
+  if (i === 0) return [[], line.map(ahead)];
+  if (i >= line.length) return [line, []];
+  const a = line[i - 1], b = line[i];
+  const joint = {t: new Date(+t), temp: a.temp + ((+t - +a.t) / (+b.t - +a.t)) * (b.temp - a.temp), when: when(t)};
+  return [[...line.slice(0, i), joint], [ahead(joint), ...line.slice(i).map(ahead)]];
+}
+
+/**
  * Hourly temperature as a line, colored by temperature like the high-low ribbon. For the day
  * and week views. points: [{t: Date, temp, when}]; domain: the chart above's x domain, so the
  * line sits under the bars it belongs to; forecast: points for the rest of today, dashed, starting

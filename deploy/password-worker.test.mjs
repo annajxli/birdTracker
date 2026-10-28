@@ -150,6 +150,43 @@ check(r.status === 200 && put.length === 2 && put[1][1].verdict === null, "null 
 r = await worker.fetch(new Request(base + "/api/reviews", {headers: {Cookie: value}}), renv);
 check(r.status === 405, "GET refused");
 
+// Pausing the recorder: a stand-in bucket that keeps control/pause.json.
+const stored = new Map();
+const pbucket = {get: async (key) => (stored.has(key) ? {text: async () => stored.get(key)} : null), put: async (key, v) => { stored.set(key, v); }};
+const penv = {...env, MEDIA: pbucket, CONTROL_PASSWORD: "wren-call"};
+const pause = (body, headers = {}) => new Request(base + "/api/pause", {method: "POST", body: JSON.stringify(body),
+  headers: {Cookie: value, Origin: base, "Content-Type": "application/json", ...headers}});
+const pauseGet = () => worker.fetch(new Request(base + "/api/pause", {headers: {Cookie: value}}), penv).then((x) => x.json());
+check((await pauseGet()).until === null, "no pause yet -> until null");
+r = await worker.fetch(pause({password: "wren-call", minutes: 60}), penv);
+let p = await r.json();
+const ahead = Date.parse(p.until) - Date.now();
+check(r.status === 200 && ahead > 59 * 6e4 && ahead <= 60 * 6e4 && JSON.parse(stored.get("control/pause.json")).until === p.until, "pause for an hour saved to control/pause.json", p.until);
+check((await pauseGet()).until === p.until, "GET returns the pause");
+r = await worker.fetch(pause({password: "wren-call", minutes: 120}), penv);
+const longer = await r.json();
+check(Date.parse(longer.until) > Date.parse(p.until) && longer.set_at === p.set_at, "a new end keeps the pause's start");
+r = await worker.fetch(pause({password: "wren-call", minutes: 0}), penv);
+check(r.status === 200 && (await r.json()).until === null && (await pauseGet()).until === null, "minutes 0 resumes now");
+const before = stored.get("control/pause.json");
+r = await worker.fetch(pause({password: "robin-song", minutes: 60}), penv);
+check(r.status === 403 && (await r.json()).error === "password" && stored.get("control/pause.json") === before, "site password isn't the control password");
+r = await worker.fetch(pause({password: "wren-call", minutes: 45}), penv);
+check(r.status === 400, "durations other than the menu's refused");
+r = await worker.fetch(pause({password: "wren-call", minutes: 60}, {Origin: "https://evil.example"}), penv);
+check(r.status === 403 && stored.get("control/pause.json") === before, "other origins refused");
+r = await worker.fetch(new Request(base + "/api/pause", {method: "POST", body: JSON.stringify({password: "wren-call", minutes: 60}), headers: {Origin: base}}), penv);
+check(r.status === 401 && stored.get("control/pause.json") === before, "signed-out visitors can't pause");
+r = await worker.fetch(pause({password: "wren-call", minutes: 60}), {...penv, CONTROL_PASSWORD: undefined});
+check(r.status === 503, "no CONTROL_PASSWORD -> pausing off");
+stored.set("control/pause.json", JSON.stringify({until: new Date(Date.now() - 6e4).toISOString(), set_at: "x"}));
+check((await pauseGet()).until === null, "an ended pause reads as none");
+const ptries = new Map();
+const plimited = {...penv, SIGN_IN_LIMIT: {limit: async ({key}) => { ptries.set(key, (ptries.get(key) ?? 0) + 1); return {success: ptries.get(key) <= 2}; }}};
+for (const pw of ["a", "b"]) await worker.fetch(pause({password: pw, minutes: 30}, {"CF-Connecting-IP": "9.9.9.9"}), plimited);
+r = await worker.fetch(pause({password: "wren-call", minutes: 30}, {"CF-Connecting-IP": "9.9.9.9"}), plimited);
+check(r.status === 429 && [...ptries.keys()].every((k) => k.startsWith("pause:")), "pause attempts rate-limited on their own key");
+
 r = await worker.fetch(new Request(base + "/"), {ASSETS});
 check(r.status === 500, "missing secret fails closed");
 console.log(fails ? `${fails} FAILED` : "all passed");

@@ -78,3 +78,32 @@ class PublishTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class PauseStore:
+    """Holds control/pause.json, or nothing."""
+    class exceptions:
+        class NoSuchKey(Exception):
+            pass
+
+    def __init__(self, body=None):
+        self.body = body
+
+    def get_object(self, Bucket, Key):
+        if self.body is None:
+            raise self.exceptions.NoSuchKey()
+        return {"Body": io.BytesIO(self.body.encode())}
+
+
+class FetchPauseTest(unittest.TestCase):
+    def test_copies_the_pause_and_keeps_it_on_bad_json(self):
+        from publish import fetch_pause
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp)
+            fetch_pause(PauseStore(), "b", data)
+            self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": None, "until": None})
+            fetch_pause(PauseStore(json.dumps({"until": "2026-10-28T23:30:00.000Z", "set_at": "2026-10-28T22:30:00.000Z"})), "b", data)
+            self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": "2026-10-28T22:30:00.000Z", "until": "2026-10-28T23:30:00.000Z"})
+            fetch_pause(PauseStore("not json"), "b", data)
+            self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": "2026-10-28T22:30:00.000Z", "until": "2026-10-28T23:30:00.000Z"})
+            self.assertFalse((data / "pause.json.part").exists())
