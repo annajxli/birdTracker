@@ -2209,3 +2209,10 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
 .pause-form input, .pause-form select { font: inherit; font-size: 14px; padding: 0.35rem 0.5rem; border: 1px solid var(--rule); border-radius: 6px; background: var(--theme-background); color: var(--theme-foreground); }
 .pause-card #pause-status { margin: 0; color: var(--theme-foreground); }
 .pause-section { max-width: 36rem; }
+
+/* Live: one name over several runs of a species, each with its own underline and score. */
+.live-name.is-group::after { display: none; }
+.live-name-run { position: absolute; top: 15px; height: 2px; border-radius: 1px; background: var(--theme-foreground-focus); }
+.live-name-run.is-unsure { background: var(--theme-foreground-faint); }
+.live-name-score { position: absolute; top: 18px; transform: translateX(-50%); font: 400 8px/1 var(--sans-serif); font-style: normal; color: var(--theme-foreground-muted); pointer-events: none; }
+.live-name.no-scores .live-name-score { display: none; }
