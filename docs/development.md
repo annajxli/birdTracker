@@ -9,8 +9,16 @@ a recorder, and run the tests. For how the parts fit together, see
 
 Install the following:
 
-- Python 3.11 or later
+- Python 3.12 or later
 - Node.js 18 or later
+
+To get both from conda instead, create the `birdtracker` environment from
+`environment.yml`, and activate it before you set up the environment below:
+
+```bash
+conda env create -f environment.yml
+conda activate birdtracker
+```
 
 From the repository root, run all commands on this page.
 
@@ -28,8 +36,10 @@ From the repository root, run all commands on this page.
    .venv/bin/pip install -r requirements.txt
    ```
 
-   The dashboard's data loaders run with `.venv/bin/python`, so the virtual
-   environment must be at `.venv/`. To build only the dashboard, without
+   The dashboard's data loaders run with `.venv/bin/python`, or
+   `.venv\Scripts\python.exe` on Windows, so the virtual environment must be
+   at `.venv/`. On Windows, use `.venv\Scripts\` wherever this page says
+   `.venv/bin/`. To build only the dashboard, without
    BirdNET, install `requirements-dashboard.txt` instead. The deploy workflow
    uses that file.
 

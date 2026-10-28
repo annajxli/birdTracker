@@ -1,7 +1,8 @@
 import {fileURLToPath} from "node:url";
 
 // Data loaders (*.py) run with the repo's virtualenv so they can import the pipeline.
-const python = fileURLToPath(new URL("../.venv/bin/python", import.meta.url));
+// Windows virtualenvs keep it in Scripts\ rather than bin/.
+const python = fileURLToPath(new URL(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python", import.meta.url));
 
 // Light/dark toggle. Runs in <head> so the saved choice applies before first paint.
 // data-theme = the viewer's explicit choice (absent = follow the OS);

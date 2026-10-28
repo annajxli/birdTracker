@@ -1,0 +1,8 @@
+# Node.js and Python for development, as a conda environment.
+# Make the .venv from this Python, and install requirements.txt into it; see docs/development.md.
+name: birdtracker
+channels:
+  - conda-forge
+dependencies:
+  - nodejs=20
+  - python=3.12
