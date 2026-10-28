@@ -2195,3 +2195,10 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
   0%, 100% { opacity: 0.4; }
   50% { opacity: 1; }
 }
+
+/* A chart's bar for the time still being recorded: it pulses. */
+.bar-in-progress rect { animation: bar-pulse 1.6s ease-in-out infinite; }
+@keyframes bar-pulse { 50% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) {
+  .bar-in-progress rect { animation: none; opacity: 0.6; }
+}
