@@ -432,7 +432,7 @@ function draw() {
 
 // An overview above the spectrogram whose range follows the span: 1 min shows an hour in minute
 // bars, 5 min six hours in 5-minute bars, 15 min a day in 15-minute bars, 1 hour three days
-// (Pacific midnights) in half hours. Bars are taller the more of their time had a bird at the
+// in half hours. Bars are taller the more of their time had a bird at the
 // dashboard's threshold, short for audio with none, a stub where there's no audio. The window
 // follows the playhead until ‹ › (or shift ← →) move it, a window (or, for three days, a day) at
 // a time, back through the KEEP_DAYS kept; going live lets it follow again. Times in the strips
@@ -472,7 +472,7 @@ function ovWindow() {
   const [len, bin] = OV_FOR[span] ?? OV_FOR[3600], days = len >= 72 * HOUR;
   // Live and offline, it follows now, so it shows how long the audio has been missing.
   const now = Date.now(), p = live && tracking && offlineSince() ? now : Math.min(playhead ?? now, now);
-  const w1 = ovEnd ?? (days ? midnight(dayShift(pacificDate(p), 1)) : Math.min(Math.ceil(now / bin) * bin, Math.ceil((p + len / 4) / bin) * bin));
+  const w1 = ovEnd ?? Math.min(Math.ceil(now / bin) * bin, Math.ceil((p + len / 4) / bin) * bin);
   return {w0: w1 - len, w1, len, bin, days};
 }
 function drawOverview() {
@@ -524,10 +524,13 @@ function drawOverview() {
   const dayDate = (t) => new Date(t).toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", weekday: "short", month: "short", day: "numeric"});
   let labels;
   if (days) {
-    labels = d3.range(3).map((i) => {
-      const date = dayShift(pacificDate(w0 + 12 * HOUR), i), a = midnight(date), b = midnight(dayShift(date, 1));
-      const text = date === today ? "Today" : dayDate(a + 12 * HOUR);
-      return Object.assign(document.createElement("span"), {textContent: text, style: `left: ${pos(a)}%; width: ${pos(b) - pos(a)}%`});
+    // Each day's label is centred on its part of the window; a day with too little of it shown
+    // for its label to fit goes without.
+    labels = d3.range(4).map((i) => dayShift(pacificDate(w0), i)).filter((date) => midnight(date) < w1).flatMap((date) => {
+      const a = Math.max(w0, midnight(date)), b = Math.min(w1, midnight(dayShift(date, 1)));
+      if (pos(b) - pos(a) < 15) return [];
+      const text = date === today ? "Today" : dayDate(midnight(date) + 12 * HOUR);
+      return [Object.assign(document.createElement("span"), {textContent: text, style: `left: ${pos(a)}%; width: ${pos(b) - pos(a)}%`})];
     });
   } else {
     const every = ov.len <= HOUR ? 15 * 60e3 : ov.len <= 6 * HOUR ? HOUR : 3 * HOUR;
