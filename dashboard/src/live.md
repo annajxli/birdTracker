@@ -187,6 +187,7 @@ function setSpan(seconds) {
   markSpan();
   drawOverview(); // a new span has a new overview window, and the track follows it
   draw();
+  summarize(); // the hour chart's length follows the span
 }
 
 // Detections at least `minConf` sure, joined into runs: one per species per stretch of song.
@@ -988,11 +989,11 @@ function summarize() {
   const newest = strips.length ? endOf(strips.at(-1)) : Date.now();
   const lastHour = playhead === null || (live && tracking);
   const w1 = playhead === null ? newest : lastHour ? Math.min(playhead, newest) : hourEndAround(viewMiddle() ?? playhead, newest);
-  const w0 = w1 - HOUR;
-  const hourLabel = lastHour ? "the last hour" : `${time(new Date(w0))}–${time(new Date(w1))}`;
+  const w0 = w1 - chartLength();
+  const hourLabel = lastHour ? (chartLength() > HOUR ? "the last 2 hours" : "the last hour") : `${time(new Date(w0))}–${time(new Date(w1))}`;
   hourView = {w0, w1};
-  const pct = (t) => ((t - w0) / HOUR) * 100 + "%";
-  heardHeading.textContent = `Heard ${hourLabel === "the last hour" ? "in the last hour" : hourLabel}`;
+  const pct = (t) => ((t - w0) / (w1 - w0)) * 100 + "%";
+  heardHeading.textContent = `Heard ${hourLabel.startsWith("the last") ? `in ${hourLabel}` : hourLabel}`;
   const detections = [...strips.flatMap((s) => s.detections), ...unidentifiedDetections(strips)].filter((d) =>
     shownInGantt({confidence: d.confidence, review: reviewOf(d), scientific_name: d.scientific_name}, confidentOnly.checked, minConf(), thresholdsFile?.species) && Date.parse(d.at) >= w0 && Date.parse(d.at) <= w1);
   const rows = d3.groups(detections, (d) => d.common_name).map(([name, v]) => {
@@ -1047,7 +1048,7 @@ function summarize() {
         return event.clientX >= r.left - 3 && event.clientX <= r.right + 3;
       });
       const box = lane.getBoundingClientRect();
-      jumpTo(bar ? runStart(lane.dataset.name, Number(bar.dataset.first)) : w0 + ((event.clientX - box.left) / box.width) * HOUR);
+      jumpTo(bar ? runStart(lane.dataset.name, Number(bar.dataset.first)) : w0 + ((event.clientX - box.left) / box.width) * (hourView.w1 - hourView.w0));
     };
     grid.onpointermove = (event) => {
       const bar = event.target.closest(".live-gantt-bar");
@@ -1065,15 +1066,18 @@ function summarize() {
 }
 
 const viewMiddle = () => (geo ? tAt(scroller.scrollLeft + scroller.clientWidth / 2) : null);
-const hourEndAround = (t, newest) => Math.min(t + HOUR / 2, newest);
+// The hour chart's length: two hours for the 1 hour span, so the spectrogram's hour is outlined
+// within it as the shorter spans' views are; else an hour.
+const chartLength = () => (span >= HOUR / 1e3 ? 2 * HOUR : HOUR);
+const hourEndAround = (t, newest) => Math.min(t + chartLength() / 2, newest);
 // Unless live and following, the hour chart follows the spectrogram's view: once the view's middle
-// is more than a fifth of an hour from the chart's, the chart re-centres on it (called every frame).
+// is more than a fifth of the chart's length from the chart's, the chart re-centres on it (called every frame).
 let wasLastHour = true;
 function followView() {
   const lastHour = live && tracking;
   if (lastHour !== wasLastHour) { wasLastHour = lastHour; markLive(); return; } // which also redraws the chart
   if (lastHour || !hourView || !strips.length || viewMiddle() === null) return;
-  if (Math.abs(hourEndAround(viewMiddle(), endOf(strips.at(-1))) - hourView.w1) > HOUR / 5) summarize();
+  if (Math.abs(hourEndAround(viewMiddle(), endOf(strips.at(-1))) - hourView.w1) > chartLength() / 5) summarize();
 }
 
 // Shade, on the hour chart, the stretch the spectrogram shows now (called every frame).
