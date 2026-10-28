@@ -27,8 +27,8 @@ class PauseTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def set_pause(self, until):
-        self.path.write_text(json.dumps({"until": until and iso(until)}))
+    def set_pause(self, until, set_at=T0 - 600):
+        self.path.write_text(json.dumps({"set_at": iso(set_at), "until": until and iso(until)}))
         os.utime(self.path, ns=(time.time_ns(), time.time_ns() + 1000))  # a new mtime even within a tick
 
     def stream(self, files, seconds, start=0):
@@ -66,6 +66,14 @@ class PauseTest(unittest.TestCase):
         second = datetime.fromtimestamp(T0 + 50, UTC).strftime("%Y%m%dT%H%M%SZ.wav")
         self.assertEqual(self.wavs(), {first: 30, second: 10})
         self.assertFalse(list(self.dir.glob("*.part")))
+
+    def test_audio_from_before_the_pause_was_set_is_kept(self):
+        pause = Pause(self.path)
+        self.set_pause(T0 + 3600, set_at=T0 + 600)
+        self.assertFalse(pause.active(T0, T0 + 60))  # a late upload recorded before the pause
+        self.assertTrue(pause.active(T0 + 590, T0 + 650))  # a minute running into it
+        self.assertTrue(pause.active(T0 + 1200))
+        self.assertFalse(pause.active(T0 + 3600))
 
     def test_an_ended_or_cleared_pause_records(self):
         pause = Pause(self.path)

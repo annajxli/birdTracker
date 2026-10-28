@@ -101,9 +101,9 @@ class FetchPauseTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             data = Path(tmp)
             fetch_pause(PauseStore(), "b", data)
-            self.assertEqual(json.loads((data / "pause.json").read_text()), {"until": None})
-            fetch_pause(PauseStore(json.dumps({"until": "2026-10-28T23:30:00.000Z", "set_at": "x"})), "b", data)
-            self.assertEqual(json.loads((data / "pause.json").read_text()), {"until": "2026-10-28T23:30:00.000Z"})
+            self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": None, "until": None})
+            fetch_pause(PauseStore(json.dumps({"until": "2026-10-28T23:30:00.000Z", "set_at": "2026-10-28T22:30:00.000Z"})), "b", data)
+            self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": "2026-10-28T22:30:00.000Z", "until": "2026-10-28T23:30:00.000Z"})
             fetch_pause(PauseStore("not json"), "b", data)
-            self.assertEqual(json.loads((data / "pause.json").read_text()), {"until": "2026-10-28T23:30:00.000Z"})
+            self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": "2026-10-28T22:30:00.000Z", "until": "2026-10-28T23:30:00.000Z"})
             self.assertFalse((data / "pause.json.part").exists())

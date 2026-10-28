@@ -513,7 +513,8 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
       const r = await fetch("/api/pause", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({password: form.password.value, minutes})});
       if (r.ok) { until = (await r.json()).until; show(until); return; }
       show(until);
-      status.textContent = r.status === 403 ? "Wrong password" : "Couldn't change the pause. Try again.";
+      const error = (await r.json().catch(() => null))?.error;
+      status.textContent = error === "password" ? "Wrong password" : "Couldn't change the pause. Try again.";
     } catch {
       show(until);
       status.textContent = "Couldn't change the pause. Try again.";
@@ -522,7 +523,8 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
     }
   };
   form.onsubmit = (e) => { e.preventDefault(); send(Number(form.minutes.value)); };
-  form.minutes.onchange = () => { start.disabled = false; };
+  // Opening the menu counts as picking, so the same duration can be picked again to extend.
+  for (const type of ["change", "pointerdown", "keydown"]) form.minutes.addEventListener(type, () => { start.disabled = false; });
   resume.onclick = () => send(0);
   refresh();
   const timer = setInterval(() => { if (until && Date.parse(until) <= Date.now()) show(until = null); }, 15e3);

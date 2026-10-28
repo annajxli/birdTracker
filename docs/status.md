@@ -48,6 +48,13 @@ host alias. Don't include secrets.
 
 ## Open checks
 
+### Recorder pause
+
+- **Not deployed.** The pause on the Hardware analytics page is on `main`, but
+  pausing stays off until the `CONTROL_PASSWORD` secret is set and the indoor
+  computer runs the new publisher and receiver. After deploying, check that a
+  pause leaves missing audio and ends on time.
+
 ### Indoor computer on a Raspberry Pi 3B+
 
 - **Speed.** The analyzer must process each minute of audio, including its

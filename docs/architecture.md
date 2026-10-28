@@ -285,7 +285,8 @@ and the Worker limits attempts per IP address like sign-in. It lasts one of
 the durations in `PAUSE_MINUTES` in `deploy/password-worker.js`, and always
 ends on its own. The Worker saves the end time to `control/pause.json`, the
 publisher copies it to the indoor computer, and the receiver discards audio
-until then. A pause takes effect once the publisher next fetches it, within about
+recorded from when the pause was set until then. A new end keeps the pause's
+start. A pause takes effect once the publisher next fetches it, within about
 `--pause-seconds` plus its `--interval`.
 
 ### Pages

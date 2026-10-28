@@ -47,8 +47,8 @@ dropped, and the minute files never wait on it.
 
 While the recorder is paused (<data>/pause.json, which publish.py keeps from the
 Hardware analytics page's pause), audio is thrown away before anything is
-written: streamed samples timed inside the pause, and uploads that arrive
-during it. The minute being written closes at the pause, so paused time is
+written: streamed samples and uploaded files recorded inside the pause, by
+their recording time, not when they arrive. The minute being written closes at the pause, so paused time is
 missing audio. Health frames are still read. A pause always ends on its own.
 
 Meant for the home network only: plain HTTP, one shared token. Run it on the
@@ -147,26 +147,39 @@ class LiveFeed:
 
 
 class Pause:
-    """The recorder pause in pause.json: {"until": "<UTC time>" | null}. Re-read when it changes."""
+    """The recorder pause in pause.json: {"set_at": ..., "until": ...} (UTC times, or null).
+
+    Audio recorded from set_at until `until` falls in the pause; audio recorded before it was set
+    (a late upload, say) doesn't. Shared by the handler threads, so it's re-read under a lock.
+    """
 
     def __init__(self, path: Path):
-        self.path, self.mtime, self.until = path, None, 0.0
+        self.path, self.mtime, self.span = path, None, (0.0, 0.0)
+        self.lock = threading.Lock()
 
-    def active(self, at: float) -> bool:
-        """Whether audio at `at` (epoch seconds) falls inside the pause."""
-        try:
-            mtime = self.path.stat().st_mtime_ns
-        except FileNotFoundError:
-            mtime = None
-        if mtime != self.mtime:
-            self.mtime, self.until = mtime, 0.0
+    @staticmethod
+    def epoch(value) -> float | None:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp() if isinstance(value, str) else None
+
+    def active(self, start: float, end: float | None = None) -> bool:
+        """Whether audio recorded from `start` (to `end`, epoch seconds) overlaps the pause."""
+        with self.lock:
             try:
-                until = json.loads(self.path.read_text()).get("until") if mtime else None
-                if until:
-                    self.until = datetime.fromisoformat(until.replace("Z", "+00:00")).timestamp()
-            except (OSError, ValueError, AttributeError):
-                log.warning("can't read %s; recording", self.path)
-        return at < self.until
+                mtime = self.path.stat().st_mtime_ns
+            except FileNotFoundError:
+                mtime = None
+            if mtime != self.mtime:
+                span = (0.0, 0.0)
+                try:
+                    pause = json.loads(self.path.read_text()) if mtime else {}
+                    until = self.epoch(pause.get("until"))
+                    if until:
+                        span = (self.epoch(pause.get("set_at")) or 0.0, until)
+                except (OSError, ValueError, AttributeError):
+                    log.warning("can't read %s; recording", self.path)
+                self.mtime, self.span = mtime, span
+            set_at, until = self.span
+        return start < until and (start if end is None else end) >= set_at
 
 
 class MinuteFiles:
@@ -340,7 +353,9 @@ class Handler(BaseHTTPRequestHandler):
         final = self.incoming / name
         if final.exists():
             return self.reply(409, "already have it")
-        if self.pause and self.pause.active(time.time()):
+        # By when it was recorded, not when it arrived; upload files are a minute at most.
+        begun = datetime.strptime(name[:16], "%Y%m%dT%H%M%SZ").replace(tzinfo=UTC).timestamp()
+        if self.pause and self.pause.active(begun, begun + 60):
             remaining = length  # read it so the connection stays usable, but keep none of it
             while remaining:
                 chunk = self.rfile.read(min(CHUNK, remaining))

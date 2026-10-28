@@ -117,14 +117,19 @@ async function review(request, env, url) {
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), {status, headers: {"Content-Type": "application/json", "Cache-Control": "no-store"}});
 
-// The recorder's pause, or none.
-async function getPause(env) {
-  if (!env.MEDIA) return new Response("no bucket", {status: 503});
+// The saved pause while it lasts, else null.
+async function currentPause(env) {
   const object = await env.MEDIA.get(PAUSE_KEY);
   let pause = null;
   try { pause = object ? JSON.parse(await object.text()) : null; } catch {}
-  const until = typeof pause?.until === "string" && Date.parse(pause.until) > Date.now() ? pause.until : null;
-  return json({until, set_at: pause?.set_at ?? null});
+  return typeof pause?.until === "string" && Date.parse(pause.until) > Date.now() ? pause : null;
+}
+
+// The recorder's pause, or none.
+async function getPause(env) {
+  if (!env.MEDIA) return new Response("no bucket", {status: 503});
+  const pause = await currentPause(env);
+  return json({until: pause?.until ?? null, set_at: pause?.set_at ?? null});
 }
 
 // Pause the recorder, or end a pause. Only from the site's own pages, with the control password.
@@ -146,8 +151,11 @@ async function setPause(request, env, url) {
     await new Promise((r) => setTimeout(r, 600)); // slow down guessing a little
     return json({error: "password"}, 403);
   }
-  const now = Date.now();
-  const record = {until: body.minutes ? new Date(now + body.minutes * 6e4).toISOString() : null, set_at: new Date(now).toISOString()};
+  // A new end for a pause that's on keeps its start, so the receiver still drops audio recorded
+  // since then that arrives late.
+  const now = Date.now(), on = body.minutes ? await currentPause(env) : null;
+  const record = {until: body.minutes ? new Date(now + body.minutes * 6e4).toISOString() : null,
+    set_at: typeof on?.set_at === "string" ? on.set_at : new Date(now).toISOString()};
   await env.MEDIA.put(PAUSE_KEY, JSON.stringify(record), {httpMetadata: {contentType: "application/json"}});
   return json(record);
 }

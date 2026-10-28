@@ -347,7 +347,7 @@ def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = Fals
 
 
 def fetch_pause(s3, bucket: str, data: Path) -> None:
-    """Copy the recorder pause to <data>/pause.json for receiver.py: {"until": "<UTC time>" | null}.
+    """Copy the recorder pause to <data>/pause.json for receiver.py: {"set_at": ..., "until": ...}.
 
     Written atomically. When R2 can't be reached the old file stays, and any pause in it still
     ends on its own.
@@ -359,8 +359,10 @@ def fetch_pause(s3, bucket: str, data: Path) -> None:
     except ValueError:
         log.warning("%s isn't JSON; keeping the last pause", PAUSE_KEY)
         return
-    until = pause.get("until") if isinstance(pause, dict) and isinstance(pause.get("until"), str) else None
-    text = json.dumps({"until": until})
+    pause = pause if isinstance(pause, dict) else {}
+    until = pause.get("until") if isinstance(pause.get("until"), str) else None
+    set_at = pause.get("set_at") if until and isinstance(pause.get("set_at"), str) else None
+    text = json.dumps({"set_at": set_at, "until": until})
     path = data / "pause.json"
     if path.exists() and path.read_text() == text:
         return
@@ -409,7 +411,12 @@ if __name__ == "__main__":
             now = time.monotonic()
             if args.once or last_pause is None or now - last_pause >= args.pause_seconds:
                 last_pause = now
-                fetch_pause(s3, bucket, args.data)
+                try:
+                    fetch_pause(s3, bucket, args.data)
+                except Exception:  # keep publishing; the receiver keeps the last pause
+                    if args.once:
+                        raise
+                    log.exception("pause check failed")
             if args.db.exists() and (args.once or last_reviews is None or now - last_reviews >= args.reviews_seconds):
                 if apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
                     last_detections = 0.0  # publish corrections on this pass
