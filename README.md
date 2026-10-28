@@ -7,9 +7,9 @@ and when.
 
 ## Quickstart
 
-To run the dashboard on simulated data, install Python 3.11 or later and
-Node.js 18 or later. Then, from the repository root, run the following
-commands:
+To run the dashboard on simulated data, install Python 3.12 or later and
+Node.js 18 or later, or use the conda environment in `environment.yml`. Then,
+from the repository root, run the following commands:
 
 ```bash
 python3 -m venv .venv
