@@ -55,7 +55,8 @@ two modes:
   request.
 
 In both modes, the receiver writes to a `.part` file in `data/incoming/` and
-renames it when the file is complete. It accepts only filenames that look like
+renames it when the file is complete. When it starts, it deletes `.part` files left
+by a stop in the middle of a file. It accepts only filenames that look like
 a UTC start time plus an audio extension, such as `20260512T131500Z.wav`.
 
 The receiver can also forward the stream to `pipeline/live.py` on a local TCP

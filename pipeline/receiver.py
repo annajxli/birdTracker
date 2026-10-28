@@ -146,6 +146,15 @@ class LiveFeed:
             sock.close()
 
 
+def remove_stale_parts(incoming: Path) -> int:
+    """Delete .part files left by a receiver that stopped mid-file. Run at startup, before any
+    connection, when none of them can still be in use. Returns how many it deleted."""
+    stale = list(incoming.glob("*.part"))
+    for part in stale:
+        part.unlink(missing_ok=True)
+    return len(stale)
+
+
 class Pause:
     """The recorder pause in pause.json: {"set_at": ..., "until": ...} (UTC times, or null).
 
@@ -451,6 +460,8 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     Handler.incoming = args.data / "incoming"
     Handler.incoming.mkdir(parents=True, exist_ok=True)
+    if stale := remove_stale_parts(Handler.incoming):
+        log.info("deleted %d unfinished file(s) left from before this start", stale)
     Handler.token = args.token
     Handler.pause = Pause(args.data / "pause.json")
     Handler.live_port = args.live_port
