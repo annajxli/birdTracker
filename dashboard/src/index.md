@@ -459,7 +459,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             ? html`<p class="sub">Not enough data</p>`
           : historicalChanges.length
             ? resize((width) => changeChart(historicalChanges, {width, dark, beforeLabel: "Earlier month", nowLabel: "Following month", annotatePeriods: true}))
-            : html`<p class="sub">Trends compare 30 days with the 30 before, so they need about two months of recordings, and only show changes larger than normal day-to-day variation.</p>`}
+            : html`<p class="sub">Not enough data</p>`}
       </div>
     </section>
     </div>
