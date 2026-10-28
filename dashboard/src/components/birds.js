@@ -1200,7 +1200,7 @@ function barSpan(date) {
  *
  * changes: [{species, before, now}], average minutes heard per day.
  */
-export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annotatePeriods = false}) {
+export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annotatePeriods = false, xLabel = "Average minutes heard per day"}) {
   const up = increaseColor(dark);
   const down = declineColor(dark);
   const colorOf = (d) => (d.now >= d.before ? up : down);
@@ -1227,7 +1227,7 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
     marginRight: 48,
     marginTop: 8,
     // Room either side of the dots for their values; ticks only from zero up.
-    x: {domain: [-max * (width < 520 ? 0.26 : 0.12), max * (width < 520 ? 1.3 : 1.16)], ticks: d3.ticks(0, max * 1.1, width < 520 ? 4 : 8), label: "Average minutes heard per day", labelAnchor: "center", labelArrow: "none", grid: true},
+    x: {domain: [-max * (width < 520 ? 0.26 : 0.12), max * (width < 520 ? 1.3 : 1.16)], ticks: d3.ticks(0, max * 1.1, width < 520 ? 4 : 8), label: xLabel, labelAnchor: "center", labelArrow: "none", grid: true},
     y: {domain, label: null},
     marks: [
       nameAxis(width, {tickFormat: (k) => (k.startsWith(HEADER) ? "" : k)}),

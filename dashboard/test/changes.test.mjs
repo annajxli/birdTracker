@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {biggestMonthlyChanges, windowChanges} from "../src/components/changes.js";
+import {biggestMonthlyChanges, dayChanges, windowChanges} from "../src/components/changes.js";
 
 const days = (from, through) => Array.from(
   {length: Math.round((Date.parse(through) - Date.parse(from)) / 86400000) + 1},
@@ -105,4 +105,16 @@ test("monthly changes: noise between months is not reported", () => {
   const rand = rng(11);
   const rows = ["Robin", "Wren", "Junco"].flatMap((s) => minutes(dates, bursty(rand, 6), s));
   assert.deepEqual(biggestMonthlyChanges(rows, dates), []);
+});
+
+test("day changes: minutes against the day before, small moves dropped", () => {
+  const heard = (date, species, n) => Array.from({length: n}, () => ({date, species}));
+  const rows = [
+    ...heard("2026-10-28", "House Finch", 12), ...heard("2026-10-27", "House Finch", 5),
+    ...heard("2026-10-28", "Crow", 1), ...heard("2026-10-27", "Crow", 6),
+    ...heard("2026-10-28", "Robin", 4), ...heard("2026-10-27", "Robin", 3),
+    ...heard("2026-10-28", "Jay", 3), ...heard("2026-10-26", "Jay", 20)
+  ];
+  const changes = dayChanges(rows, "2026-10-28", "2026-10-27");
+  assert.deepEqual(changes.map((d) => [d.species, d.before, d.now]), [["House Finch", 5, 12], ["Jay", 0, 3], ["Crow", 6, 1]]);
 });

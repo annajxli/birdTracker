@@ -105,6 +105,19 @@ export function windowChanges(minutes, nowDays, beforeDays, {limit = 8, alpha = 
   return [...up, ...down];
 }
 
+// Minutes heard on one day against the day before, with no test: a day is one sample, so this
+// only describes what changed ("more House Finch than yesterday"). Species whose minutes moved by
+// at least `minDelta` are kept, increases (largest first) then decreases (largest last), up to
+// `limit` of each.
+export function dayChanges(minutes, day, previous, {limit = 8, minDelta = 3} = {}) {
+  const counts = dailyCounts(minutes, [day, previous]);
+  const rows = [...counts].map(([species, c]) => ({species, before: c[1], now: c[0], delta: c[0] - c[1]}))
+    .filter((d) => Math.abs(d.delta) >= minDelta);
+  const up = rows.filter((d) => d.delta > 0).sort((a, b) => b.delta - a.delta || effect(b) - effect(a)).slice(0, limit);
+  const down = rows.filter((d) => d.delta < 0).sort((a, b) => a.delta - b.delta || effect(a) - effect(b)).slice(0, limit).reverse();
+  return [...up, ...down];
+}
+
 // Find each species' strongest clear change between consecutive complete calendar months.
 // Inputs are already deduplicated to minutes heard.
 export function biggestMonthlyChanges(minutes, recordedDates, {limit = 8, minRecordedDays = 15, alpha = 0.05, permutations = 2000, seed = 1} = {}) {
