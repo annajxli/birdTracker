@@ -45,6 +45,12 @@ recorder disconnect closes that connection, and the next audio reopens it.
 It's best effort: when live.py isn't running or falls behind, live audio is
 dropped, and the minute files never wait on it.
 
+While the recorder is paused (<data>/pause.json, which publish.py keeps from the
+Hardware analytics page's pause), audio is thrown away before anything is
+written: streamed samples timed inside the pause, and uploads that arrive
+during it. The minute being written closes at the pause, so paused time is
+missing audio. Health frames are still read. A pause always ends on its own.
+
 Meant for the home network only: plain HTTP, one shared token. Run it on the
 indoor computer:
 
@@ -140,12 +146,36 @@ class LiveFeed:
             sock.close()
 
 
+class Pause:
+    """The recorder pause in pause.json: {"until": "<UTC time>" | null}. Re-read when it changes."""
+
+    def __init__(self, path: Path):
+        self.path, self.mtime, self.until = path, None, 0.0
+
+    def active(self, at: float) -> bool:
+        """Whether audio at `at` (epoch seconds) falls inside the pause."""
+        try:
+            mtime = self.path.stat().st_mtime_ns
+        except FileNotFoundError:
+            mtime = None
+        if mtime != self.mtime:
+            self.mtime, self.until = mtime, 0.0
+            try:
+                until = json.loads(self.path.read_text()).get("until") if mtime else None
+                if until:
+                    self.until = datetime.fromisoformat(until.replace("Z", "+00:00")).timestamp()
+            except (OSError, ValueError, AttributeError):
+                log.warning("can't read %s; recording", self.path)
+        return at < self.until
+
+
 class MinuteFiles:
     """Writes a stream of indexed samples into one WAV per UTC minute in incoming/."""
 
     def __init__(self, incoming: Path, rate: int, index: int, epoch_ms: int, source: str, live: LiveFeed | None,
-                 rssi: int | None = None):
-        self.incoming, self.rate, self.source, self.live, self.rssi = incoming, rate, source, live, rssi
+                 rssi: int | None = None, pause: Pause | None = None):
+        self.incoming, self.rate, self.source, self.live, self.rssi, self.pause = incoming, rate, source, live, rssi, pause
+        self.paused = False  # dropping samples for a pause
         self.anchor_index, self.anchor_time = index, epoch_ms / 1000
         self.wav = None  # the open file: a wave writer on <name>.part
         self.next_index = None  # index of the next sample the open file expects
@@ -224,6 +254,17 @@ class MinuteFiles:
 
     def add(self, index: int, pcm: bytes) -> None:
         """Add samples starting at `index` (16-bit little-endian mono)."""
+        if self.pause and self.pause.active(self.time_of(index)):
+            if not self.paused:
+                log.info("stream from %s: paused; dropping audio", self.source)
+                self.paused = True
+                self.close()
+                if self.live:
+                    self.live.restart()
+            return
+        if self.paused:
+            log.info("stream from %s: pause over; recording", self.source)
+            self.paused = False
         if self.wav and index < self.next_index:  # overlaps what's written: keep only the new part
             skip = self.next_index - index
             pcm, index = pcm[2 * skip:], self.next_index
@@ -259,6 +300,7 @@ class MinuteFiles:
 class Handler(BaseHTTPRequestHandler):
     incoming: Path
     token: str
+    pause: Pause | None = None
     live_port: int = 0
     station: str = "backyard"
 
@@ -298,6 +340,15 @@ class Handler(BaseHTTPRequestHandler):
         final = self.incoming / name
         if final.exists():
             return self.reply(409, "already have it")
+        if self.pause and self.pause.active(time.time()):
+            remaining = length  # read it so the connection stays usable, but keep none of it
+            while remaining:
+                chunk = self.rfile.read(min(CHUNK, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+            log.info("%s from %s: paused; not stored", name, self.client_address[0])
+            return self.reply(202, "paused; not stored")
 
         part = self.incoming / (name + ".part")
         started = time.monotonic()
@@ -339,7 +390,7 @@ class Handler(BaseHTTPRequestHandler):
             dbm = int(rssi) if rssi else None
         except ValueError:
             dbm = None
-        files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live, dbm)
+        files = MinuteFiles(self.incoming, rate, index, epoch_ms, source, live, dbm, self.pause)
         received = 0
         try:
             while True:
@@ -386,6 +437,7 @@ if __name__ == "__main__":
     Handler.incoming = args.data / "incoming"
     Handler.incoming.mkdir(parents=True, exist_ok=True)
     Handler.token = args.token
+    Handler.pause = Pause(args.data / "pause.json")
     Handler.live_port = args.live_port
     Handler.station = args.station
     server = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)

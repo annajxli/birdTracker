@@ -94,7 +94,11 @@ R2 requires a payment method on file, even for usage within the free tier.
    output of `openssl rand -hex 32`. This key signs session cookies, so
    someone who steals a cookie can't use it to guess the password. A session
    lasts 30 days.
-5. To check the setup, open `https://birds.example.com` in a private browser
+5. To let the Hardware analytics page pause the recorder, add a secret named
+   `CONTROL_PASSWORD`, set to a password different from `PASSWORD`. Without
+   it, pausing is off. For how pauses work, see
+   [Pause the recorder](architecture.md#pause-the-recorder).
+6. To check the setup, open `https://birds.example.com` in a private browser
    window. The sign-in page appears, and the password opens the site.
 
 Deploys replace the Worker's code and files but keep its secrets. The Worker

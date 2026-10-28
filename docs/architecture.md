@@ -61,6 +61,11 @@ a UTC start time plus an audio extension, such as `20260512T131500Z.wav`.
 The receiver can also forward the stream to `pipeline/live.py` on a local TCP
 port. This forwarding is best effort and never delays the minute files.
 
+While the recorder is paused, the receiver discards its audio before writing
+anything, so paused time is missing audio, the same as an outage. It reads the
+pause from `data/pause.json`, and a pause always ends on its own. For how a
+pause is set, see [Pause the recorder](#pause-the-recorder).
+
 ### Analyzer
 
 `pipeline/analyzer.py` watches `data/incoming/`. A file counts as finished
@@ -110,6 +115,9 @@ The publisher also applies reviews. When a signed-in visitor marks a detection
 as confirmed or rejected, the Worker saves the verdict to `reviews/` in R2. The
 next time the publisher checks for reviews, it writes the verdict to the
 database.
+
+The publisher also fetches the recorder pause, `control/pause.json` in R2,
+every `--pause-seconds`, and writes it to `data/pause.json` for the receiver.
 
 Each time it applies reviews, the publisher also learns a confidence threshold
 for each species from all reviews so far (`pipeline/thresholds.py`), and
@@ -230,7 +238,8 @@ comes from the `R2_BUCKET` environment variable, and the default is
 | `data/recordings.parquet` | Recorder telemetry |
 | `data/detections.sqlite` | A database snapshot that the site build downloads |
 
-The Worker writes visitors' review verdicts to `reviews/`.
+The Worker writes visitors' review verdicts to `reviews/`, and the recorder
+pause to `control/pause.json`.
 
 ## Website
 
@@ -260,12 +269,24 @@ the site exists. It also serves the following routes to signed-in visitors:
 | `/api/clips/KEY` | The clip at `KEY` from R2 |
 | `/api/data/detections.parquet`, `/api/data/recordings.parquet` | The newest exports from R2 |
 | `POST /api/reviews` | Saves a review verdict to R2 |
+| `/api/pause` | The recorder pause; `POST` sets or ends it with the control password |
 | `/__signout` | Signs out the current device |
 
 In these routes, `NAME` is a file in `live/`, and `KEY` is a clip's key, which
 starts with `clips/`.
 
 For setup steps, see [Deploy](deploy.md).
+
+### Pause the recorder
+
+The Hardware analytics page can pause the recorder, for example when it's loud
+indoors. A pause needs a sign-in and the separate `CONTROL_PASSWORD` secret,
+and the Worker limits attempts per IP address like sign-in. It lasts one of
+the durations in `PAUSE_MINUTES` in `deploy/password-worker.js`, and always
+ends on its own. The Worker saves the end time to `control/pause.json`, the
+publisher copies it to the indoor computer, and the receiver discards audio
+until then. A pause takes effect once the publisher next fetches it, within about
+`--pause-seconds` plus its `--interval`.
 
 ### Pages
 

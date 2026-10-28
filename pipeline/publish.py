@@ -22,6 +22,10 @@ with the data folder:
             a snapshot of the database, every --snapshot-hours; the site's
             build (every 3 hours) downloads it for the copy built into the site
 
+It also fetches control/pause.json, the recorder pause set on the Hardware
+analytics page (deploy/password-worker.js), every --pause-seconds, and keeps
+it in <data>/pause.json for receiver.py.
+
 Files are mirrored: new or changed ones are uploaded, and ones the analyzer
 deleted (old strips, replaced clips) are deleted from R2 too. The password
 Worker serves live/ and clips/ to signed-in visitors under /api/live/ and
@@ -67,6 +71,7 @@ REPO = "annajxli/birdTracker"
 WORKFLOW = "pages.yml"
 SNAPSHOT_KEY = "data/detections.sqlite"
 EXPORTS = {name: ROOT / "dashboard" / "src" / "data" / f"{name}.parquet.py" for name in ("detections", "recordings")}
+PAUSE_KEY = "control/pause.json"
 FULL_SYNC_SECONDS = 3600  # re-list the bucket now and then, in case something changed it behind our back
 
 mimetypes.add_type("image/webp", ".webp")
@@ -341,6 +346,30 @@ def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = Fals
     return len(keys)
 
 
+def fetch_pause(s3, bucket: str, data: Path) -> None:
+    """Copy the recorder pause to <data>/pause.json for receiver.py: {"until": "<UTC time>" | null}.
+
+    Written atomically. When R2 can't be reached the old file stays, and any pause in it still
+    ends on its own.
+    """
+    try:
+        pause = json.loads(s3.get_object(Bucket=bucket, Key=PAUSE_KEY)["Body"].read())
+    except s3.exceptions.NoSuchKey:
+        pause = {}
+    except ValueError:
+        log.warning("%s isn't JSON; keeping the last pause", PAUSE_KEY)
+        return
+    until = pause.get("until") if isinstance(pause, dict) and isinstance(pause.get("until"), str) else None
+    text = json.dumps({"until": until})
+    path = data / "pause.json"
+    if path.exists() and path.read_text() == text:
+        return
+    part = path.with_name(path.name + ".part")
+    part.write_text(text)
+    os.replace(part, path)
+    log.info("recorder pause: %s", f"until {until}" if until else "none")
+
+
 def db_changed_since(db_path: Path, when: float) -> bool:
     return any(p.exists() and p.stat().st_mtime > when for p in (db_path, Path(str(db_path) + "-wal")))
 
@@ -354,6 +383,7 @@ if __name__ == "__main__":
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
     p.add_argument("--interval", type=float, default=15, help="seconds between passes over live/ and clips/")
     p.add_argument("--reviews-seconds", type=float, default=300, help="seconds between review checks (default: 5 minutes)")
+    p.add_argument("--pause-seconds", type=float, default=30, help="seconds between recorder pause checks")
     p.add_argument("--history-seconds", type=float, default=300, help="seconds between historical Live index updates")
     p.add_argument("--detections-minutes", type=float, default=10, help="minutes between detections.parquet uploads")
     p.add_argument("--snapshot-hours", type=float, default=3, help="hours between database snapshots and rebuilds")
@@ -361,7 +391,7 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     logging.getLogger("botocore").setLevel(logging.WARNING)
-    if min(args.interval, args.reviews_seconds, args.history_seconds, args.detections_minutes, args.snapshot_hours) <= 0:
+    if min(args.interval, args.pause_seconds, args.reviews_seconds, args.history_seconds, args.detections_minutes, args.snapshot_hours) <= 0:
         p.error("publishing intervals must be positive")
     s3 = bucket_client()
     usage = Usage(args.data / "publish-usage.json")
@@ -372,11 +402,14 @@ if __name__ == "__main__":
     last_detections = 0.0  # ...and of the last detections.parquet upload
     health = Health(args.data)
     first = True
-    last_reviews = last_history = None
+    last_reviews = last_history = last_pause = None
     while True:
         try:
             health.maybe_write()
             now = time.monotonic()
+            if args.once or last_pause is None or now - last_pause >= args.pause_seconds:
+                last_pause = now
+                fetch_pause(s3, bucket, args.data)
             if args.db.exists() and (args.once or last_reviews is None or now - last_reviews >= args.reviews_seconds):
                 if apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
                     last_detections = 0.0  # publish corrections on this pass
