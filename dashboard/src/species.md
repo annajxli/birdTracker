@@ -7,11 +7,11 @@ toc: false
 
 ```js
 import {includedDetection, speciesThreshold} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadCategories, loadThresholds, thresholdText, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
+import {loadDetections, loadSun, loadPhotos, loadCategories, loadThresholds, thresholdText, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
 ```
 
 ```js
-const [all, photos, categories, thresholdsFile] = await Promise.all([loadDetections(), loadPhotos(), loadCategories(), loadThresholds()]);
+const [all, photos, categories, thresholdsFile, sun] = await Promise.all([loadDetections(), loadPhotos(), loadCategories(), loadThresholds(), loadSun()]);
 const thresholds = thresholdsFile?.species ?? null; // learned per-species thresholds; the control covers the rest
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
@@ -149,6 +149,11 @@ ${heard.length ? "" : html`<p class="sub">${speciesMin === null ? "No confirmed 
 const spanMonths = [1, 3, 6, 12].find((m) => d3.utcMonth.offset(new Date(latest), -m) < new Date(dataStart)) ?? 12;
 const calendarStart = d3.utcDay.offset(d3.utcMonth.offset(new Date(latest), -spanMonths), 1).toISOString().slice(0, 10);
 const calendarDays = dateSpan(calendarStart, latest);
+// Sunrise and sunset as hours after local midnight, for each day in the calendar that has them.
+const sunHours = calendarDays.filter((d) => sun[d]).map((date) => {
+  const {start, sunrise, sunset} = sun[date], at = (t) => (Date.parse(t) - Date.parse(start)) / 3600e3;
+  return {date, sunrise: at(sunrise), sunset: at(sunset)};
+});
 const recordedDays = new Set(all.map((d) => d.date));
 // Count distinct wall-clock minutes so the repeated DST hour still fits 0–60.
 const minutesByHour = d3.rollup(heardMinutes,
@@ -210,7 +215,15 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
               x: "date", y: "hour", fill: "minutes", inset: 0.5,
               channels: {Day: (d) => formatDate(d.date, {month: "short", day: "numeric", year: "numeric"}), Hour: (d) => `${formatHour(d.hour)}–${formatHour((d.hour + 1) % 24)}`, "Minutes heard": "minutes"},
               tip: {format: {x: false, y: false, fill: false, Day: true, Hour: true, "Minutes heard": true}}
-            })
+            }),
+            // Sunrise and sunset, dashed, through the middle of each day's column. The hour rows
+            // are bands, so a time is placed by hand within its hour's band.
+            (index, {x, y}) => {
+              const at = (h) => y(Math.floor(h)) + (h % 1) * y.bandwidth();
+              const line = (key) => d3.line()(sunHours.map((d) => [x(d.date) + x.bandwidth() / 2, at(d[key])]));
+              return htl.svg`<g fill="none" stroke="currentColor" stroke-opacity="0.6" stroke-width="1.25" stroke-dasharray="4,3" aria-hidden="true">
+                <path d=${line("sunrise")}></path><path d=${line("sunset")}></path></g>`;
+            }
           ]
         });
         // Start scrolled to the newest days, at the right end.
