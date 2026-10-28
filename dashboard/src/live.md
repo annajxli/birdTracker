@@ -17,6 +17,7 @@ toc: false
      without stopping it. -->
 
 ```js
+import {detectionStarts, speciesActivity, detectingAt} from "./components/live-activity.js";
 import {UNIDENTIFIED, unidentifiedDetections, unidentifiedRuns} from "./components/live-unidentified.js";
 import {liveLabelLeft} from "./components/live-label-position.js";
 import {includedDetection, detectionPlaybackStart, shownInGantt} from "./components/detection-policy.js";
@@ -128,12 +129,18 @@ let paused = false; // time stops: the playhead holds still (and the sound, if o
 // While live the playhead keeps to the right edge (LIVE_INSET px in), with nothing newer shown.
 const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
 const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
+// Live, the view ends at the newest audio, with the stretch the playhead hasn't reached dimmed;
+// in a short span the playhead is kept at least this far in from the left instead.
+const LIVE_PLAYHEAD_MIN = 0.2;
 let tracking = true, anchor = PLAYHEAD_AT;
 // Sound (muted to start): one audio element for the whole session, so browsers that only allow
 // sound after a tap (Safari) keep allowing it from one minute to the next.
 let soundOn = false, player = null, current = null, waitingFor = null;
 let loads = 0, positioned = false; // the sound has loaded and been moved to its starting point
+let activityLabels = [], activityRows = [], activityIndex = new Map();
+let activityTick = null;
 const playheadLine = Object.assign(document.createElement("div"), {className: "live-playhead"});
+const aheadShade = Object.assign(document.createElement("div"), {className: "live-ahead"}); // live: newer audio than the playhead
 
 const LANE = 22, LANES = 4, SPEC_TOP = LANE * LANES + 6, AXIS_H = 22;
 // The spectrogram's height: 160 px, or in fullscreen about half the screen.
@@ -279,6 +286,9 @@ function draw() {
   const shown = strips.filter((s) => endOf(s) > w.w0 && Date.parse(s.start) < w.w1);
   drawnWindow = [w.w0, w.w1];
   track.replaceChildren();
+  activityLabels = [];
+  activityIndex = speciesActivity(strips, reviewOf);
+  activityTick = null;
   if (!strips.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
   // The whole window scrolls, loaded or not: older days load as the view nears them (loadNearView).
@@ -352,7 +362,8 @@ function draw() {
   // species, the candidates show side by side. Confident runs are placed first, then non-bird
   // sounds, then the rest by score, so a crowded stretch keeps its surest names.
   // Text lanes are assigned using visible, edge-clamped positions below.
-  const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets[0].scientific_name}, minConf(), thresholdsFile?.species);
+  // Unidentified runs have no detections (`dets`), so no species threshold: never sure.
+  const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets?.[0]?.scientific_name}, minConf(), thresholdsFile?.species);
   const birdRuns = runs(shown, 0).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
     const label = r.unidentified ? UNIDENTIFIED : `${sure(r) ? "" : "? "}${r.name} (${Math.round(r.best * 100)}%)`;
@@ -362,7 +373,10 @@ function draw() {
     const a = document.createElement("button");
     a.type = "button";
     a.className = `live-name${sure(r) ? "" : " is-unsure"}${r.review ? ` is-${r.review}` : ""}`;
-    if (!r.unidentified) a.dataset.species = r.name;
+    if (!r.unidentified) {
+      a.dataset.species = r.name;
+      activityLabels.push({node: a, starts: detectionStarts(r.dets, reviewOf)});
+    }
     a.run = r;
     const text = document.createElement("span");
     text.className = "live-name-text";
@@ -406,7 +420,8 @@ function draw() {
   birdRuns.filter((r) => !sure(r)).forEach(placeBird);
   unidentifiedRuns(shown).forEach(placeBird);
   Object.assign(playheadLine.style, {top: SPEC_TOP - 6 + "px", height: SPEC_H + 6 + "px"}); // the spectrogram, and a little above
-  track.append(playheadLine);
+  Object.assign(aheadShade.style, {top: SPEC_TOP + "px", height: SPEC_H + "px"});
+  track.append(aheadShade, playheadLine);
   if (!tracking && rightEdge !== null) scroller.scrollLeft = x(rightEdge) - scroller.clientWidth;
   else if (rightEdge === null) scroller.scrollLeft = scroller.scrollWidth;
   positionNames();
@@ -593,12 +608,15 @@ function positionNames() {
   }
   for (const n of names) n.width = n.text.offsetWidth;
   for (const {button, text, width, start, end} of names) {
-    const left = liveLabelLeft(start, width, viewLeft, viewRight);
+    const cueWidth = button.dataset.species ? 11 : 0;
+    const left = liveLabelLeft(start, width, viewLeft, viewRight, cueWidth);
+    const laneLeft = left - cueWidth;
     const right = Math.max(left + width, Math.min(end, viewRight));
-    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || left >= r + 6));
+    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || laneLeft >= r + 6));
     button.style.visibility = lane < 0 ? "hidden" : "visible";
+    button.classList.toggle("is-ahead", !aheadShade.hidden && button.run.start > playhead);
     if (lane < 0) continue;
-    lanes[lane].push([left, right]);
+    lanes[lane].push([laneLeft, right]);
     button.style.top = lane * LANE + "px";
     text.style.transform = `translateX(${left - start}px)`;
   }
@@ -610,6 +628,24 @@ function loadNearView() {
   if (!geo) return;
   const pad = span * 1e3, a = tAt(scroller.scrollLeft) - pad, b = tAt(scroller.scrollLeft + scroller.clientWidth) + pad;
   for (const t of [a, b]) if (t < Date.now() - 23 * HOUR && t >= (ov?.w0 ?? t)) loadDay(pacificDate(t));
+}
+
+// Pulse only at actual detection times; silence between joined calls stays quiet.
+function showActiveDetections() {
+  const tick = playhead === null ? null : Math.floor(playhead / 100);
+  const key = `${tick}|${paused}`;
+  if (activityTick === key) return;
+  activityTick = key;
+  const set = (node, active) => {
+    if (node.classList.contains("is-detecting") !== active) {
+      node.classList.toggle("is-detecting", active);
+      if (active) node.setAttribute("aria-current", "time");
+      else node.removeAttribute("aria-current");
+    }
+    node.classList.toggle("is-playback-paused", paused);
+  };
+  for (const {node, starts} of activityLabels) set(node, detectingAt(starts, playhead));
+  for (const node of activityRows) set(node, detectingAt(activityIndex.get(node.dataset.activeSpecies) ?? [], playhead));
 }
 
 // Each frame: move the playhead, draw its line and, while tracking, scroll to keep it in place.
@@ -627,8 +663,15 @@ function frame() {
     lag = Date.now() - playhead; // so muting, pausing or a late strip doesn't jump
     playheadLine.style.left = x(playhead) + "px";
     playheadLine.hidden = playhead < geo.t0 || playhead > geo.t1; // outside the drawn window, it would widen the scroll range
-    // Live and offline, the view ends at now, with the stretch without audio in it.
-    if (tracking) scroller.scrollLeft = x(live && offline ? geo.t1 : playhead) - (live ? liveAnchor() : anchor) * scroller.clientWidth;
+    const ahead = live && !offline && playhead < geo.t1;
+    aheadShade.hidden = !ahead;
+    if (ahead) Object.assign(aheadShade.style, {left: x(playhead) + "px", width: x(geo.t1) - x(playhead) + "px"});
+    // Live, the view ends at the newest audio (offline, at now, with the stretch without audio in
+    // it), unless that would push the playhead out of the view.
+    const cw = scroller.clientWidth;
+    if (tracking) scroller.scrollLeft = !live ? x(playhead) - anchor * cw
+      : offline ? x(geo.t1) - liveAnchor() * cw
+      : Math.min(x(geo.t1) - liveAnchor() * cw, x(playhead) - LIVE_PLAYHEAD_MIN * cw);
   }
   loadNearView();
   positionNames();
@@ -636,6 +679,7 @@ function frame() {
   showView();
   showOverviewView();
   updateDuck();
+  showActiveDetections();
   raf = requestAnimationFrame(frame);
 }
 let wasOffline = false;
@@ -951,6 +995,7 @@ function summarize() {
   }).sort((a, b) => sort.dir * (SORTS[sort.by](a) - SORTS[sort.by](b)) || a.first - b.first);
 
   if (!rows.length) {
+    activityRows = [];
     heard.replaceChildren(html`<p class="sub">${confidentOnly.checked ? "No confident detections" : "No birds heard"} in ${hourLabel}.</p>`);
   } else {
     const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
@@ -962,7 +1007,7 @@ function summarize() {
         ${header("first", "First heard", "live-gantt-sort-first")}
         <span class="live-gantt-total live-gantt-head">${header("minutes", "Total")}${header("last", "Last")}</span>
         ${rows.flatMap((r, i) => [
-          r.unidentified ? html`<span class="live-gantt-name is-unsure" style=${`grid-row: ${i + 2}`}>${UNIDENTIFIED}</span>` : html`<a class=${`live-gantt-name${r.uncertain ? " is-unsure" : ""}`} href=${speciesHref(r.name)} title=${r.uncertain ? `${r.name}: uncertain detections` : r.name} style=${`grid-row: ${i + 2}`}>${r.uncertain ? "? " : ""}${r.name}</a>`,
+          r.unidentified ? html`<span class="live-gantt-name is-unsure" style=${`grid-row: ${i + 2}`}>${UNIDENTIFIED}</span>` : html`<a class=${`live-gantt-name${r.uncertain ? " is-unsure" : ""}`} data-active-species=${r.name} href=${speciesHref(r.name)} title=${r.uncertain ? `${r.name}: uncertain detections` : r.name} style=${`grid-row: ${i + 2}`}>${r.uncertain ? "? " : ""}${r.name}</a>`,
           lanes[i],
           html`<span class="sub live-gantt-total" style=${`grid-row: ${i + 2}`}><span>${r.minutes} min</span><span>${time(new Date(r.last))}</span></span>`
         ])}
@@ -975,6 +1020,8 @@ function summarize() {
       </div>
       ${ganttTip}
     </div>`);
+    activityRows = [...heard.querySelectorAll("[data-active-species]")];
+    activityTick = null;
     const grid = heard.querySelector(".live-gantt-grid");
     grid.onclick = (event) => {
       const lane = event.target.closest(".live-gantt-lane");

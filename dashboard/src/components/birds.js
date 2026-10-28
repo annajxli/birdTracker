@@ -11,9 +11,9 @@ import * as Plot from "npm:@observablehq/plot";
  * the pages stay current without a rebuild. Falls back to the copy built into the site when that
  * isn't reachable or is still empty (the local preview, or before the recorder has published).
  */
-async function latestTable(name, builtIn) {
+async function latestTable(name, builtIn, {fallback = true} = {}) {
   try {
-    const response = await fetch(`/api/data/${name}.parquet`, {cache: "no-store"});
+    const response = await fetch(`/api/data/${name}.parquet`, {cache: "no-store", signal: AbortSignal.timeout(30_000)});
     if (response.ok) {
       const [Arrow, Parquet, buffer] = await Promise.all([
         import("npm:apache-arrow"),
@@ -23,24 +23,23 @@ async function latestTable(name, builtIn) {
       const table = Arrow.tableFromIPC(Parquet.readParquet(new Uint8Array(buffer)).intoIPCStream());
       if (table.numRows) return table;
     }
+    throw new Error(`Latest ${name} is unavailable or empty.`);
   } catch (error) {
+    if (!fallback) throw error;
     console.warn(`Latest ${name} unavailable; using the built copy.`, error);
   }
   return builtIn();
 }
 
-/** A published table fetched fresh, or null when it can't be (no fallback to the built copy). */
-export const freshTable = (name) => latestTable(name, () => null);
-
-export const detectionsTable = () => latestTable("detections", () => FileAttachment("../data/detections.parquet").parquet());
+export const detectionsTable = (options) => latestTable("detections", () => FileAttachment("../data/detections.parquet").parquet(), options);
 
 /** The recorder's telemetry, one row per recording (Hardware analytics), fresh like the detections. */
-export const recordingsTable = () => latestTable("recordings", () => FileAttachment("../data/recordings.parquet").parquet());
+export const recordingsTable = (options) => latestTable("recordings", () => FileAttachment("../data/recordings.parquet").parquet(), options);
 
 /** When the newest recorded audio ends (the Live view's feed), or null if it can't be reached. */
 export async function loadRecordedUntil() {
   try {
-    const response = await fetch("/api/live/live.json", {cache: "no-store"});
+    const response = await fetch("/api/live/live.json", {cache: "no-store", signal: AbortSignal.timeout(30_000)});
     if (!response.ok) return null;
     const last = (await response.json()).strips?.at(-1);
     return last ? new Date(Date.parse(last.start) + last.seconds * 1e3) : null;
@@ -53,11 +52,13 @@ export async function loadRecordedUntil() {
  * Per-species confidence thresholds learned from reviews on the Pi (live/thresholds.json; shape in
  * pipeline/thresholds.py), or null if it can't be reached: then every species uses the shared one.
  */
-export async function loadThresholds() {
+export async function loadThresholds({required = false} = {}) {
   try {
-    const response = await fetch("/api/live/thresholds.json", {cache: "no-store"});
-    return response.ok ? await response.json() : null;
-  } catch {
+    const response = await fetch("/api/live/thresholds.json", {cache: "no-store", signal: AbortSignal.timeout(30_000)});
+    if (!response.ok) throw new Error("Thresholds unavailable");
+    return await response.json();
+  } catch (error) {
+    if (required) throw error;
     return null;
   }
 }
@@ -76,8 +77,8 @@ export function thresholdText(scientific, fallback, thresholds) {
  * rejected ones are left out unless includeRejected (the Detections table shows them, to undo),
  * so every chart and count drops them.
  */
-export async function loadDetections({includeRejected = false} = {}) {
-  const table = await detectionsTable();
+export async function loadDetections({includeRejected = false, fallback = true} = {}) {
+  const table = await detectionsTable({fallback});
   // Read columns directly: Arrow's row iterator creates a proxy for every detection.
   const time = table.getChild("time");
   const date = table.getChild("date");
@@ -533,7 +534,7 @@ const UNIDENTIFIED = "Unidentified bird"; // the day timeline's row for birdsong
 const HEADER_ROWS = 1.4; // a category header is this many species rows tall...
 const GROUP_GAP = 0.2; // ...plus this much extra space above every group but the first
 const ROW_PX = 17;
-const DENSITY_FROM = 30; // spans this long are drawn as density strips, not ticks
+const DENSITY_FROM = 2; // spans this long are drawn as density strips, not ticks
 const BIN_MINUTES = 15;
 // Detections of a species less than this far apart are drawn as one bout (a bar from first
 // to last call). A guess from simulated data; see README "Tuning with real data".
@@ -549,10 +550,10 @@ const SUN_BAND_MS = 10 * 6e4;
  * categories (songbirds, woodpeckers, ...) and ordered within each group by
  * when the species usually starts singing.
  *
- * Up to a week, each detection is a tick, like a ticker tape; several days are
- * overlaid on one 24-hour clock with fainter ticks. From 30 days, ticks would
- * smear together, so rows become density strips: detections per day in each
- * 15-minute slot, and species heard on fewer than 10% of days are left out.
+ * For one day, each detection is a tick, like a ticker tape. Over several days,
+ * ticks from different days overlaid on one clock don't read as anything, so rows
+ * become density strips: minutes heard per day in each 15-minute slot, and species
+ * heard on fewer than 10% of days are left out.
  *
  * rows: detections from the days in `dates` (Pacific "YYYY-MM-DD", last = reference day).
  * spanDays: calendar days in the span (dates holds only days with recordings).
@@ -656,7 +657,7 @@ export function dayTimeline(rows, sun, dates, {
     }
   }
   // Unidentified birdsong: one muted row after everything else, on tick views only (it's large;
-  // the 30-day density view leaves it out). Not a species: no card, no counts, no sorting.
+  // the multi-day density view leaves it out). Not a species: no card, no counts, no sorting.
   const unidentifiedShown = density ? [] : unidentified.map((u) => ({...u, clock: onRef(u.date, u.time)}))
     .filter((u) => u.clock >= domain[0] && u.clock <= domain[1]);
   if (unidentifiedShown.length && order.length) order.push(UNIDENTIFIED);

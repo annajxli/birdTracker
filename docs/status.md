@@ -158,3 +158,46 @@ Overview date and span persist in URL parameters across refreshes. W/M/Y use
 trailing ranges ending on the selected date, including blank history before
 available recordings. Calendar selection chooses the end date. Dashboard tests
 and the site build pass. Deployment follows the automatic main workflow.
+
+
+### Overview automatic refresh
+
+October 27, 2026: PR #42 adds periodic metadata checks and
+refresh-on-return to Overview. Worker HEAD requests inspect R2 metadata without
+reading bodies. Only changed resources reload, and failed requests keep the
+last successful data. Website deployment follows the automatic main workflow.
+No Pi update is required. Reload an already-open page once to load the new code.
+
+Regression tests cover unchanged versions, hidden tabs, focus/resume, failed
+refresh retries, in-flight work, cleanup and authenticated metadata routes.
+A localhost fixture with an accelerated test timer verifies counts changing
+from one to two species while the selected week/date, confidence, sort, open
+options and exact scroll position stay unchanged. Request logs show one initial
+download of each table and an additional detection-table download only after
+its ETag changes. The production timer retains its one-minute interval.
+
+Final checks pass: 40 dashboard tests, 23 pipeline tests, password Worker tests,
+the site build with 30 validated links, and `git diff --check`.
+
+
+### Live active-detection cue
+
+October 27, 2026: `codex/live-active-cue` adds an accent-green activity dot to
+Live species labels and species rows. It follows real detection windows at the
+playhead, including historical seeks; grouped gaps and rejected windows stay
+quiet. Confidence weight and inclusion rules are unchanged. No Pi changes or
+production deployment have occurred.
+
+A local synthetic preview uses generated chirps, ambient noise, overlapping
+illustrative species labels and uncertain candidates, without real station
+audio. In-app browser checks verify a green active cue, no cue between calls,
+backward seek restoration and steady dots when paused. No audio was played.
+
+Checks pass: 45 dashboard tests, 23 pipeline tests, password Worker tests,
+the site build with 30 validated links, and whitespace.
+
+
+October 27, 2026: the spectrogram cue sits outside the label text, keeping the
+name aligned with its detection start. Incoming-edge clamping still holds text
+inside the plot until the detection catches up. Lane and left-edge spacing
+include the dot so it doesn't overlap another label or clip at the viewport.

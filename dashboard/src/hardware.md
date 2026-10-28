@@ -12,7 +12,7 @@ toc: false
      (re-read while the page is open, so it's current without a rebuild). -->
 
 ```js
-import {loadSun, detectionsTable, recordingsTable, freshTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
+import {loadSun, detectionsTable, recordingsTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
 ```
 
 ```js
@@ -42,8 +42,8 @@ const every = (ms, load) => (async function* () {
   }
 })();
 // After the first load, a table that can't be fetched fresh keeps the last one, not the site's built copy.
-const table = every(10 * 60e3, (first) => (first ? recordingsTable() : freshTable("recordings")));
-const detections = every(10 * 60e3, (first) => (first ? detectionsTable() : freshTable("detections")));
+const table = every(10 * 60e3, (first) => recordingsTable({fallback: first}).catch(() => null));
+const detections = every(10 * 60e3, (first) => detectionsTable({fallback: first}).catch(() => null));
 // The indoor computer's health, as of its last report (null if it hasn't reported).
 const pi = every(60e3, () => fetch("/api/live/status.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).catch(() => null));
 const sun = await loadSun();

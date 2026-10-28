@@ -288,7 +288,6 @@
 
 .activity-layout .activity-stats .card h2 { font-size: 0.62rem; letter-spacing: 0.08em; margin: 0 0 2px; }
 .activity-layout .activity-stats .big { font-size: 1.15rem; line-height: 1.2; }
-.activity-layout .activity-stats .big a.stat-link { white-space: normal; overflow: visible; }
 .activity-layout .activity-stats .sub { font-size: 0.72rem; }
 .activity-layout > .day-stack { min-width: 0; }
 
@@ -1570,6 +1569,13 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-sound-label > span { grid-area: 1 / 1; text-align: center; }
 .live-sound .when-on, .live-sound[aria-pressed="true"] .when-off { visibility: hidden; }
 .live-sound[aria-pressed="true"] .when-on { visibility: visible; }
+.live-ahead { /* live: audio newer than the playhead, not heard yet */
+  position: absolute;
+  background: var(--theme-background);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.live-name.is-ahead { opacity: 0.5; }
 .live-playhead { /* the moment shown or heard */
   position: absolute;
   width: 0;
@@ -1595,6 +1601,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 .live-track {
   position: relative;
   min-height: 216px;
+  overflow-x: clip; /* a tick label near the newest audio would otherwise widen the scroll range past live */
 }
 .live-strip { position: absolute; display: block; } /* a canvas, painted through a colormap */
 .live-gap { position: absolute; background: #14110d; } /* missing audio between strips; live.md sets its hatching */
@@ -2151,4 +2158,40 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
   max-height: 16rem; overflow-y: auto; margin: 0; padding: 0.25rem 0.75rem;
   background: var(--theme-background-alt); border: 1px solid var(--rule);
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.25);
+}
+
+
+/* A time cue, independent of confidence: reserve its space to prevent label jumps. */
+.live-name[data-species] .live-name-text::before,
+.live-gantt-name[data-active-species]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  vertical-align: 0.12em;
+  border-radius: 50%;
+  background: var(--theme-foreground-focus);
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+/* Put the cue before the name without shifting the name off its detection start. */
+.live-name[data-species] .live-name-text::before {
+  position: absolute;
+  left: -11px;
+  top: 50%;
+  margin: 0;
+  transform: translateY(-50%);
+}
+.live-name.is-detecting .live-name-text::before,
+.live-gantt-name.is-detecting::before { opacity: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  .live-name.is-detecting:not(.is-playback-paused) .live-name-text::before,
+  .live-gantt-name.is-detecting:not(.is-playback-paused)::before {
+    animation: live-detection-pulse 1.2s ease-in-out infinite;
+  }
+}
+@keyframes live-detection-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
