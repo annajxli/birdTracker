@@ -190,6 +190,8 @@ changes, regenerate the file and commit the result.
 | `data/species_images.json` | `pipeline/species_images.py` | The species list changes. |
 | `data/species_categories.csv` | `pipeline/species_categories.py` | The species list changes. |
 | `data/photo_focus.json` | `pipeline/photo_focus.py` | `species_images.json` gains photos. Needs TensorFlow. |
+| `data/species_traits.json` | `pipeline/species_traits.py` | The species list or `data/species_length_fixes.csv` changes. Check each new length against its source sentence. |
+| `data/avonet_mass.csv` | `pipeline/species_traits.py --avonet XLSX` | AVONET publishes a new release. See the script's docstring. |
 | `data/weather.csv`, `data/weather_hourly.csv` | `pipeline/weather.py` | New detections arrive. The deploy workflow also runs it. |
 
 Run each command with `.venv/bin/python`. For options, run the script with
