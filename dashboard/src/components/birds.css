@@ -1874,6 +1874,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--theme-foreground-muted);
+  cursor: pointer;
 }
 
 .picker-button {
