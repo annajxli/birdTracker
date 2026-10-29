@@ -7,7 +7,7 @@ export function periodInput({first, last}) {
     <div class="period-segments" role="group" aria-label="Time range">${Object.entries(PERIODS).map(([key, name]) => htl.html`<button type="button" data-scale=${key} aria-label=${name} title=${name}>${key}</button>`)}</div>
     <div class="period-navigation">
       <button type="button" data-step="-1" aria-label="Previous day">‹</button>
-      <button type="button" class="period-label" data-calendar-toggle aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="period-label-text" aria-live="polite"></span></button>
+      <button type="button" class="period-label" data-calendar-toggle aria-haspopup="dialog" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="period-label-text" aria-live="polite"></span></button>
       <button type="button" data-step="1" aria-label="Next day">›</button>
     </div>
     <div class="period-calendar" role="dialog" aria-label="Choose a date" hidden></div>

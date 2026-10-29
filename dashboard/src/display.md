@@ -152,10 +152,10 @@ const slides = [
 ```js
 const stage = html`<div class="display">
   <div class="display-top"><h1 class="display-title"></h1><span class="display-dots"></span>
-    <svg class="display-timer" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="track"></circle><circle cx="12" cy="12" r="9" class="ring" pathLength="100"></circle></svg>
-    <button class="display-pause" type="button" title="Pause (P)" aria-label="Pause" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="icon-pause" d="M8 5v14M16 5v14"/><path class="icon-play" d="M8 5l11 7-11 7z"/></svg></button>
+    <svg width="18" height="18" class="display-timer" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" class="track"></circle><circle cx="12" cy="12" r="9" class="ring" pathLength="100"></circle></svg>
+    <button class="display-pause" type="button" title="Pause (P)" aria-label="Pause" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="icon-pause" d="M8 5v14M16 5v14"/><path class="icon-play" d="M8 5l11 7-11 7z"/></svg></button>
     <button class="display-full" type="button" title="Fullscreen (F)">⛶</button>
-    <a class="display-home" href="./" title="Back to the overview" aria-label="Back to the overview"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg></a></div>
+    <a class="display-home" href="./" title="Back to the overview" aria-label="Back to the overview"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7M6 9.5V20h12V9.5"/></svg></a></div>
   <div class="display-slide"></div>
 </div>`;
 // Re-fitting rebuilds this cell; carry on from the same slide and pause state.

@@ -436,7 +436,7 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
     Plot.tip(daily, Plot.pointerX({x: "date", y: "rms", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.rms)} dBFS\n10th–90th percentile: ${d3.format(".0f")(d.rmsLow)} to ${d3.format(".0f")(d.rmsHigh)}`}))
   ]
 }))}
-</div>
+</div></div>
 
 <div class="grid grid-cols-2">
 <div>
@@ -467,6 +467,7 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
     Plot.tip(daily, Plot.pointerX({x: "date", y: "delay", title: (d) => `${formatDate(d.day)}\nMedian ${d3.format(".1f")(d.delay)} min\n95th percentile: ${d3.format(".0f")(d.delay95)} min`}))
   ]
 }))}
+</div>
 </div>
 </div>
 </div>

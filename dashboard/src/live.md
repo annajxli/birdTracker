@@ -38,24 +38,24 @@ const time = (d, seconds = false) => d.toLocaleTimeString("en-US", {timeZone: "A
 
 <div class="live-head">
   <p class="sub live-status" id="live-status">Loading…</p>
-  <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
+  <button type="button" class="live-button live-full" id="live-full" title="Fullscreen (F)" aria-label="Fullscreen" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg></button>
 </div>
 
 <div class="live-overview-row" id="live-overview-row" hidden>
-  <button type="button" class="live-button live-icon" id="live-days-back" title="Earlier days (shift ←)" aria-label="Earlier days"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+  <button type="button" class="live-button live-icon" id="live-days-back" title="Earlier days (shift ←)" aria-label="Earlier days"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
   <div class="live-overview" id="live-overview"><div class="live-overview-dates" id="live-overview-dates"></div><div class="live-overview-bars" id="live-overview-bars"></div><div class="live-overview-days" id="live-overview-days"></div><div class="live-overview-view" id="live-overview-view"></div><div class="live-overview-head" id="live-overview-head"></div></div>
-  <button type="button" class="live-button live-icon" id="live-days-fwd" title="Later days (shift →)" aria-label="Later days"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+  <button type="button" class="live-button live-icon" id="live-days-fwd" title="Later days (shift →)" aria-label="Later days"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
 </div>
 
 <div class="live-controls">
     <div class="live-transport" id="live-transport" hidden>
-      <button type="button" class="live-button live-icon" id="live-back" title="Back 10 seconds (←)" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/></svg></button>
-      <button type="button" class="live-button live-icon live-pause" id="live-pause" title="Pause (K)" aria-label="Pause" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="icon-pause" d="M9 6v12M15 6v12"/><path class="icon-play" d="M8 5.5v13l10-6.5z"/></svg></button>
+      <button type="button" class="live-button live-icon" id="live-back" title="Back 10 seconds (←)" aria-label="Back 10 seconds"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/></svg></button>
+      <button type="button" class="live-button live-icon live-pause" id="live-pause" title="Pause (K)" aria-label="Pause" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="icon-pause" d="M9 6v12M15 6v12"/><path class="icon-play" d="M8 5.5v13l10-6.5z"/></svg></button>
       <button type="button" class="live-button live-follow" id="live-follow" title="Back to live (L)">Back to live</button>
-      <button type="button" class="live-button live-icon" id="live-fwd" title="Forward 10 seconds (→)" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg></button>
+      <button type="button" class="live-button live-icon" id="live-fwd" title="Forward 10 seconds (→)" aria-label="Forward 10 seconds"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg></button>
     </div>
     <div class="live-transport" id="live-audio" hidden>
-      <button type="button" class="live-button live-icon live-sound" id="live-sound" title="Unmute (space)" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="icon-off" d="M16 9.5l5 5M21 9.5l-5 5"/><path class="icon-on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="live-sound-label"><span class="when-off">Unmute</span><span class="when-on">Mute</span></span></button>
+      <button type="button" class="live-button live-icon live-sound" id="live-sound" title="Unmute (space)" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path class="speaker" d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path class="icon-off" d="M16 9.5l5 5M21 9.5l-5 5"/><path class="icon-on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="live-sound-label"><span class="when-off">Unmute</span><span class="when-on">Mute</span></span></button>
       <button type="button" class="live-button live-boost" id="live-boost" title="Bird boost: cleaner sound, brighter birdsong, calls up front (B)" aria-pressed="false">Bird boost</button>
     </div>
     <div class="period-segments live-span" id="live-span" role="group" aria-label="Time shown across the screen"></div>
@@ -162,8 +162,14 @@ const drawFreqLabels = () => document.getElementById("live-freq").replaceChildre
 );
 drawFreqLabels();
 
+// Phones leave out the 1 hour span (too narrow to read); a saved 1 hour shows as 15 min there,
+// and is kept for wider screens.
+const PHONE = matchMedia("(max-width: 640px)");
+const PHONE_MAX_SPAN = 900;
+const fitSpan = (seconds) => (PHONE.matches ? Math.min(seconds, PHONE_MAX_SPAN) : seconds);
 let span = 300;
 try { span = SPANS.find(([s]) => s === Number(localStorage.getItem(SPAN_KEY)))?.[0] ?? span; } catch {}
+span = fitSpan(span);
 const spanControl = document.getElementById("live-span");
 spanControl.replaceChildren(); // the preview server re-runs this block on edits
 for (const [seconds, label] of SPANS) {
@@ -171,6 +177,7 @@ for (const [seconds, label] of SPANS) {
   b.type = "button";
   b.textContent = label;
   b.dataset.span = seconds;
+  if (seconds > PHONE_MAX_SPAN) b.classList.add("live-span-wide");
   b.onclick = () => setSpan(seconds);
   spanControl.append(b);
 }
@@ -180,15 +187,23 @@ markSpan();
 // Scale: `span` seconds across the visible width.
 const pxPerSecond = () => scroller.clientWidth / span;
 
-function setSpan(seconds) {
+function setSpan(seconds, {save = true} = {}) {
   if (seconds === span) return;
   span = seconds;
-  try { localStorage.setItem(SPAN_KEY, String(span)); } catch {}
+  if (save) try { localStorage.setItem(SPAN_KEY, String(span)); } catch {}
   markSpan();
   drawOverview(); // a new span has a new overview window, and the track follows it
   draw();
   summarize(); // the hour chart's length follows the span
 }
+// Turning a wide screen into a phone (or back): fit the span, and restore the saved one after.
+PHONE.addEventListener("change", () => {
+  let saved = span;
+  try { saved = Number(localStorage.getItem(SPAN_KEY)) || span; } catch {}
+  setSpan(fitSpan(saved), {save: false});
+  drawOverview(); // phones show shorter overview and hour-chart windows
+  summarize();
+});
 
 // Detections at least `minConf` sure, joined into runs: one per species per stretch of song.
 // Each run keeps its detections (`dets`, for reviewing it) and its verdict: "rejected" when all
@@ -452,7 +467,7 @@ function draw() {
     a.type = "button";
     a.className = "live-name is-sound";
     a.run = r; // for positionNames, which fades labels ahead of the playhead
-    a.innerHTML = `<span class="live-name-text"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg></span>`;
+    a.innerHTML = `<span class="live-name-text"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 6v12l-4.5-3.5H4z"/><path d="M15.5 9a4 4 0 0 1 0 6"/></svg></span>`;
     a.querySelector(".live-name-text").append(label);
     a.setAttribute("aria-label", `${r.name} (not a bird), ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault();
@@ -518,7 +533,8 @@ setInterval(loadIndex, 10 * 60e3);
 // The window for the span: following the playhead (a quarter of the window ahead of it, up to
 // now), or where ‹ › put it.
 function ovWindow() {
-  const [len, bin] = OV_FOR[span] ?? OV_FOR[3600], days = len >= 72 * HOUR;
+  // Phones show half the window, in the same bars.
+  const [full, bin] = OV_FOR[span] ?? OV_FOR[3600], len = PHONE.matches ? full / 2 : full, days = len >= 72 * HOUR;
   // Live and offline, it follows now, so it shows how long the audio has been missing.
   const now = Date.now(), p = live && tracking && offlineSince() ? now : Math.min(playhead ?? now, now);
   const w1 = ovEnd ?? Math.min(Math.ceil(now / bin) * bin, Math.ceil((p + len / 4) / bin) * bin);
@@ -1063,7 +1079,7 @@ function summarize() {
   const lastHour = playhead === null || (live && tracking);
   const w1 = playhead === null ? newest : lastHour ? Math.min(playhead, newest) : hourEndAround(viewMiddle() ?? playhead, newest);
   const w0 = w1 - chartLength();
-  const hourLabel = lastHour ? (chartLength() > HOUR ? "the last 2 hours" : "the last hour") : `${time(new Date(w0))}–${time(new Date(w1))}`;
+  const hourLabel = lastHour ? (chartLength() > HOUR ? "the last 2 hours" : chartLength() < HOUR ? "the last 30 minutes" : "the last hour") : `${time(new Date(w0))}–${time(new Date(w1))}`;
   hourView = {w0, w1};
   const pct = (t) => ((t - w0) / (w1 - w0)) * 100 + "%";
   heardHeading.textContent = `Heard ${hourLabel.startsWith("the last") ? `in ${hourLabel}` : hourLabel}`;
@@ -1085,7 +1101,7 @@ function summarize() {
     activityRows = [];
     heard.replaceChildren(html`<p class="sub">${confidentOnly.checked ? "No confident detections" : "No birds heard"} in ${hourLabel}.</p>`);
   } else {
-    const ticks = d3.timeMinute.every(15).range(new Date(w0), new Date(w1)).map(Number);
+    const ticks = d3.timeMinute.every(chartLength() < HOUR ? 10 : 15).range(new Date(w0), new Date(w1)).map(Number);
     const lanes = rows.map((r, i) => html`<div class="live-gantt-lane" data-name=${r.name} style=${`grid-row: ${i + 2}`}>${r.bars.map((b, j) =>
         html`<span class=${`live-gantt-bar${j === r.bars.length - 1 ? " is-last" : ""}${b.confident ? "" : " is-unsure"}`} data-first=${b.first} data-tip=${`${r.name}\n${time(new Date(b.start))}–${time(new Date(Math.min(b.end, w1)))} · ${b.minutes} min · ${b.confident ? "" : "uncertain · "}${r.unidentified ? "species not identified" : `best ${Math.round(b.best * 100)}%`}`}
           style=${{left: pct(Math.max(b.start, w0)), width: `calc(${pct(Math.min(b.end, w1))} - ${pct(Math.max(b.start, w0))})`}}></span>`)}</div>`);
@@ -1140,8 +1156,8 @@ function summarize() {
 
 const viewMiddle = () => (geo ? tAt(scroller.scrollLeft + scroller.clientWidth / 2) : null);
 // The hour chart's length: two hours for the 1 hour span, so the spectrogram's hour is outlined
-// within it as the shorter spans' views are; else an hour.
-const chartLength = () => (span >= HOUR / 1e3 ? 2 * HOUR : HOUR);
+// within it as the shorter spans' views are; else an hour; on phones, 30 minutes.
+const chartLength = () => (PHONE.matches ? HOUR / 2 : span >= HOUR / 1e3 ? 2 * HOUR : HOUR);
 const hourEndAround = (t, newest) => Math.min(t + chartLength() / 2, newest);
 // Unless live and following, the hour chart follows the spectrogram's view: once the view's middle
 // is more than a fifth of the chart's length from the chart's, the chart re-centres on it (called every frame).

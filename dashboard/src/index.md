@@ -91,7 +91,7 @@ const presenceEnd = latest;
 ```js
 const confIn = confidenceInput();
 const minConf = Generators.input(confIn);
-const daylightIn = Inputs.toggle({label: "Daylight only", value: false}); // off: owls and other night callers show
+const daylightIn = Inputs.toggle({label: "Daylight only", value: true}); // off: owls and other night callers show
 const daylightOnly = Generators.input(daylightIn);
 ```
 
@@ -174,7 +174,7 @@ const recent = recentSpecies(confident, {limit: 12});
 <div class="overview-navigation">
   ${periodIn}
   <details class="more-options overview-options">
-    <summary aria-label="More options"><svg class="options-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="options-text">More options</span></summary>
+    <summary aria-label="More options"><svg width="18" height="18" class="options-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span class="options-text">More options</span></summary>
     <div class="filters">${confIn}${daylightIn}</div>
   </details>
 </div>
@@ -427,20 +427,22 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           // Beside the trends chart, fill the same height (its rows + legend); stacked on narrow
           // screens, use a natural height.
           const besideTrends = comparable && changes.length && window.innerWidth > 960;
-          const height = besideTrends ? Math.max(top.length * 20 + 30, changes.length * 26 + 26 * (changes.some((d) => d.now >= d.before) + changes.some((d) => d.now < d.before)) + 45) : top.length * 24 + 30;
+          // Narrow screens put each name on a line above its bar, so the bars get the full width.
+          const compact = width < 520;
+          const height = besideTrends ? Math.max(top.length * 20 + 30, changes.length * 26 + 26 * (changes.some((d) => d.now >= d.before) + changes.some((d) => d.now < d.before)) + 45) : top.length * (compact ? 34 : 24) + 30;
           const band = (height - 30) / Math.max(1, top.length);
           return Plot.plot({
           width,
           height,
-          marginLeft: nameMargin(width),
+          marginLeft: compact ? 4 : nameMargin(width),
           marginRight: 48,
           marginTop: 0,
           x: {label: "Minutes heard", labelAnchor: "center", labelArrow: "none", tickFormat: "s", ticks: 4},
           y: {label: null, domain: top.map((d) => d.species)},
           marks: [
-            nameAxis(width),
-            Plot.barX(top, {x: "count", y: "species", fill: seriesColor(dark), insetTop: band * 0.18, insetBottom: band * 0.18, rx2: 4, tip: {format: {x: ","}}}),
-            Plot.text(top, {x: "count", y: "species", text: (d) => d3.format(",")(d.count), dx: 6, textAnchor: "start", fill: "currentColor"}),
+            compact ? nameAxis(width, {textAnchor: "start", tickPadding: 0, dy: -band * 0.22, lineWidth: 60, textOverflow: "ellipsis"}) : nameAxis(width),
+            Plot.barX(top, {x: "count", y: "species", fill: seriesColor(dark), insetTop: band * (compact ? 0.5 : 0.18), insetBottom: band * (compact ? 0.08 : 0.18), rx2: 4, tip: {format: {x: ","}}}),
+            Plot.text(top, {x: "count", y: "species", text: (d) => d3.format(",")(d.count), dx: 6, dy: compact ? band * 0.21 : 0, textAnchor: "start", fill: "currentColor"}),
             Plot.ruleX([0], {strokeOpacity: 0.3})
           ]
         });
@@ -579,10 +581,14 @@ const weekSun = weeks.map((w, row) => {
       const speciesCells = (byMonth ? monthPresence : presence.filter((d) => shownSet.has(d.species))).filter((d) => !collapsedOf(presenceCategoryOf(d.species)));
       const groupCells = (byMonth ? categoryMonth : categoryWeek).filter((d) => collapsedOf(d.category));
       const cellInset = byMonth ? 1 : 0.5;
+      // Narrow screens put each name on a line above its cells, so the cells get the full width.
+      const compact = width < 520;
+      const rowPx = compact ? 32 : 18, nameLeft = compact ? 4 : nameMargin(width);
+      const above = compact ? {textAnchor: "start", dx: 0, dy: -rowPx / 2 + 7} : {};
       const plot = untabbable(Plot.plot({
       width,
-      height: rowsOrder.length * (width < 480 ? 23 : 18) + 70, // taller rows on phones fit two-line names
-      marginLeft: nameMargin(width),
+      height: rowsOrder.length * rowPx + 70,
+      marginLeft: nameLeft,
       marginRight: 12,
       padding: 0,
       x: byMonth
@@ -591,15 +597,15 @@ const weekSun = weeks.map((w, row) => {
       y: {domain: rowsOrder, label: null},
       // The color bar starts where the heatmap's cells do; on phones it spans them exactly.
       color: sequential(dark, {legend: true, label: "% of days heard", domain: [0, 1], tickFormat: ".0%",
-        marginLeft: nameMargin(width) + cellInset, ...(width < 520 ? {width, marginRight: 12 + cellInset, ticks: 3} : {width: nameMargin(width) + 260, marginRight: 20})}),
+        marginLeft: nameLeft + cellInset, ...(width < 520 ? {width, marginRight: 12 + cellInset, ticks: 3} : {width: nameLeft + 260, marginRight: 20})}),
       marks: [
-        nameAxis(width, {tickFormat: (k) => (k.startsWith(HEADER) ? "" : k)}),
-        Plot.text(headerKeys, {y: (k) => k, text: (k) => categoryLabel(k.slice(1), collapsedOf(k.slice(1)), presenceGroupSize.get(k.slice(1))), frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
+        nameAxis(width, {tickFormat: (k) => (k.startsWith(HEADER) ? "" : k), ...(compact ? {...above, tickPadding: 0, lineWidth: 60, textOverflow: "ellipsis"} : {})}),
+        Plot.text(headerKeys, {y: (k) => k, text: (k) => categoryLabel(k.slice(1), collapsedOf(k.slice(1)), presenceGroupSize.get(k.slice(1))), frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameLeft - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em", ...(compact ? {...above, lineWidth: 60} : {})}),
         Plot.cell(speciesCells, {
-          x: "week", y: "species", fill: "share", inset: cellInset
+          x: "week", y: "species", fill: "share", inset: cellInset, ...(compact ? {insetTop: 15} : {})
         }),
         Plot.cell(groupCells, {
-          x: "week", y: "species", fill: "share", inset: cellInset
+          x: "week", y: "species", fill: "share", inset: cellInset, ...(compact ? {insetTop: 15} : {})
         }),
         Plot.tip(speciesCells, Plot.pointer({x: "week", y: "species", render: boldMarkup,
           title: (d) => `${period(d.week)}\n${heard(d)}\n${d.species}`})),
