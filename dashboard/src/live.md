@@ -196,8 +196,8 @@ function setSpan(seconds) {
 // One species' runs close enough that their names would collide become one label: the group's
 // best score, its first start and last end, and the runs themselves (runs). Measured with the
 // labels' font, so "close enough" is the name's own width.
-const RUN_SCORE_ROOM = 22; // px between runs' middles for their scores to fit side by side
 const measure = document.createElement("canvas").getContext("2d");
+let groupLabels = []; // {text, runs, best, label}: grouped names, whose score follows the playhead
 function groupRuns(list, sure) {
   measure.font = `600 13.5px ${getComputedStyle(document.body).getPropertyValue("--sans-serif") || "sans-serif"}`;
   const out = [];
@@ -322,6 +322,7 @@ function draw() {
   drawnWindow = [w.w0, w.w1];
   track.replaceChildren();
   activityLabels = [];
+  groupLabels = [];
   activityIndex = speciesActivity(strips, reviewOf);
   activityTick = null;
   if (!strips.length) { track.style.width = "100%"; geo = null; return; }
@@ -412,22 +413,21 @@ function draw() {
       activityLabels.push({node: a, starts: detectionStarts(r.dets, reviewOf)});
     }
     a.run = r;
-    // Runs grouped under one name: each keeps its own underline, with its score under it where
-    // there's room beside the next one's.
-    if (r.runs) {
-      a.classList.add("is-group");
-      r.runs.forEach((sr, i) => {
-        const a0 = x(sr.start) - left, w = Math.max(2, x(sr.end) - x(sr.start));
-        a.append(Object.assign(document.createElement("span"), {className: `live-name-run${sure(sr) ? "" : " is-unsure"}`, style: `left: ${a0}px; width: ${w}px`}));
-        const mid = (q) => (x(q.start) + x(q.end)) / 2, prev = r.runs[i - 1], next = r.runs[i + 1];
-        if ((!prev || mid(sr) - mid(prev) >= RUN_SCORE_ROOM) && (!next || mid(next) - mid(sr) >= RUN_SCORE_ROOM)) {
-          a.append(Object.assign(document.createElement("span"), {className: "live-name-score", textContent: `${Math.round(sr.best * 100)}%`, style: `left: ${a0 + w / 2}px`}));
-        }
-      });
-    }
+    // Runs grouped under one name: each keeps its own underline. The name shows the group's best
+    // score, or, while the playhead is in one of the runs, that run's (showActiveDetections).
     const text = document.createElement("span");
     text.className = "live-name-text";
-    text.textContent = r.review === "confirmed" ? `${label} ✓` : r.review === "rejected" ? `${label} ✗` : label;
+    const mark = r.review === "confirmed" ? " ✓" : r.review === "rejected" ? " ✗" : "";
+    if (r.runs) {
+      a.classList.add("is-group");
+      for (const sr of r.runs) {
+        const w = Math.max(2, x(sr.end) - x(sr.start));
+        a.append(Object.assign(document.createElement("span"), {className: `live-name-run${sure(sr) ? "" : " is-unsure"}`, style: `left: ${x(sr.start) - left}px; width: ${w}px`}));
+      }
+      const prefix = sure(r) ? "" : "? ";
+      groupLabels.push({text, runs: r.runs, best: r.best, label: (score) => `${prefix}${r.name} (${Math.round(score * 100)}%)${mark}`});
+    }
+    text.textContent = label + mark;
     a.append(text);
     a.setAttribute("aria-label", r.unidentified ? `${UNIDENTIFIED}, ${time(new Date(r.start))}: play from here` : `${r.name}, ${time(new Date(r.start))}, confidence ${Math.round(r.best * 100)}%: play from here`);
     a.onmousedown = (e) => e.preventDefault(); // stay unfocused, so space still mutes
@@ -666,13 +666,7 @@ function positionNames() {
     const left = liveLabelLeft(start, width, viewLeft, viewRight, cueWidth);
     const laneLeft = left - cueWidth;
     const right = Math.max(left + width, Math.min(end, viewRight));
-    const free = (i) => i < LANES && lanes[i].every(([l, r]) => right + 6 <= l || laneLeft >= r + 6);
-    const lane = lanes.findIndex((_, i) => free(i));
-    // A group's scores hang below its row: they show only when the row below is free there too,
-    // and then take that space.
-    const scores = button.classList.contains("is-group") && lane >= 0 && free(lane + 1);
-    button.classList.toggle("no-scores", !scores);
-    if (scores) lanes[lane + 1].push([laneLeft, right]);
+    const lane = lanes.findIndex(taken => taken.every(([l, r]) => right + 6 <= l || laneLeft >= r + 6));
     button.style.visibility = lane < 0 ? "hidden" : "visible";
     button.classList.toggle("is-ahead", !aheadShade.hidden && button.run.start > playhead);
     if (lane < 0) continue;
@@ -705,6 +699,11 @@ function showActiveDetections() {
     node.classList.toggle("is-playback-paused", paused);
   };
   for (const {node, starts} of activityLabels) set(node, detectingAt(starts, playhead));
+  for (const g of groupLabels) {
+    const now = playhead === null ? null : g.runs.find((sr) => playhead >= sr.start && playhead < sr.end);
+    const label = g.label(now ? now.best : g.best);
+    if (g.text.textContent !== label) g.text.textContent = label;
+  }
   for (const node of activityRows) set(node, detectingAt(activityIndex.get(node.dataset.activeSpecies) ?? [], playhead));
 }
 
@@ -936,6 +935,7 @@ function seek(t, at = anchor) {
   if (!strips.length) return;
   const newest = endOf(strips.at(-1));
   t = Math.max(Date.parse(strips[0].start), Math.min(t, newest));
+  startGlide(t);
   playhead = t;
   if (ov && (t < ov.w0 || t >= ov.w1)) ovEnd = null; // outside the overview window: it follows the playhead there
   drawOverview(); // and the track with it
@@ -971,15 +971,20 @@ function toggleSound() {
   showStatus();
 }
 
-// Back to live: just behind the newest audio, the view tracking it (and the sound, if on). From
-// within two view widths of the newest audio, the view glides there over GLIDE_MS.
+// Going to `t` from within two view widths of it (a seek, or back to live), the view and the
+// line glide there over GLIDE_MS instead of jumping; from farther, or with reduced motion, they jump.
 const GLIDE_MS = 450;
 let glide = null; // {start, scroll, line}: where the glide began, in px
+function startGlide(t) {
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const view = geo && scroller.scrollLeft + scroller.clientWidth / 2;
+  const near = geo && playhead !== null && Math.abs(x(t) - view) <= 2 * scroller.clientWidth;
+  glide = near && !reduced ? {start: performance.now(), scroll: scroller.scrollLeft, line: x(playhead)} : null;
+}
+// Back to live: just behind the newest audio, the view tracking it (and the sound, if on).
 function goLive() {
   if (!strips.length) return;
-  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const near = geo && playhead !== null && Math.abs(x(endOf(strips.at(-1))) - (scroller.scrollLeft + scroller.clientWidth)) <= 2 * scroller.clientWidth;
-  glide = near && !reduced ? {start: performance.now(), scroll: scroller.scrollLeft, line: x(playhead)} : null;
+  startGlide(endOf(strips.at(-1)));
   ovEnd = null; // the overview follows again
   paused = false;
   live = true;
