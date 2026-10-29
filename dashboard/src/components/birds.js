@@ -372,7 +372,7 @@ function wrapName(species) {
 /** A species photo with its credit tucked into an ⓘ badge (hover, or tap/focus on touch screens). */
 export function birdPhoto(species, photo, href) {
   const status = photo ? htl.html`<span class="photo-loading" role="status" aria-label="Loading photo">
-    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 17 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 17 5-5 4 4 3-3 6 6"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>
   </span>` : null;
   const settle = (loaded) => {
     if (loaded) {
@@ -499,10 +499,12 @@ function sunMarkers(sunrise, sunset, top) {
       const icon = kind === "Sunrise"
         ? htl.svg`<path d=${SUN_ICON}></path><path d=${SUN_RAYS} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>`
         : htl.svg`<path d=${MOON_ICON}></path>`;
-      g.append(htl.svg`<g transform=${`translate(${px + 10},${y(top) - 6})`} fill-opacity="0.75">
+      // Right of its line, or left of it where the chart's edge would cut the label off.
+      const left = sunSpan(px, [t, last])[1] > width - 2;
+      g.append(htl.svg`<g transform=${`translate(${left ? px - 10 : px + 10},${y(top) - 6})`} fill-opacity="0.75">
         <title>${range ? `${kind} ${clock(t)} to ${clock(last)}` : `${kind} ${clock(t)}`}</title>
         <g transform="translate(0,-3.5)">${icon}</g>
-        <text x="12" y="0" text-anchor="start">${sunText([t, last])}</text>
+        <text x=${left ? -12 : 12} y="0" text-anchor=${left ? "end" : "start"}>${sunText([t, last])}</text>
       </g>`);
     }
     return g;
@@ -573,6 +575,9 @@ const UNIDENTIFIED = "Unidentified bird"; // the day timeline's row for birdsong
 const HEADER_ROWS = 1.4; // a category header is this many species rows tall...
 const GROUP_GAP = 0.2; // ...plus this much extra space above every group but the first
 const ROW_PX = 17;
+const COMPACT_BELOW = 520; // narrower timelines put each name on a line above its row
+const NAME_LINE = 0.85; // that line's height, in species rows
+const DAYLIGHT_PAD = 30; // minutes shown beyond sunrise or the first detection, and sunset or the last
 const DENSITY_FROM = 2; // spans this long are drawn as density strips, not ticks
 const BIN_MINUTES = 15;
 // Detections of a species less than this far apart are drawn as one bout (a bar from first
@@ -653,9 +658,17 @@ export function dayTimeline(rows, sun, dates, {
   const dayEnd = new Date(ref.end);
   const earliestSunrise = d3.min(dates, (date) => offset(date, new Date(sun[date].sunrise)));
   const latestSunset = d3.max(dates, (date) => offset(date, new Date(sun[date].sunset)));
+  // "Daylight only": from a little before sunrise, or the first detection if earlier, to a little
+  // after sunset or the last detection; detections more than 90 minutes into the night don't count.
+  const [outerFrom, outerTo] = [earliestSunrise - 90 * 6e4, latestSunset + 90 * 6e4];
+  const heardAt = [...rows, ...unidentified].map((d) => offset(d.date, d.time)).filter((t) => t >= outerFrom && t <= outerTo);
   const domain = daylightOnly
-    ? [refAt(earliestSunrise - 90 * 6e4), refAt(latestSunset + 90 * 6e4)]
+    ? [refAt(Math.max(outerFrom, Math.min(earliestSunrise, d3.min(heardAt) ?? Infinity) - DAYLIGHT_PAD * 6e4)),
+       refAt(Math.min(outerTo, Math.max(latestSunset, d3.max(heardAt) ?? -Infinity) + DAYLIGHT_PAD * 6e4))]
     : [dayStart, dayEnd];
+  // Narrow screens: names go on a line above each row, so the plot takes the full width.
+  const compact = width < COMPACT_BELOW;
+  const nameWidth = compact ? 4 : nameMargin(width);
 
   let shown = rows
     .map((d) => ({...d, clock: onRef(d.date, d.time)}))
@@ -704,19 +717,28 @@ export function dayTimeline(rows, sun, dates, {
   const groupSize = new Map(groups.map(([g, sp]) => [g, sp.length]));
 
   // Lay rows out by hand (in units of one species row) so headers get room above and below.
-  const rowsAt = new Map(); // key -> {y1, y2, y}
+  // label: where the row's name (or header) sits; beside the row, or on narrow screens above it.
+  const rowsAt = new Map(); // key -> {y1, y2, y, label}
   let pos = 0;
   for (const key of order) {
     const header = key.startsWith(HEADER);
     if ((header || key === UNIDENTIFIED) && pos > 0) pos += GROUP_GAP;
+    if (compact) {
+      // An expanded header is just its line, with the hairline under it; other rows hold bars below.
+      const open = header && !collapsedOf(key.slice(1));
+      const body = open ? 0.3 : 1;
+      rowsAt.set(key, {y1: pos + NAME_LINE, y2: pos + NAME_LINE + body, y: pos + NAME_LINE + body / 2, label: pos + NAME_LINE * 0.55});
+      pos += NAME_LINE + body;
+      continue;
+    }
     const h = (header || key === UNIDENTIFIED) ? HEADER_ROWS : nameWraps(width, rowKeyOf(key) === key ? key : "") ? 1.7 : 1; // room for a wrapped name
-    rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2});
+    rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2, label: pos + h / 2});
     pos += h;
   }
   const total = pos;
   const rowOf = (species) => rowsAt.get(rowKeyOf(species));
-  const speciesTicks = order.filter((k) => !k.startsWith(HEADER) && k !== UNIDENTIFIED).map((k) => rowsAt.get(k).y);
-  const nameAt = new Map(order.map((k) => [rowsAt.get(k).y, k]));
+  const speciesTicks = order.filter((k) => !k.startsWith(HEADER) && k !== UNIDENTIFIED).map((k) => rowsAt.get(k).label);
+  const nameAt = new Map(order.map((k) => [rowsAt.get(k).label, k]));
 
   if (!firstHeard.size) return htl.html`<p class="sub">No detections ${daylightOnly ? "in daylight " : ""}${n === 1 ? "on this day" : "in these days"}.</p>`;
 
@@ -732,8 +754,8 @@ export function dayTimeline(rows, sun, dates, {
     const bins = d3.flatRollup(shown, (v) => new Set(v.map((d) => `${d.species}|${Math.floor(+d.time / 6e4)}`)).size / n, (d) => rowKeyOf(d.species), (d) => +bin.floor(d.clock))
       .map(([key, t, rate]) => ({key, name: key.startsWith(HEADER) ? key.slice(1) : key, t1: new Date(t), t2: new Date(t + BIN_MINUTES * 6e4), rate}));
     // The color bar starts where the plot does; on phones it spans it exactly.
-    color = sequential(dark, {legend: true, label: "Minutes heard per day", zero: true, marginLeft: nameMargin(width),
-      ...(width < 520 ? {width, marginRight: 30, ticks: 3} : {width: nameMargin(width) + 260, marginRight: 20})});
+    color = sequential(dark, {legend: true, label: "Minutes heard per day", zero: true, marginLeft: nameWidth,
+      ...(width < 520 ? {width, marginRight: 30, ticks: 3} : {width: nameWidth + 260, marginRight: 20})});
     dataMarks = [
       // A 15-minute bin can start before the chart's first minute; clip it to the plot area.
       Plot.rect(bins, {x1: "t1", x2: "t2", y1: (d) => rowsAt.get(d.key).y1 + 0.12, y2: (d) => rowsAt.get(d.key).y2 - 0.12, fill: "rate", clip: true}),
@@ -759,7 +781,7 @@ export function dayTimeline(rows, sun, dates, {
       }
     }
     // Keep single calls visible: at least ~2px wide.
-    const minMs = ((+domain[1] - +domain[0]) / Math.max(1, width - nameMargin(width) - 16)) * 2;
+    const minMs = ((+domain[1] - +domain[0]) / Math.max(1, width - nameWidth - 16)) * 2;
     for (const b of bouts) b.end = new Date(Math.max(+b.last + SEGMENT_MS, +b.first + minMs));
     const minutesLong = (b) => Math.round((+b.last + SEGMENT_MS - +b.first) / 6e4);
     const boutTip = {
@@ -803,7 +825,7 @@ export function dayTimeline(rows, sun, dates, {
   // Expanded headers have a horizontal rule; collapsed headers contain bars,
   // so their annotations and vertical rules start above the whole first row.
   const firstHeader = headers[0];
-  const gridTop = firstHeader && !collapsedOf(firstHeader.slice(1))
+  const gridTop = !compact && firstHeader && !collapsedOf(firstHeader.slice(1))
     ? rowsAt.get(firstHeader).y
     : 0;
   const gridHours = d3.timeHour.every(hourStep).range(domain[0], new Date(+domain[1] + 1));
@@ -811,7 +833,7 @@ export function dayTimeline(rows, sun, dates, {
   // time not recorded yet doesn't read as time without birds.
   const pacificDate = (t) => t.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
   const recordedAt = recordedUntil && n === 1 && pacificDate(recordedUntil) === dates[0] ? onRef(dates[0], recordedUntil) : null;
-  const marginLeft = nameMargin(width), marginRight = width < 520 ? 30 : 16; // room for the sunset time on phones
+  const marginLeft = nameWidth, marginRight = 16;
   const recordedShown = recordedAt && recordedAt >= domain[0] && recordedAt <= domain[1];
   const recordedText = recordedShown && `Last updated ${clock(recordedUntil)}`;
   const recordedPlace = recordedShown && lastUpdatedPlace(d3.scaleTime(domain, [marginLeft, width - marginRight]), recordedAt, recordedText,
@@ -839,6 +861,12 @@ export function dayTimeline(rows, sun, dates, {
     Plot.text([recordedAt], {x: (t) => t, y: gridTop, text: () => recordedText, textAnchor: recordedPlace.left ? "end" : "start", lineAnchor: "bottom",
       dx: recordedPlace.left ? -4 : 4, dy: recordedPlace.raised ? -19 : -4, fontSize: 10, fill: "currentColor", fillOpacity: 0.75})
   ] : [];
+  const halo = compact ? {stroke: "var(--theme-background-alt)", strokeWidth: 3, paintOrder: "stroke"} : {};
+  const names = [
+    Plot.text(headingRows, {y: (d) => rowsAt.get(d).label, text: headerLabel, frameAnchor: "left", lineAnchor: "middle", fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em", ...halo,
+      ...(compact ? {textAnchor: "start", dx: 0} : {textAnchor: "end", dx: -6, lineWidth: (nameWidth - 10) / 9.5, lineHeight: 1.1})}),
+    nameAxis(width, {tickFormat: (y) => nameAt.get(y), ...(compact ? {textAnchor: "start", tickPadding: 0, dx: 0, lineWidth: 60, textOverflow: "ellipsis", ...halo} : {})}, speciesTicks)
+  ];
   const plot = Plot.plot({
     width,
     height: Math.round(total * rowPx) + 50 + (recordedPlace?.raised ? 15 : 0),
@@ -859,12 +887,13 @@ export function dayTimeline(rows, sun, dates, {
       noAudio.length ? hatchMark(noAudio.map(([a, b]) => [new Date(Math.max(a, domain[0])), new Date(Math.min(b, domain[1]))]), gridTop, total) : null,
       // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
-      Plot.text(headingRows, {y: (d) => rowsAt.get(d).y, text: headerLabel, frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, lineWidth: (nameMargin(width) - 10) / 9.5, lineHeight: 1.1, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
-      nameAxis(width, {tickFormat: (y) => nameAt.get(y)}, speciesTicks),
+      ...(compact ? [] : names),
       ...dataMarks,
       // Over many days, sunrise and sunset are light-blue bands on top of the data, as opaque as
       // the share of days it's dark at that time.
-      sunBandMark(sunBands, gridTop, total, dark ? "#8cc4f0" : "#4f9ad6", dark ? 0.38 : 0.5)
+      sunBandMark(sunBands, gridTop, total, dark ? "#8cc4f0" : "#4f9ad6", dark ? 0.38 : 0.5),
+      // Above the rows on narrow screens, names go over the sunrise and sunset bands, with a halo.
+      ...(compact ? names : [])
     ]
   });
 
@@ -1280,8 +1309,12 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
   const tipValue = (v, side) => (daily ? `${round(v)} min${asOf ? ` ${side === "now" ? "as of" : "before"} ${asOf}` : ""}` : `${round(v)} min per day`);
   const ups = changes.filter((d) => d.now >= d.before);
   const downs = changes.filter((d) => d.now < d.before);
+  // Narrow screens put each name on a line above its row (dy: down by `low`, names up by `high`),
+  // so the plot gets the full width.
+  const compact = width < COMPACT_BELOW;
+  const [low, high] = compact ? [7, -9] : [0, 0];
   const label = (data, x, side, text, strong) => Plot.text(data, {
-    x, y: "species", text, textAnchor: side === "left" ? "end" : "start", dx: side === "left" ? -9 : 9,
+    x, y: "species", dy: low, text, textAnchor: side === "left" ? "end" : "start", dx: side === "left" ? -9 : 9,
     fill: "currentColor", fillOpacity: strong ? 1 : 0.65, fontWeight: strong ? 600 : 400, fontSize: 10.5
   });
 
@@ -1293,30 +1326,31 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
   const headers = blocks.map(([, key, title, color]) => ({y: headerKey(key), title: title.toUpperCase(), color}));
   const plot = Plot.plot({
     width,
-    height: changes.length * (annotatePeriods ? 56 : 26) + headers.length * 26 + 46,
-    marginLeft: nameMargin(width),
+    height: changes.length * (annotatePeriods ? 56 : 26) * (compact ? 1.5 : 1) + headers.length * 26 + 46,
+    marginLeft: compact ? 4 : nameMargin(width),
     marginRight: 48,
     marginTop: 8,
     // Room either side of the dots for their values; ticks only from zero up.
     x: {domain: [-max * (width < 520 ? 0.26 : 0.12), max * (width < 520 ? 1.3 : 1.16)], ticks: d3.ticks(0, max * 1.1, width < 520 ? 4 : 8), label: xLabel, labelAnchor: "center", labelArrow: "none", grid: true},
     y: {domain, label: null},
     marks: [
-      nameAxis(width, {tickFormat: (k) => (k.startsWith(HEADER) ? "" : k)}),
-      Plot.ruleY(headers, {y: "y", stroke: "color", strokeOpacity: 0.55, strokeWidth: 1.5}),
-      Plot.text(headers, {y: "y", text: "title", frameAnchor: "left", textAnchor: "end", lineAnchor: "middle", dx: -6, fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em"}),
-      Plot.link(changes, {x1: "before", x2: "now", y1: "species", y2: "species", stroke: colorOf, strokeWidth: 2}),
-      Plot.dot(changes, {x: "before", y: "species", r: 4.5, fill: ring, stroke: "currentColor", strokeOpacity: 0.65, strokeWidth: 1.5}),
-      Plot.dot(changes, {x: "now", y: "species", symbol: "triangle", r: 5.5, rotate: (d) => (d.now >= d.before ? 90 : -90), fill: colorOf, stroke: ring, strokeWidth: 1}),
+      nameAxis(width, {tickFormat: (k) => (k.startsWith(HEADER) ? "" : k), ...(compact ? {textAnchor: "start", tickPadding: 0, dy: high, lineWidth: 60, textOverflow: "ellipsis"} : {})}),
+      Plot.ruleY(headers, {y: "y", dy: low, stroke: "color", strokeOpacity: 0.55, strokeWidth: 1.5}),
+      Plot.text(headers, {y: "y", text: "title", frameAnchor: "left", lineAnchor: "middle", fill: "currentColor", fillOpacity: 0.85, fontSize: 9.5, fontWeight: 900, letterSpacing: "0.05em",
+        ...(compact ? {textAnchor: "start", dy: high} : {textAnchor: "end", dx: -6})}),
+      Plot.link(changes, {x1: "before", x2: "now", y1: "species", y2: "species", dy: low, stroke: colorOf, strokeWidth: 2}),
+      Plot.dot(changes, {x: "before", y: "species", dy: low, r: 4.5, fill: ring, stroke: "currentColor", strokeOpacity: 0.65, strokeWidth: 1.5}),
+      Plot.dot(changes, {x: "now", y: "species", dy: low, symbol: "triangle", r: 5.5, rotate: (d) => (d.now >= d.before ? 90 : -90), fill: colorOf, stroke: ring, strokeWidth: 1}),
       // Values on the outside of each pair: earlier value muted, current value bold.
       label(ups, "before", "left", (d) => num(d.before), false),
       label(ups, "now", "right", (d) => num(d.now), true),
       label(downs, "now", "left", (d) => num(d.now), true),
       label(downs, "before", "right", (d) => num(d.before), false),
       annotatePeriods ? Plot.text(changes, {
-        y: "species", frameAnchor: "left", textAnchor: "start", dy: 18,
+        y: "species", frameAnchor: "left", textAnchor: "start", dy: 18 + low,
         text: (d) => `${formatDate(d.prevFrom, {month: "short", year: "numeric"})} → ${formatDate(d.nowFrom, {month: "short", year: "numeric"})}`,
         fontSize: 9, fill: "currentColor", fillOpacity: 0.65,
-        lineWidth: Math.max(12, (width - nameMargin(width) - 16) / 5), lineHeight: 1.1
+        lineWidth: Math.max(12, (width - (compact ? 4 : nameMargin(width)) - 16) / 5), lineHeight: 1.1
       }) : null,
       Plot.tip(changes, Plot.pointerY({
         x: "now", y: "species",
