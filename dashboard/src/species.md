@@ -69,7 +69,9 @@ function speciesPicker(value) {
   button.onclick = () => { panel.hidden = !panel.hidden; button.setAttribute("aria-expanded", String(!panel.hidden)); if (!panel.hidden) tab = categoryOf(root.value); render(); };
   const close = () => { if (!panel.hidden) { panel.hidden = true; button.setAttribute("aria-expanded", "false"); render(); } };
   addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-  addEventListener("click", (e) => { if (!root.contains(e.target)) close(); });
+  root.querySelector(".picker-label").onclick = () => button.click();
+  // composedPath, not contains: render() has replaced the clicked label by the time this runs.
+  addEventListener("click", (e) => { if (!e.composedPath().includes(root)) close(); });
   render();
   return root;
 }
