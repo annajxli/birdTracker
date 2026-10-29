@@ -480,8 +480,8 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
     <select name="minutes" class="pause-field" aria-label="Duration">
       <option value="30">30 minutes</option>
       <option value="60" selected>1 hour</option>
+      <option value="90">1.5 hours</option>
       <option value="120">2 hours</option>
-      <option value="240">4 hours</option>
     </select>
     <button type="submit" class="live-button" id="pause-start">Pause</button>
     <button type="button" class="live-button" id="pause-resume" hidden>Resume now</button>

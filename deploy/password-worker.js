@@ -25,7 +25,7 @@
 // Pi's publish.py applies it to the database on its next pass.
 //
 // /api/pause pauses the recorder for a while. GET returns the pause, {"until": "<UTC time>" | null,
-// "set_at": ...}. POST {"password": ..., "minutes": 30 | 60 | 120 | 240 | 0 (resume now)} also needs
+// "set_at": ...}. POST {"password": ..., "minutes": 30 | 60 | 90 | 120 | 0 (resume now)} also needs
 // the CONTROL_PASSWORD secret, rate-limited like sign-in, and saves control/pause.json, which the
 // Pi's publish.py fetches and receiver.py follows. Pauses always end on their own.
 
@@ -37,7 +37,7 @@ const MAX_REVIEWED = 500; // detections in one review
 const SIGN_IN = "/__signin";
 const SIGN_OUT = "/__signout";
 const PAUSE_KEY = "control/pause.json";
-const PAUSE_MINUTES = new Set([0, 30, 60, 120, 240]); // 0 ends the pause now
+const PAUSE_MINUTES = new Set([0, 30, 60, 90, 120]); // 0 ends the pause now
 
 export default {
   async fetch(request, env) {
