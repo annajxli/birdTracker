@@ -561,7 +561,10 @@ function drawOverview() {
     const el = document.createElement("span");
     if (t > now || t >= pending) { el.className = "is-future"; return el; }
     const [a, b] = audio.has(t) ? [audio.get(t), birdSeconds(t)] : indexed.get(t) ?? [0, 0];
-    el.className = a < (bin / 1e3) * 0.05 ? "is-empty" : b ? "has-birds" : "is-quiet";
+    // "No audio" against the part of the bar that has happened, so the newest bar isn't hatched
+    // just for being young.
+    const elapsed = Math.min(t + bin, pending, now) - t;
+    el.className = a < (elapsed / 1e3) * 0.05 ? "is-empty" : b ? "has-birds" : "is-quiet";
     if (b) el.style.height = 30 + 70 * Math.min(1, (2 * b * 1e3) / bin) + "%";
     if (days && pacificHour(t) === 0 && t % HOUR === 0) el.classList.add("is-midnight");
     const what = el.className === "is-empty" ? "no audio" : byMinute ? `${Math.round(b / 60)} min with birds, ${Math.round(a / 60)} min of audio` : `${Math.round(b / 3)} detections, ${Math.round(a / 60)} min of audio`;
