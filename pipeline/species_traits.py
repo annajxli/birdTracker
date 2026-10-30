@@ -47,7 +47,7 @@ NUMBER = r"(\d+(?:\.\d+)?)"
 LENGTH = re.compile(NUMBER + r"(?:\s*(?:–|-|to)\s*" + NUMBER + r")?\s*(cm|mm|in)\b(?:\s*\([^)]*\))?")
 UNIT_CM = {"cm": 1, "mm": 0.1, "in": 2.54}
 # Measurements of something other than the whole bird, just before or after the number.
-OTHER_PART = re.compile(r"egg|wing|tail|bill|beak|tarsus|culmen|chord|tall|height|feather|nest|clutch|across", re.I)
+OTHER_PART = re.compile(r"\b(?:egg|wing|tail|bill|beak|tarsus|culmen|chord|tall|height|feather|nest|clutch|across)", re.I)  # \b: not the "beak" in "grosbeak"
 # Words that mark a number as the bird's length: "... long", "length of ...", "measures ...".
 AFTER = re.compile(r"^\s*(long|in length|in total length|from bill)", re.I)
 BEFORE = re.compile(r"(length|long|measur\w*|range[sd]? (from|in length)|is about|are about|approximately)[^.\d]{0,40}$", re.I)

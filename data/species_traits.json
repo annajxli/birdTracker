@@ -889,7 +889,15 @@
  },
  "Coccothraustes vespertinus": {
   "ebird": "evegro",
-  "mass_g": 57.3
+  "mass_g": 57.3,
+  "length_cm": [
+   16.0,
+   22.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Evening_grosbeak",
+   "text": "The evening grosbeak ranges in length from 16 to 22 cm (6.3 to 8.7 in) and spans 30 to 36 cm (12 to 14 in) across the wings."
+  }
  },
  "Haemorhous cassinii": {
   "ebird": "casfin",
