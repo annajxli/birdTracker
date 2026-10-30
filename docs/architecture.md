@@ -149,8 +149,8 @@ downloads, website requests, and automatic HTTP retries. For details, see
 
 `status.json` also reports which code the indoor computer runs and whether its
 operating system has updates. When `deploy/pi/push.sh` deploys, it records the
-commit and a fingerprint of the deployed files' contents
-(`pipeline/code_version.py`) in `deployed.json` on the Pi. A weekly systemd
+commit and a fingerprint of the contents of the deployed files that the Pi
+runs (`pipeline/code_version.py`) in `deployed.json` on the Pi. A weekly systemd
 timer, `deploy/pi/birdtracker-updates.timer`, runs `pipeline/updates.py`,
 which refreshes apt's package lists, simulates an upgrade, and reads when the
 next install is due. A second weekly timer, `deploy/pi/birdtracker-upgrade.timer`,
@@ -160,7 +160,9 @@ Other updates wait for an install by hand.
 It doesn't reboot; the check reports when a reboot is required. The site's build exports the fingerprints of the recent commits on
 `main` that changed the deployed files (`dashboard/src/data/pi-code.json.py`).
 The Hardware analytics page finds the Pi's fingerprint in that list, so it can
-count the updates the Pi is missing, even when the Pi's code came from a branch
+count the updates the Pi is missing. A change to a file the Pi copies but never
+runs, such as a test or a script for the laptop, isn't an update. The page
+finds the Pi's code even when it came from a branch
 that was later squash-merged.
 
 If you set the `GITHUB_TOKEN` environment variable, the publisher starts the

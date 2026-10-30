@@ -1,7 +1,9 @@
 """The indoor computer's code on main, for the Hardware analytics page to compare with what's deployed.
 
 The recent commits on main that changed the deployed files, newest first, each
-with the fingerprint of those files at that commit (pipeline/code_version.py).
+with the fingerprint of the files the Pi runs at that commit (pipeline/code_version.py),
+and of all the deployed files ("files"), which is what deployments before the
+fingerprint left out unrun files reported.
 The Pi reports its own fingerprint in live/status.json: when it matches the
 first commit, the Pi is up to date; when it matches a later one, the commits
 before it are the updates it's missing; when it matches none, the Pi runs code
@@ -29,5 +31,6 @@ for line in log.splitlines():
         "committed_at": datetime.fromisoformat(committed).astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "title": title,
         "fingerprint": code_version.fingerprint_at(commit),
+        "files": code_version.fingerprint_at(commit, files=True),
     })
 json.dump({"commits": commits}, sys.stdout)

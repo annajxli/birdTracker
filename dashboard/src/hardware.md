@@ -299,7 +299,7 @@ const noData = (title) => html`<div class="card"><h2>${title}</h2><div class="bi
 const pctFormat = (v) => `${d3.format(".0f")(v)}%`;
 // The Pi's software: the code deployed on it against main, and the operating system's pending
 // updates (status.json's code and updates, absent until the Pi reports them). Code is matched
-// on the deployed files' fingerprint, not the commit, since the Pi is often deployed from a
+// on the fingerprint of the files the Pi runs, not the commit, since the Pi is often deployed from a
 // branch that's later squash-merged.
 const day = (iso) => new Date(iso).toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric"});
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -308,12 +308,16 @@ const softwareCard = (title, big, level, notes, details) => html`<div class="car
 const codeCard = (() => {
   const code = pi?.code;
   if (!code || !piCode.commits.length) return noData("Code version");
-  const behind = piCode.commits.findIndex((c) => c.fingerprint === code.fingerprint);
+  // Deployments before the fingerprint left out unrun files reported all deployed files ("files").
+  const at = piCode.commits.find((c) => c.fingerprint === code.fingerprint || c.files === code.fingerprint);
+  // Only commits that changed what the Pi runs count, not tests or laptop-only scripts.
+  const changed = piCode.commits.filter((c, i) => c.fingerprint !== piCode.commits[i + 1]?.fingerprint);
+  const behind = at ? changed.findIndex((c) => c.fingerprint === at.fingerprint) : -1;
   const deployed = code.deployed_at && `deployed ${day(code.deployed_at)}`;
   const changes = code.changed && "with uncommitted changes";
   if (behind === 0) return softwareCard("Code version", "Up to date", "good", [`commit ${code.commit}`, deployed, changes]);
   if (behind > 0) {
-    const missing = piCode.commits.slice(0, behind);
+    const missing = changed.slice(0, behind);
     return softwareCard("Code version", `${behind} behind main`, "warning", [plural(behind, "newer commit"), deployed, changes],
       html`<ul class="software-list">${missing.slice(0, 5).map((c) => html`<li><span>${c.title}</span><span class="sub">${day(c.committed_at)}</span></li>`)}${missing.length > 5 ? html`<li class="sub">${missing.length - 5} more</li>` : ""}</ul>`);
   }
