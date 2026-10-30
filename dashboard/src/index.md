@@ -378,6 +378,8 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
         // Strips under the detections, top to bottom.
         const availableDates = period.filter((date) => date >= dataStart && date <= latest);
         const periodWeather = Object.fromEntries(availableDates.filter((date) => weather[date] && !weather[date].forecast).map((date) => [date, weather[date]]));
+        // Today's icon is its forecast: the day is already under way.
+        const conditions = Object.fromEntries(availableDates.filter((date) => weather[date]).map((date) => [date, weather[date]]));
         // Week: each hour's temperature at the middle of its slot, observed and then (today) the
         // forecast, solid up to now and dashed after.
         const weekHourly = (byDate) => availableDates.flatMap((date) => (byDate[date] ?? []).map((temp, hour) => ({
@@ -391,7 +393,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           : splitAt([...weekObserved, ...weekAhead], new Date(+new Date(nowDate) - 12 * 36e5 + wallHours(new Date().toISOString()) * 36e5),
               () => `${formatDate(nowDate, {weekday: "short", month: "short", day: "numeric"})}, ${new Date().toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})}`);
         const strips = [
-          conditionsStrip(period, periodWeather, {width, dark, ...margins}),
+          conditionsStrip(period, conditions, {width, dark, ...margins}),
           weekTemps ? hourlyTemperatureStrip(weekTemps, {width, domain: frame.x.domain, forecast: weekForecast, ...margins}) : temperatureStrip(period, periodWeather, {width, ...margins})
         ].filter(Boolean);
         // Week: hourly bars (3-hourly when an hour would be under ~3 px wide); longer periods: daily.

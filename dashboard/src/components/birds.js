@@ -1252,13 +1252,13 @@ export function hourlyTemperatureStrip(points, {width, domain, inset = 0, foreca
 export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
   const days = dates.filter((d) => weather[d]).map((date) => {
     const w = weather[date];
-    return {date, day: new Date(date), ...barSpan(date), precip: w.precip, level: rainLevel(w.precip), kind: weatherKind(w.code)};
+    return {date, day: new Date(date), ...barSpan(date), precip: w.precip, level: rainLevel(w.precip), kind: weatherKind(w.code), forecast: !!w.forecast};
   });
   const frame = dayFrame(dates, width, margins);
   const slot = (width - frame.marginLeft - frame.marginRight) / dates.length;
   const wet = rainColor(dark);
   const strength = (precip) => 0.45 + 0.55 * Math.min(1, Math.sqrt(precip / 0.6));
-  const describe = (d) => `${formatDate(d.date)}: ${d.kind[1]}${d.level ? `, ${d3.format(".2f")(d.precip)}"` : ""}`;
+  const describe = (d) => `${formatDate(d.date)}: ${d.kind[1]}${d.level ? `, ${d3.format(".2f")(d.precip)}"` : ""}${d.forecast ? " (forecast)" : ""}`;
 
   if (slot < 14) {
     return Plot.plot({

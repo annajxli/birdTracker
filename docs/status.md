@@ -15,7 +15,7 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `1b99c19` (`main`) since October 30, 2026. For its live power and temperature, see the Hardware analytics page. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `1b99c19` (`main`) since October 30, 2026. For its live power and temperature, see the Hardware analytics page. On October 30, 2026, its Power card showed no under-voltage or throttling over the previous 24 hours. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
 | Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
@@ -62,10 +62,6 @@ host alias. Don't include secrets.
 - **Temperature.** The 3B+ slows down when it's hot. Check
   `vcgencmd measure_temp` under load. On October 25 and 26, 2026, it read 53 to
   60 °C on an open riser. An enclosed cabinet needs a check of its own.
-- **Power.** A reading by hand around October 25, 2026, showed under-voltage
-  and throttling with the current power supply. It hasn't been checked since.
-  Check the Power card's history on the Hardware analytics page. If it shows
-  under-voltage, replace the supply with a 5 V, 2.5 A one, and check again.
 - **Operating system updates.** On October 26, 2026, the first weekly check
   found 21 upgradable packages, 11 of them security updates. A one-time
   `apt-get full-upgrade` installed all 21 at 3:00 AM on October 27, 2026. It
