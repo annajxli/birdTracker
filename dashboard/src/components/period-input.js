@@ -2,9 +2,11 @@ import {readPeriodSelection, writePeriodSelection} from "./period-state.js";
 import * as htl from "npm:htl";
 import {PERIODS, shiftPeriod, periodLabel, calendarDays} from "./period.js";
 
-export function periodInput({first, last}) {
+// With a fixed scale, the picker chooses only a date (one day at a time), and each chart picks
+// its own span with spanInput.
+export function periodInput({first, last}, {scale: fixedScale} = {}) {
   const root = htl.html`<div class="period-picker">
-    <div class="period-segments" role="group" aria-label="Time range">${Object.entries(PERIODS).map(([key, name]) => htl.html`<button type="button" data-scale=${key} aria-label=${name} title=${name}>${key}</button>`)}</div>
+    ${fixedScale ? "" : segments(PERIODS)}
     <div class="period-navigation">
       <button type="button" data-step="-1" aria-label="Previous day">‹</button>
       <button type="button" class="period-label" data-calendar-toggle aria-haspopup="dialog" aria-expanded="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="period-label-text" aria-live="polite"></span></button>
@@ -13,6 +15,7 @@ export function periodInput({first, last}) {
     <div class="period-calendar" role="dialog" aria-label="Choose a date" hidden></div>
   </div>`;
   root.value = readPeriodSelection(location.search, first, last);
+  if (fixedScale) root.value = {...root.value, scale: fixedScale};
   const calendar = root.querySelector(".period-calendar");
   const trigger = root.querySelector("[data-calendar-toggle]");
   let calendarMonth = root.value.date.slice(0, 7) + "-01";
@@ -80,6 +83,7 @@ export function periodInput({first, last}) {
     if (emit) {
       const url = new URL(location.href);
       url.search = writePeriodSelection(url.search, root.value);
+      if (fixedScale) url.searchParams.delete("span");
       history.replaceState(history.state, "", url);
       root.dispatchEvent(new Event("input", {bubbles: true}));
     }
@@ -158,6 +162,31 @@ export function periodInput({first, last}) {
   // Measure once it's on the page, and again when the web font arrives (it changes the widths).
   requestAnimationFrame(() => render(false));
   document.fonts?.ready.then(() => { widths.clear(); render(false); });
+  return root;
+}
+
+function segments(periods) {
+  return htl.html`<div class="period-segments" role="group" aria-label="Time range">${Object.entries(periods).map(([key, name]) => htl.html`<button type="button" data-scale=${key} aria-label=${name} title=${name}>${key}</button>`)}</div>`;
+}
+
+// A chart's own span (D, W, M, Y or A), kept in the link under param. Works as an input.
+export function spanInput(param, value) {
+  const root = segments(PERIODS);
+  root.classList.add("span-input");
+  const requested = new URLSearchParams(location.search).get(param);
+  root.value = Object.hasOwn(PERIODS, requested) ? requested : value;
+  const render = () => { for (const b of root.querySelectorAll("[data-scale]")) b.setAttribute("aria-pressed", String(b.dataset.scale === root.value)); };
+  root.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-scale]");
+    if (!button || button.dataset.scale === root.value) return;
+    root.value = button.dataset.scale;
+    const url = new URL(location.href);
+    if (root.value === value) url.searchParams.delete(param); else url.searchParams.set(param, root.value);
+    history.replaceState(history.state, "", url);
+    render();
+    root.dispatchEvent(new Event("input", {bubbles: true}));
+  });
+  render();
   return root;
 }
 

@@ -10,7 +10,7 @@ toc: false
 import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
 import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip, splitAt} from "./components/birds.js";
-import {periodInput, bindPeriodSwipe} from "./components/period-input.js";
+import {periodInput, spanInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, dayChanges, windowChanges} from "./components/changes.js";
 ```
@@ -108,9 +108,16 @@ const unidentified = unidentifiedMinutes.filter((u) => !namedMinutes.has(Math.fl
 </div>
 
 ```js
-const periodIn = periodInput(initialLimits);
+const periodIn = periodInput(initialLimits, {scale: "D"});
 invalidation.then(() => periodIn.destroy());
 const selection = Generators.input(periodIn);
+// One date for the whole overview; each section picks how far back from it to look.
+const rhythmSpanIn = spanInput("rhythm", "D");
+const rhythmScale = Generators.input(rhythmSpanIn);
+const activitySpanIn = spanInput("activity", "W");
+const activityScale = Generators.input(activitySpanIn);
+const listSpanIn = spanInput("species", "W");
+const listScale = Generators.input(listSpanIn);
 
 // Changing the period changes how tall the charts are. Keep whichever chart fills most of the
 // screen where it is: note its position when the period changes, and hold it there while the
@@ -142,8 +149,8 @@ const selection = Generators.input(periodIn);
       release = null;
     };
   };
-  periodIn.addEventListener("input", holdAnchor);
-  invalidation.then(() => { periodIn.removeEventListener("input", holdAnchor); release?.(); });
+  for (const input of [periodIn, rhythmSpanIn, activitySpanIn, listSpanIn]) input.addEventListener("input", holdAnchor);
+  invalidation.then(() => { for (const input of [periodIn, rhythmSpanIn, activitySpanIn, listSpanIn]) input.removeEventListener("input", holdAnchor); release?.(); });
 }
 const sortIn = sortInput();
 const sortBy = Generators.input(sortIn);
@@ -152,12 +159,18 @@ const sortBy = Generators.input(sortIn);
 
 ```js
 periodIn.setBounds({first: d3.min(recordedDates), last: latest});
-const bounds = periodBounds(selection.scale, selection.date);
-const {start, end} = overviewBounds(selection.scale, selection.date, dataStart, latest);
-// Statistics use real rows, while calendar axes retain unrecorded/future dates.
-const availableEnd = end < latest ? end : latest;
-const period = dateSpan(start, end);
+const date = selection.date;
+// A section's dates: its span, ending on the chosen date. Statistics use real rows, while
+// calendar axes retain unrecorded/future dates.
+const spanView = (scale) => {
+  const {start, end} = overviewBounds(scale, date, dataStart, latest);
+  const period = dateSpan(start, end);
+  return {scale, start, end, period, availableEnd: end < latest ? end : latest, calendarDays: scale === "A" ? period.length : dateSpan(...Object.values(periodBounds(scale, date))).length};
+};
+const rhythm = spanView(rhythmScale), lists = spanView(listScale);
+const {start, end, period} = spanView(activityScale);
 const rows = confident.filter((d) => d.date >= start && d.date <= end);
+const listRows = confident.filter((d) => d.date >= lists.start && d.date <= lists.end);
 ```
 
 ```js
@@ -188,14 +201,12 @@ const setTimelineCollapsed = (pairs) => { timelineOverrides.value = new Map([...
 ```
 
 ```js
-// The same calendar period drives every overview chart.
-const spanDates = period.filter((d) => recordedDates.has(d));
+const spanDates = rhythm.period.filter((d) => recordedDates.has(d));
 const spanDateSet = new Set(spanDates);
-const calendarSpanDays = selection.scale === "A" ? period.length : dateSpan(bounds.start, bounds.end).length;
+const calendarSpanDays = rhythm.calendarDays;
 // How many species rows fit on one screen: a collapsed list (sorted other than by category) shows this many.
 const timelineMaxRows = Math.max(10, Math.floor((window.innerHeight - 220) / 17));
-const timelineDates = selection.scale === "D" ? formatDate(selection.date)
-  : dateRange(start, end);
+const timelineDates = rhythm.scale === "D" ? formatDate(date) : dateRange(rhythm.start, rhythm.end);
 ```
 
 <section class="zoom">
@@ -203,12 +214,13 @@ const timelineDates = selection.scale === "D" ? formatDate(selection.date)
   <div class="section-top">
     <p class="eyebrow">Daily rhythm of detected species</p>
     <p class="sub section-sub">${timelineDates}</p>
+    ${rhythmSpanIn}
   </div>
   <div id="home-timeline" class="card layout-reserve timeline-card">
     <div class="filters timeline-sort">${sortIn}</div>
     ${spanDates.length
       ? resize((width) => dayTimeline(confident.filter((d) => spanDateSet.has(d.date)), sun, spanDates, {spanDays: calendarSpanDays, categories, sort: SORTS.get(sortBy), width, dark, daylightOnly, maxRows: timelineMaxRows, overrides: timelineOverrides, onToggle: setTimelineCollapsed, recordedUntil, audio: audioSpans, unidentified: unidentified.filter((u) => spanDateSet.has(u.date))}))
-      : html`<p class="sub">No recordings ${selection.scale === "D" ? "on this day" : "in this period"}; the recorder was offline.</p>`}
+      : html`<p class="sub">No recordings ${rhythm.scale === "D" ? "on this day" : "in this period"}; the recorder was offline.</p>`}
   </div>
   </div>
 </section>
@@ -232,28 +244,29 @@ const daily = period.map((date) => {
   return {date, day, x1: new Date(+day - halfDay), x2: new Date(+day + halfDay), count: perDay.get(date) ?? 0, offline: !recordedDates.has(date)};
 });
 const gap = period.length <= 90 ? 1 : 0;
-const daySun = sun[selection.date];
+const daySun = sun[date];
 // The day view's hours: 90 minutes either side of daylight with "Daylight only", else the whole
 // Pacific day (midnight to midnight).
 const pacificMidnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - (+new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"})) * 36e5; };
 const daylightWindow = !daylightOnly
-  ? [new Date(pacificMidnight(selection.date)), new Date(pacificMidnight(new Date(Date.parse(selection.date + "T12:00:00Z") + 864e5).toISOString().slice(0, 10)))]
+  ? [new Date(pacificMidnight(date)), new Date(pacificMidnight(new Date(Date.parse(date + "T12:00:00Z") + 864e5).toISOString().slice(0, 10)))]
   : daySun ? [new Date(+new Date(daySun.sunrise) - 90 * 6e4), new Date(+new Date(daySun.sunset) + 90 * 6e4)] : null;
 const songBinMs = 15 * 6e4;
-const clockMinutes = d3.rollup(selection.scale === "D" && daylightWindow ? rows.filter((d) => d.time >= daylightWindow[0] && d.time <= daylightWindow[1]) : [],
+const clockMinutes = d3.rollup(activityScale === "D" && daylightWindow ? rows.filter((d) => d.time >= daylightWindow[0] && d.time <= daylightWindow[1]) : [],
   (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size,
   (d) => Math.floor(+d.time / songBinMs));
 const songBins = [...clockMinutes].map(([bin, count]) => ({x1: new Date(bin * songBinMs), x2: new Date((bin + 1) * songBinMs), count}));
 // Week view: minutes of birdsong per local hour, placed inside each day's slot of the chart
 // (a day's slot runs from 12 hours before to 12 hours after its date's tick).
-const weekHours = selection.scale === "W"
+const weekHours = activityScale === "W"
   ? d3.rollups(rows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => d.date, (d) => d.hour)
       .flatMap(([date, byHour]) => byHour.map(([hour, count]) => ({date, hour, count})))
   : [];
 ```
 
 ```js
-const top = d3.rollups(minutes, (v) => v.length, (d) => d.species)
+const listMinutes = minutesHeard(listRows);
+const top = d3.rollups(listMinutes, (v) => v.length, (d) => d.species)
   .sort((a, b) => d3.descending(a[1], b[1]))
   .slice(0, 15)
   .map(([species, count]) => ({species, count}));
@@ -266,11 +279,12 @@ const top = d3.rollups(minutes, (v) => v.length, (d) => d.species)
 // unlikely to be chance (see changes.js), ranked by relative size.
 const TREND_DAYS = 30, MIN_RECORDED_DAYS = 7, MIN_WEEK_DAYS = 4;
 const recordedIn = (from, to) => dateSpan(from, to).filter((d) => recordedDates.has(d)).length;
-const trendScale = selection.scale === "D" ? "D" : selection.scale === "W" ? "W" : "30";
+const trendScale = listScale === "D" ? "D" : listScale === "W" ? "W" : "30";
+const availableEnd = lists.availableEnd;
 const cmp = trendScale === "D"
   ? {nowFrom: availableEnd, nowTo: availableEnd, prevFrom: addDays(availableEnd, -1), prevTo: addDays(availableEnd, -1)}
   : trendScale === "W"
-  ? {nowFrom: start, nowTo: availableEnd, prevFrom: addDays(start, -7), prevTo: addDays(start, -1)}
+  ? {nowFrom: lists.start, nowTo: availableEnd, prevFrom: addDays(lists.start, -7), prevTo: addDays(lists.start, -1)}
   : (() => { const from = addDays(availableEnd, -(TREND_DAYS - 1)); return {nowFrom: from, nowTo: availableEnd, prevFrom: addDays(from, -TREND_DAYS), prevTo: addDays(from, -1)}; })();
 cmp.nowLabel = dateRange(cmp.nowFrom, cmp.nowTo);
 cmp.prevLabel = dateRange(cmp.prevFrom, cmp.prevTo);
@@ -295,7 +309,7 @@ const changes = !comparable ? []
   : windowChanges(trendMinutes,
       dateSpan(cmp.nowFrom, cmp.nowTo).filter((d) => recordedDates.has(d)),
       dateSpan(cmp.prevFrom, cmp.prevTo).filter((d) => recordedDates.has(d)));
-const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthlyChanges(minutes, period.filter((d) => recordedDates.has(d)));
+const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthlyChanges(listMinutes, lists.period.filter((d) => recordedDates.has(d)));
 
 ```
 
@@ -304,6 +318,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
     <div class="section-top">
       <p class="eyebrow">Activity over time</p>
       <p class="sub section-sub">${dateRange(start, end)}</p>
+      ${activitySpanIn}
     </div>
     <div class="card activity-layout">
     <div class="grid grid-cols-2 stats activity-stats">
@@ -315,7 +330,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       <div class="card">
         <h2>Minutes of birdsong</h2>
         <div class="big">${d3.format(",")(songMinutes.size)}</div>
-        ${selection.scale === "D" ? "" : html`<div class="sub">${daysUp ? d3.format(",")(Math.round(songMinutes.size / daysUp)) : 0} minutes per day</div>`}
+        ${activityScale === "D" ? "" : html`<div class="sub">${daysUp ? d3.format(",")(Math.round(songMinutes.size / daysUp)) : 0} minutes per day</div>`}
       </div>
     </div>
     <div id="home-activity" class="day-stack layout-reserve">
@@ -323,8 +338,8 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       ${resize((width) => {
         const margins = {marginLeft: 48, marginRight: 16};
         const fullWidth = width;
-        if (selection.scale === "D") {
-          const w = weather[selection.date];
+        if (activityScale === "D") {
+          const w = weather[date];
           if (!daylightWindow) return html`<p class="sub">Sunrise and sunset times are unavailable for this day.</p>`;
           return html`<div>${Plot.plot({
             width, height: 240, ...margins,
@@ -336,11 +351,11 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             // Hourly temperature for the day, on the same clock as the bars above.
             // The line runs exactly from the chart's left edge to its right edge (values there are
             // interpolated between hours), 8 px in from the axis like the bars.
-            const temps = weatherHourly[selection.date] ?? [];
+            const temps = weatherHourly[date] ?? [];
             const midnight = +new Date(daySun.start);
             const observed = temps.map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)})).filter((d) => d.temp != null);
             // Today, the forecast continues it.
-            const forecast = (forecastHourly[selection.date] ?? []).map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)}))
+            const forecast = (forecastHourly[date] ?? []).map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)}))
               .filter((d) => d.temp != null && (!observed.length || d.t > observed.at(-1).t));
             const hourly = [...observed, ...forecast];
             const at = (t) => {
@@ -357,7 +372,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div></div>`;
         }
         const ticks = dayTicks(period, width - margins.marginLeft - margins.marginRight);
-        const tickFormat = dayTickFormat(period);
+        const tickFormat = dayTickFormat(period, {short: period.length <= 14 && (width - margins.marginLeft - margins.marginRight) / period.length < 45});
         const frame = dayFrame(period, width, margins);
         const inset = dayInset(period, width, gap, margins);
         // Strips under the detections, top to bottom.
@@ -369,7 +384,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
           when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(hour)}`
         }))).filter((d) => d.temp != null);
-        const weekObserved = selection.scale === "W" ? weekHourly(weatherHourly) : null;
+        const weekObserved = activityScale === "W" ? weekHourly(weatherHourly) : null;
         const weekAhead = weekObserved ? weekHourly(forecastHourly).filter((d) => !weekObserved.length || d.t > weekObserved.at(-1).t) : [];
         const nowDate = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
         const [weekTemps, weekForecast] = !weekObserved ? [null, []] : !weekAhead.length ? [weekObserved, []]
@@ -381,7 +396,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
         ].filter(Boolean);
         // Week: hourly bars (3-hourly when an hour would be under ~3 px wide); longer periods: daily.
         const plotWidth = width - margins.marginLeft - margins.marginRight;
-        const hoursPerBin = selection.scale !== "W" ? 0 : plotWidth / (period.length * 24) >= 3 ? 1 : 3;
+        const hoursPerBin = activityScale !== "W" ? 0 : plotWidth / (period.length * 24) >= 3 ? 1 : 3;
         const hourBins = hoursPerBin ? d3.rollups(weekHours, (v) => d3.sum(v, (d) => d.count), (d) => d.date, (d) => Math.floor(d.hour / hoursPerBin))
           .flatMap(([date, byBin]) => byBin.map(([bin, count]) => {
             const dayStart = +new Date(date) - 12 * 36e5;
@@ -419,13 +434,15 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       </div>
     </div>
     </div>
+    <div class="card species-card">
+    <div class="species-card-span">${listSpanIn}</div>
     <div class="pair-grid">
     <section class="zoom">
       <div class="section-top">
         <p class="eyebrow">Most heard species</p>
-        <p class="sub section-sub">${dateRange(start, end)}</p>
+        <p class="sub section-sub">${dateRange(lists.start, lists.end)}</p>
       </div>
-      <div id="home-ranking" class="card layout-reserve">
+      <div id="home-ranking" class="layout-reserve">
         ${resize((width) => {
           // Beside the trends chart, fill the same height (its rows + legend); stacked on narrow
           // screens, use a natural height.
@@ -455,9 +472,9 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
     <section class="zoom">
       <div class="section-top">
         <p class="eyebrow">${comparable || trendScale !== "30" ? (trendScale === "D" ? "Daily trends" : "Trends in detected species") : "Largest monthly changes"}</p>
-        <p class="sub section-sub">${comparable ? compareDates : dateRange(start, end)}</p>
+        <p class="sub section-sub">${comparable ? compareDates : dateRange(lists.start, lists.end)}</p>
       </div>
-      <div id="home-trends" class="card layout-reserve">
+      <div id="home-trends" class="layout-reserve">
         ${nothingYetToday
           ? html`<p class="sub">No detections yet today</p>`
           : comparable
@@ -473,6 +490,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             : html`<p class="sub">Not enough data</p>`}
       </div>
     </section>
+    </div>
     </div>
   </div>
 </section>
@@ -532,9 +550,9 @@ const categoryMonth = categoryShares(month, recordedMonthDays);
 
 ```js
 // Mini species cards wherever a species name appears: hover on desktop, tap on phones.
-const periodMinutes = d3.rollup(minutes, (v) => v.length, (d) => d.species);
+const periodMinutes = d3.rollup(listMinutes, (v) => v.length, (d) => d.species);
 const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident, photos, categories, thresholds, minConf,
-  extraRows: (species) => [[selection.scale === "A" ? "All time" : "This period", `${d3.format(",")(periodMinutes.get(species) ?? 0)} minutes heard`]]}));
+  extraRows: (species) => [[listScale === "A" ? "All time" : "This period", `${d3.format(",")(periodMinutes.get(species) ?? 0)} minutes heard`]]}));
 invalidation.then(stopSpeciesCards);
 ```
 

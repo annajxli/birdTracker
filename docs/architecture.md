@@ -299,15 +299,21 @@ start. A pause takes effect once the publisher next fetches it, within about
 
 When a page opens, it loads the newest Parquet exports from `/api/data/`. If
 that request fails, the page uses the copy built into the site. Pages also
-fetch the most recent weather directly from Open-Meteo. New data therefore
-appears without a rebuild. The site has the following pages:
+fetch the most recent weather directly from Open-Meteo, and today's forecast
+from the National Weather Service (`dashboard/src/components/nws.js`), whose
+Seattle forecasters adjust the models by hand. If NWS is unavailable, today
+uses Open-Meteo's forecast. New data therefore appears without a rebuild. The site has the following pages:
 
-- **Overview**: daily activity, species, and weather. The period selector keeps
-  its span and date in URL query parameters, so refreshing or sharing the URL
-  restores the selection. Week, month and year views end on the selected date; their bounds and
-  navigation use `TRAILING_DAYS`, defined in `dashboard/src/components/period.js`.
-  `dashboard/src/components/period-state.js` validates
-  the saved selection against the available data.
+- **Overview**: daily activity, species, and weather. One date selector sets
+  the day that every chart ends on. The daily rhythm, activity over time, and
+  the combined most heard and trends card each pick their own span (day, week,
+  month, year, or all time) with `spanInput` in
+  `dashboard/src/components/period-input.js`. The date and any span other than
+  its default are kept in URL query parameters, so refreshing or sharing the URL
+  restores the view. Week, month and year spans end on the selected date; their
+  bounds use `TRAILING_DAYS`, defined in `dashboard/src/components/period.js`.
+  `dashboard/src/components/period-state.js` validates the saved date against
+  the available data.
 - **Live**: published minutes with spectrograms, audio, and detections, where
   you can confirm or reject detections.
 - **Species**: every species heard, with photos and counts.
