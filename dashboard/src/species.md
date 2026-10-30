@@ -109,7 +109,7 @@ const trait = traits[sp[0]?.scientific] ?? {};
   <div>
     <h1>${species}</h1>
     <p class="sub"><i>${sp[0]?.scientific}</i> · ${html`<a href=${guideHref(species)} target="_blank" rel="noopener">All About Birds guide ↗</a>`}${photo ? html` · <a href=${photo.wikipedia} target="_blank" rel="noopener">Wikipedia ↗</a>` : ""}${trait.ebird ? html` · <a href=${`https://birdsoftheworld.org/bow/species/${trait.ebird}/cur/introduction`} target="_blank" rel="noopener">Birds of the World ↗</a>` : ""}</p>
-    ${sizeText(trait) ? html`<p class="sub">${sizeText(trait)}${trait.mass_g ? html` <small>Mass: AVONET (Tobias et al. 2022)</small>` : ""}</p>` : ""}
+    ${sizeText(trait) ? html`<p class="sub">${sizeText(trait)}</p>` : ""}
     <p class="sub">Threshold: ${thresholdText(sp[0]?.scientific, minConf, thresholds)}</p>
   </div>
   <div class="species-photo-slot">${birdPhoto(species, photo)}</div>
@@ -287,3 +287,8 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
 </div>
 
 </div>
+
+${trait.mass_g || trait.length_cm ? html`<p class="sub species-sources">Sources: ${[
+  trait.mass_g ? html`Mass from <a href="https://doi.org/10.6084/m9.figshare.16586228" target="_blank" rel="noopener">AVONET (Tobias et al. 2022, <i>Ecology Letters</i>)</a>.` : "",
+  trait.length_cm ? html`Length from ${photo ? html`<a href=${photo.wikipedia} target="_blank" rel="noopener">Wikipedia</a>` : "Wikipedia"}.` : ""
+].filter(Boolean).flatMap((x, i) => i ? [" ", x] : [x])}</p>` : ""}
