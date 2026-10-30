@@ -116,9 +116,11 @@ const confFrom = d3.min(d3.range(detections.numRows).filter((i) => detDate.get(i
 // Packet success over many minutes, pooled (all frames sent over all frames recorded), so a short
 // minute counts for its frames, not as much as a full one. From the frame counts when exported,
 // else each minute's share weighted by its seconds (close, as frames recorded follow time on).
-// As a percentage, or NaN.
+// As a percentage, or NaN. Minutes that start in the recorder's first minute after it boots don't
+// count: it records before its connection is up, so those frames are lost to the boot, not the radio.
+const BOOT_SKIP_S = 60;
 function pooledPacket(rows) {
-  rows = rows.filter((d) => d.packet != null);
+  rows = rows.filter((d) => d.packet != null && !(d.boardUptime != null && d.boardUptime < BOOT_SKIP_S));
   if (!rows.length) return NaN;
   const counted = rows.filter((d) => d.sent != null && d.dropped != null); // older rows lack the counts
   if (counted.length) {
@@ -387,8 +389,8 @@ ${hasRecs && !recorderFresh ? unreachable(dataEnd) : ""}
   ${(() => {
     const last = recs.findLast((d) => d.packet != null);
     const recent = recs.filter((d) => d.packet != null && +d.time >= dataEnd - HOUR_MS);
-    const value = recent.length ? pooledPacket(recent) : null;
-    return last && value != null
+    const value = recent.length ? pooledPacket(recent) : NaN;
+    return last && Number.isFinite(value)
       ? meterCard("Packet success", `${d3.format(".1f")(value)}%`, meter(value, PACKET_ZONES, (v) => `${v}%`), "frames sent over wifi, last hour", statusStrip(slots, "packet", PACKET_ZONES, (v) => `${d3.format(".1f")(v)}%`))
       : noData("Packet success");
   })()}
