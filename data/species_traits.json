@@ -1,0 +1,2326 @@
+{
+ "Turdus migratorius": {
+  "ebird": "amerob",
+  "mass_g": 78.5,
+  "length_cm": [
+   23.0,
+   28.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_robin",
+   "text": "migratorius) is 23 to 28 cm (9.1 to 11.0 in) long with a wingspan ranging from 31 to 41 cm (12 to 16 in), with similar size ranges across all subspecies."
+  }
+ },
+ "Melospiza melodia": {
+  "ebird": "sonspa",
+  "mass_g": 21.9
+ },
+ "Corvus corax": {
+  "ebird": "comrav",
+  "mass_g": 928.0,
+  "length_cm": [
+   150.0,
+   150.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Common_raven",
+   "text": "The nest is a deep bowl made of large sticks (up to 150 cm long and 2.5 cm thick) and twigs, bound with an inner layer of roots, mud, and bark and lined with a softer material, such as deer fur."
+  }
+ },
+ "Colaptes auratus": {
+  "ebird": "norfli",
+  "mass_g": 131.5,
+  "length_cm": [
+   28.0,
+   36.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_flicker",
+   "text": "A mid- to large-sized northern flicker measures 28–36 cm (11–14 in) in length and 42–54 cm (16+1⁄2–21+1⁄2 in) in wingspan."
+  }
+ },
+ "Corvus brachyrhynchos": {
+  "ebird": "amecro",
+  "mass_g": 448.8,
+  "length_cm": [
+   40.0,
+   53.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_crow",
+   "text": "They measure 40–53 cm (16–21 in) in length, of which the tail makes up about 40%."
+  }
+ },
+ "Pipilo maculatus": {
+  "ebird": "spotow",
+  "mass_g": 39.3,
+  "length_cm": [
+   17.0,
+   21.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Spotted_towhee",
+   "text": "The spotted towhee is between 17 cm (6.7 in) and 21 cm (8.3 in) long."
+  }
+ },
+ "Sturnus vulgaris": {
+  "ebird": "eursta",
+  "mass_g": 77.1,
+  "length_cm": [
+   20.0,
+   20.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Common_starling",
+   "text": "It is about 20 cm (8 in) long and has glossy black plumage with a metallic sheen, which is speckled with white at some times of the year."
+  }
+ },
+ "Agelaius phoeniceus": {
+  "ebird": "rewbla",
+  "mass_g": 50.8,
+  "length_cm": [
+   17.0,
+   24.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-winged_blackbird",
+   "text": "The female is smaller than the male, at 17–18 cm (6.7–7.1 in) long ..., against his length of 22–24 cm (8.7–9.4 in)."
+  }
+ },
+ "Catharus ustulatus": {
+  "ebird": "swathr",
+  "mass_g": 30.3,
+  "length_cm": [
+   16.0,
+   20.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Swainson%27s_thrush",
+   "text": "== Description == This species is 16–20 cm (6.3–7.9 in) in length."
+  }
+ },
+ "Tachycineta thalassina": {
+  "ebird": "vigswa",
+  "mass_g": 14.1,
+  "length_cm": [
+   12.0,
+   13.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Violet-green_swallow",
+   "text": "With an average body length of 12–13 cm (4.7–5.1 in), the violet-green swallow is slightly shorter and appears more compact in flight compared to some other members of the genus Tachycineta."
+  }
+ },
+ "Pheucticus melanocephalus": {
+  "ebird": "bkhgro",
+  "mass_g": 47.1,
+  "length_cm": [
+   19.0,
+   19.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Black-headed_grosbeak",
+   "text": "The 19 cm (7.5 in) long, 47 g (1.7 oz) black-headed grosbeak is a migratory bird, with nesting grounds from southwestern British Columbia, through the western half of the United States, into central Mexico."
+  }
+ },
+ "Zonotrichia leucophrys": {
+  "ebird": "whcspa",
+  "mass_g": 28.0,
+  "length_cm": [
+   15.0,
+   16.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/White-crowned_sparrow",
+   "text": "Measurements: Length: 5.9–6.3 in (15–16 cm) Weight: 0.9–1.0 oz (25–28 g) Wingspan: 8.3–9.4 in (21–24 cm) == Subspecies == There are five currently recognized subspecies of white-crowned sparrow (pugetensis, gambelii, nuttalli, oriantha, and leucophrys), varying in breeding distribution migratory route."
+  }
+ },
+ "Selasphorus rufus": {
+  "ebird": "rufhum",
+  "mass_g": 3.5,
+  "length_cm": [
+   8.0,
+   8.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Rufous_hummingbird",
+   "text": "The rufous hummingbird (Selasphorus rufus) is a small hummingbird, about 8 cm (3 in) long with a long, straight and slender bill."
+  }
+ },
+ "Junco hyemalis": {
+  "ebird": "daejun",
+  "mass_g": 19.5,
+  "length_cm": [
+   13.0,
+   17.5
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Dark-eyed_junco",
+   "text": "The dark-eyed junco is 13 to 17.5 cm (5.1 to 6.9 in) long and has a wingspan of 18 to 25 cm (7.1 to 9.8 in)."
+  }
+ },
+ "Tachycineta bicolor": {
+  "ebird": "treswa",
+  "mass_g": 21.2
+ },
+ "Cyanocitta stelleri": {
+  "ebird": "stejay",
+  "mass_g": 128.0,
+  "length_cm": [
+   30.0,
+   34.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Steller%27s_jay",
+   "text": "=== Subspecies === Thirteen subspecies are recognized: == Description == Steller's jay is about 30–34 cm (12–13 in) long and weighs about 100–140 g (3.5–4.9 oz)."
+  }
+ },
+ "Hirundo rustica": {
+  "ebird": "barswa",
+  "mass_g": 17.9,
+  "length_cm": [
+   17.0,
+   19.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Barn_swallow",
+   "text": "rustica is 17–19 cm (6+1⁄2–7+1⁄2 in) long including 2–7 cm (1–3 in) of elongated outer tail feathers."
+  }
+ },
+ "Poecile rufescens": {
+  "ebird": "chbchi",
+  "mass_g": 9.4,
+  "length_cm": [
+   11.5,
+   12.5
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Chestnut-backed_chickadee",
+   "text": "== Description == It is a small chickadee, 11.5–12.5 cm (4.5–4.9 in) long with a weight of 8.5–12.6 g (0.30–0.44 oz)."
+  }
+ },
+ "Piranga ludoviciana": {
+  "ebird": "westan",
+  "mass_g": 28.1,
+  "length_cm": [
+   16.0,
+   19.1
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Western_tanager",
+   "text": "== Description == Measurements: Length: 6.3–7.5 in (16–19 cm) Weight: 0.8–1.3 oz (24–36 g) Wingspan: 11.5 in (29 cm) Adults have pale, stout pointed bills, yellow underparts, and light wing bars."
+  }
+ },
+ "Spinus tristis": {
+  "ebird": "amegfi",
+  "mass_g": 12.8,
+  "length_cm": [
+   11.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_goldfinch",
+   "text": "== Description == The American goldfinch is a small finch, 11–14 cm (4.3–5.5 in) long, with a wingspan of 19–22 cm (7.5–8.7 in)."
+  }
+ },
+ "Setophaga coronata": {
+  "ebird": "yerwar",
+  "mass_g": 11.9,
+  "length_cm": [
+   14.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Yellow-rumped_warbler",
+   "text": "== Description == The yellow-rumped warbler has an average length of 14 cm and weight of 12.5 g, its appearance is different across its subspecies groups, especially the two major ones: the coronata group (myrtle warbler) and the auduboni group (Audubon's warbler); intra-group variations are also observed."
+  }
+ },
+ "Molothrus ater": {
+  "ebird": "bnhcow",
+  "mass_g": 40.3,
+  "length_cm": [
+   16.0,
+   22.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Brown-headed_cowbird",
+   "text": "Their total length is 16–22 cm (6.3–8.7 in) and the average wingspan is 36 cm (14 in)."
+  }
+ },
+ "Cathartes aura": {
+  "ebird": "turvul",
+  "mass_g": 1518.2,
+  "length_cm": [
+   62.0,
+   81.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Turkey_vulture",
+   "text": "== Subspecies == There are five subspecies of turkey vulture: == Description == A large bird, it has a wingspan of 1.5–2 m (4.9–6.6 ft) a length of 62–81 cm (24–32 in), and weight of 0.8 to 2.41 kg (1.8 to 5.3 lb)."
+  }
+ },
+ "Anas platyrhynchos": {
+  "ebird": "mallar3",
+  "mass_g": 843.4,
+  "length_cm": [
+   50.0,
+   65.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Mallard",
+   "text": "The mallard is 50–65 cm (20–26 in) long, of which the body makes up around two-thirds the length."
+  }
+ },
+ "Vireo gilvus": {
+  "ebird": "eawvir1",
+  "mass_g": 12.7
+ },
+ "Branta canadensis": {
+  "ebird": "cangoo",
+  "mass_g": 2811.7,
+  "length_cm": [
+   75.0,
+   110.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Canada_goose",
+   "text": "Canada geese range from 75 to 110 cm (30 to 43 in) in length and have a 127–185 cm (50–73 in) wingspan."
+  }
+ },
+ "Setophaga petechia": {
+  "ebird": "manwar1",
+  "mass_g": 10.2
+ },
+ "Sitta canadensis": {
+  "ebird": "rebnut",
+  "mass_g": 9.8,
+  "length_cm": [
+   11.4,
+   11.4
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-breasted_nuthatch",
+   "text": "== Description == The red-breasted nuthatch is a small passerine, measuring 4.5 in (11 cm) in length, with a wingspan of 8.5 in (22 cm) and a weight of 9.9 g (0.35 oz)."
+  }
+ },
+ "Leiothlypis celata": {
+  "ebird": "orcwar",
+  "mass_g": 9.2
+ },
+ "Troglodytes pacificus": {
+  "ebird": "pacwre1",
+  "mass_g": 9.4
+ },
+ "Haliaeetus leucocephalus": {
+  "ebird": "baleag",
+  "mass_g": 4700.6,
+  "length_cm": [
+   70.0,
+   102.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Bald_eagle",
+   "text": "The bald eagle has a body length of 70–102 cm (28–40 in)."
+  }
+ },
+ "Empidonax difficilis": {
+  "ebird": "wesfly",
+  "mass_g": 10.7
+ },
+ "Cardellina pusilla": {
+  "ebird": "wlswar",
+  "mass_g": 7.0,
+  "length_cm": [
+   10.0,
+   12.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Wilson%27s_warbler",
+   "text": "== Description == Wilson's warbler is a small passerine, ranging from 10 to 12 cm (3.9 to 4.7 in) in length, with a wingspan of 14–17 cm (5.5–6.7 in) and a mass of 5–10 g (0.18–0.35 oz)."
+  }
+ },
+ "Euphagus cyanocephalus": {
+  "ebird": "brebla",
+  "mass_g": 62.5
+ },
+ "Streptopelia decaocto": {
+  "ebird": "eucdov",
+  "mass_g": 149.0,
+  "length_cm": [
+   32.0,
+   32.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Eurasian_collared_dove",
+   "text": "== Description == It is a medium-sized dove, with an average length of 32 cm (13 in) from tip of beak to tip of tail, a wingspan of 47–55 cm (19–22 in) and a weight of 125–240 g (4.4–8.5 oz)."
+  }
+ },
+ "Poecile atricapillus": {
+  "ebird": "bkcchi",
+  "mass_g": 10.8
+ },
+ "Haemorhous purpureus": {
+  "ebird": "purfin",
+  "mass_g": 23.3
+ },
+ "Zenaida macroura": {
+  "ebird": "moudov",
+  "mass_g": 118.9,
+  "length_cm": [
+   31.0,
+   31.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Mourning_dove",
+   "text": "== Description == The mourning dove is a medium-sized, slender dove approximately 31 cm (12 in) in length."
+  }
+ },
+ "Bombycilla cedrorum": {
+  "ebird": "cedwax",
+  "mass_g": 31.6,
+  "length_cm": [
+   15.2,
+   17.8
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cedar_waxwing",
+   "text": "== Description == Cedar waxwings are medium-sized birds around 6–7 in (15–18 cm) long and weighing roughly 30 g (1 oz)."
+  }
+ },
+ "Buteo jamaicensis": {
+  "ebird": "rethaw",
+  "mass_g": 1101.2,
+  "length_cm": [
+   45.0,
+   65.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-tailed_hawk",
+   "text": "The red-tailed hawk is one of the largest members of the genus Buteo in North America, typically weighing from 690 to 1,600 g (1.5 to 3.5 lb) and measuring 45–65 cm (18–26 in) in length, with a wingspan from 110–145 cm (43–57 in)."
+  }
+ },
+ "Regulus satrapa": {
+  "ebird": "gockin",
+  "mass_g": 6.2,
+  "length_cm": [
+   8.0,
+   11.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Golden-crowned_kinglet",
+   "text": "Its length, at 8 to 11 cm (3.1 to 4.3 in), is probably the shortest of any American passerine."
+  }
+ },
+ "Spizella passerina": {
+  "ebird": "chispa",
+  "mass_g": 12.2,
+  "length_cm": [
+   11.9,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Chipping_sparrow",
+   "text": "Measurements: Length: 4.7–5.9 in (12–15 cm) Weight: 0.4–0.6 oz (11–17 g) Wingspan: 8.3 inches (21 cm) == Behavior == It molts twice a year."
+  }
+ },
+ "Charadrius vociferus": {
+  "ebird": "killde",
+  "mass_g": 96.4,
+  "length_cm": [
+   20.0,
+   28.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Killdeer",
+   "text": "Adults ranging in length from 20 to 28 cm (7.9 to 11.0 in), having a wingspan between 59 and 63 cm (23 and 25 in), and usually being between 72 and 121 g (2.5 and 4.3 oz) in weight."
+  }
+ },
+ "Contopus sordidulus": {
+  "ebird": "wewpew",
+  "mass_g": 13.1,
+  "length_cm": [
+   14.0,
+   16.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Western_wood_pewee",
+   "text": "The bird is about 5.5–6.3 in (14–16 cm) in length, 0.4–0.5 oz (11–14 g) in weight, and has a wingspan of 10.2 in (26 cm)."
+  }
+ },
+ "Haemorhous mexicanus": {
+  "ebird": "houfin",
+  "mass_g": 21.4,
+  "length_cm": [
+   12.5,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/House_finch",
+   "text": "== Description == The house finch is a moderate-sized finch, 12.5 to 15 cm (5 to 6 in) long, with a wingspan of 20 to 25 cm (8 to 10 in)."
+  }
+ },
+ "Spinus pinus": {
+  "ebird": "pinsis",
+  "mass_g": 12.7,
+  "length_cm": [
+   11.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pine_siskin",
+   "text": "In both sexes, total length can range from 11–14 cm (4.3–5.5 in), with a wingspan of 18–22 cm (7.1–8.7 in) and a weight of 12–18 g (0.42–0.63 oz)."
+  }
+ },
+ "Geothlypis trichas": {
+  "ebird": "comyel",
+  "mass_g": 9.5
+ },
+ "Pandion haliaetus": {
+  "ebird": "osprey",
+  "mass_g": 1483.2
+ },
+ "Ardea herodias": {
+  "ebird": "grbher3",
+  "mass_g": 2523.4,
+  "length_cm": [
+   91.0,
+   137.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Great_blue_heron",
+   "text": "It has a head-to-tail length of 91–137 cm (36–54 in)."
+  }
+ },
+ "Sturnella neglecta": {
+  "ebird": "wesmea",
+  "mass_g": 100.1,
+  "length_cm": [
+   20.0,
+   20.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Western_meadowlark",
+   "text": "The western meadowlark (Sturnella neglecta) is a medium-sized icterid bird, about 20 cm (7.9 in) in length."
+  }
+ },
+ "Petrochelidon pyrrhonota": {
+  "ebird": "cliswa",
+  "mass_g": 21.6,
+  "length_cm": [
+   13.0,
+   13.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cliff_swallow",
+   "text": "== Description == The cliff swallow's average body length is 13 cm (5.1 in), and they have short legs and small bills with relatively long pointed wings."
+  }
+ },
+ "Calypte anna": {
+  "ebird": "annhum",
+  "mass_g": 4.2,
+  "length_cm": [
+   9.9,
+   10.9
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Anna%27s_hummingbird",
+   "text": "== Description == Anna's hummingbirds are 3.9 to 4.3 in (9.9 to 10.9 cm) long with a wingspan of 4.7 inches (12 cm) and a weight range of 0.1 to 0.2 oz (2.8 to 5.7 g)."
+  }
+ },
+ "Passerina amoena": {
+  "ebird": "lazbun",
+  "mass_g": 15.5,
+  "length_cm": [
+   13.0,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Lazuli_bunting",
+   "text": "== Description == Measurements: Length: 5.1–5.9 in (13–15 cm) Weight: 0.5–0.6 oz (13–18 g) Wingspan: 8.7 in (22 cm) The male is easily recognized by its bright blue head and back (lighter than the closely related indigo bunting), its conspicuous white wingbars, and its light rusty breast and white belly."
+  }
+ },
+ "Patagioenas fasciata": {
+  "ebird": "batpig1",
+  "mass_g": 366.3,
+  "length_cm": [
+   33.0,
+   40.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Band-tailed_pigeon",
+   "text": "== Description == The band-tailed pigeon is one of the largest pigeons in the Americas, measuring 33 to 40 cm (13 to 16 in) long and weighing 226–460 g (8.0–16.2 oz), with the males on average slightly larger than females, but with much overlap."
+  }
+ },
+ "Empidonax hammondii": {
+  "ebird": "hamfly",
+  "mass_g": 10.4,
+  "length_cm": [
+   12.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Hammond%27s_flycatcher",
+   "text": "== Description == Adults are 12–14 cm long (4.7–5.5 in), span about 22 cm (8.7 in) across the wing and weigh 8–12 g (0.3–04 oz)."
+  }
+ },
+ "Setophaga nigrescens": {
+  "ebird": "btywar",
+  "mass_g": 8.7,
+  "length_cm": [
+   13.0,
+   13.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Black-throated_gray_warbler",
+   "text": "It is 13 cm (5.1 in) long and has gray and white plumage with black markings."
+  }
+ },
+ "Dryobates villosus": {
+  "ebird": "haiwoo",
+  "mass_g": 62.7,
+  "length_cm": [
+   25.0,
+   25.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Hairy_woodpecker",
+   "text": "It is approximately 250 mm (9.8 in) in length with a 380 mm (15 in) wingspan."
+  }
+ },
+ "Stelgidopteryx serripennis": {
+  "ebird": "nrwswa",
+  "mass_g": 15.7,
+  "length_cm": [
+   13.0,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_rough-winged_swallow",
+   "text": "== Description == Adults are 13–15 cm (5.1–5.9 in) in length, brown above with white underparts, a small bill, and a forked tail."
+  }
+ },
+ "Callipepla californica": {
+  "ebird": "calqua",
+  "mass_g": 165.7
+ },
+ "Icterus bullockii": {
+  "ebird": "bulori",
+  "mass_g": 37.9
+ },
+ "Passerculus sandwichensis": {
+  "ebird": "savspa",
+  "mass_g": 20.0
+ },
+ "Nannopterum auritum": {
+  "ebird": "doccor",
+  "mass_g": 1806.5,
+  "length_cm": [
+   70.0,
+   90.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Double-crested_cormorant",
+   "text": "Measuring 70–90 cm (28–35 in) in length, it is entirely black except for a bare patch of orange-yellow facial skin and some extra plumage that it exhibits in the breeding season when it grows a double crest in which black feathers are mingled with white."
+  }
+ },
+ "Empidonax traillii": {
+  "ebird": "wilfly",
+  "mass_g": 13.4
+ },
+ "Geothlypis tolmiei": {
+  "ebird": "macwar",
+  "mass_g": 10.4,
+  "length_cm": [
+   10.0,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/MacGillivray%27s_warbler",
+   "text": "== Description == MacGillivray's warbler is 10 to 15 cm (3.9 to 5.9 in) long, weighs 9 to 13 g (0.32 to 0.46 oz), and has a wingspan of 19 cm (7.5 in)."
+  }
+ },
+ "Actitis macularius": {
+  "ebird": "sposan",
+  "mass_g": 40.4,
+  "length_cm": [
+   18.0,
+   20.1
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Spotted_sandpiper",
+   "text": "Measurements: Length: 7.1-7.9 in (18–20 cm) Weight: 1.2-1.8 oz (34-50 g) Wingspan: 14.6-15.8 in (37–40 cm) == Distribution == Spotted sandpipers are a philopatric species."
+  }
+ },
+ "Setophaga townsendi": {
+  "ebird": "towwar",
+  "mass_g": 8.8
+ },
+ "Certhia americana": {
+  "ebird": "brncre",
+  "mass_g": 8.1,
+  "length_cm": [
+   11.9,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Brown_creeper",
+   "text": "Measurements: Length: 4.7–5.5 in (12–14 cm) Weight: 0.2–0.3 oz (5.7–8.5 g) Wingspan: 6.7–7.9 in (17–20 cm) Its voice includes single very high pitched, short, often insistent, piercing calls; see, or swee."
+  }
+ },
+ "Megaceryle alcyon": {
+  "ebird": "belkin1",
+  "mass_g": 148.0,
+  "length_cm": [
+   28.0,
+   35.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Belted_kingfisher",
+   "text": "== Description == The belted kingfisher is a stocky, medium-sized bird that measures from 28–35 cm (11–14 in) in length with a wingspan from 48–58 cm (19–23 in)."
+  }
+ },
+ "Loxia curvirostra": {
+  "ebird": "redcro",
+  "mass_g": 38.3,
+  "length_cm": [
+   20.0,
+   20.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red_crossbill",
+   "text": "Measurements: Length: 20 cm Weight: 40–53 g Wingspan: 27–29 cm == Breeding and irruption == Red crossbills breed in a variety of coniferous forests across North America and Eurasia."
+  }
+ },
+ "Passer domesticus": {
+  "ebird": "houspa",
+  "mass_g": 26.5,
+  "length_cm": [
+   16.0,
+   16.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/House_sparrow",
+   "text": "It is a small bird that has a typical length of 16 cm (6.3 in) and a mass of 24–39.5 g (0.85–1.39 oz)."
+  }
+ },
+ "Troglodytes aedon": {
+  "ebird": "houwre",
+  "mass_g": 10.9,
+  "length_cm": [
+   11.0,
+   13.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_house_wren",
+   "text": "Vincent wren, Troglodytes musicus Grenada wren, Troglodytes grenadensis Cobb's wren, Troglodytes cobbi == Description == Adult northern house wrens are about 11 to 13 cm (4.3 to 5.1 in) long, with a 15 cm (5.9 in) wingspan and weigh about 10 to 12 g (0.35 to 0.42 oz)."
+  }
+ },
+ "Catharus guttatus": {
+  "ebird": "herthr",
+  "mass_g": 30.1,
+  "length_cm": [
+   15.0,
+   18.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Hermit_thrush",
+   "text": "== Description == This species measures 15 to 18 cm (5.9 to 7.1 in) in length, spans 25 to 30 cm (9.8 to 11.8 in) across the wings and weighs 18 to 37 g (0.63 to 1.31 oz)."
+  }
+ },
+ "Dryocopus pileatus": {
+  "ebird": "pilwoo",
+  "mass_g": 286.6,
+  "length_cm": [
+   40.0,
+   49.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pileated_woodpecker",
+   "text": "Adults are 40 to 49 cm (16 to 19 in) long, span 66 to 75 cm (26 to 30 in) across the wings, and weigh 225 to 400 g (7.9 to 14.1 oz)."
+  }
+ },
+ "Contopus cooperi": {
+  "ebird": "olsfly",
+  "mass_g": 32.1
+ },
+ "Mergus merganser": {
+  "ebird": "commer",
+  "mass_g": 1451.0
+ },
+ "Chaetura vauxi": {
+  "ebird": "vauswi",
+  "mass_g": 17.1,
+  "length_cm": [
+   10.7,
+   11.2
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Vaux%27s_swift",
+   "text": "== Description == This is a small swift, even compared to other Chaetura species, at 10.7 to 11.2 cm (4.2 to 4.4 in) long and weighing 18 g (0.63 oz)."
+  }
+ },
+ "Gavia immer": {
+  "ebird": "comloo",
+  "mass_g": 4956.8,
+  "length_cm": [
+   66.0,
+   91.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Common_loon",
+   "text": "== Description == The adult common loon can range from 66 to 91 cm (26 to 36 in) in length with a 127 to 147 cm (4 ft 2 in to 4 ft 10 in) wingspan, slightly smaller than the similar yellow-billed loon."
+  }
+ },
+ "Falco sparverius": {
+  "ebird": "amekes",
+  "mass_g": 114.6,
+  "length_cm": [
+   22.0,
+   31.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_kestrel",
+   "text": "The bird ranges from 22 to 31 cm (8.7 to 12.2 in) in length with a wingspan of 51–61 cm (20–24 in)."
+  }
+ },
+ "Corthylio calendula": {
+  "ebird": "ruckin",
+  "mass_g": 6.2,
+  "length_cm": [
+   9.0,
+   11.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Ruby-crowned_kinglet",
+   "text": "== Description == The ruby-crowned kinglet is a very small bird, being 9 to 11 cm (3.5 to 4.3 in) long, having a wingspan of 16 to 18 cm (6.3 to 7.1 in), and weighing 5 to 10 g (0.2 to 0.4 oz)."
+  }
+ },
+ "Larus glaucescens": {
+  "ebird": "glwgul",
+  "mass_g": 1056.5,
+  "length_cm": [
+   50.0,
+   68.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Glaucous-winged_gull",
+   "text": "It measures 50–68 cm (20–27 in) in length and 120–150 cm (47–59 in) in wingspan, with a body mass of 730–1,690 g (1.61–3.73 lb)."
+  }
+ },
+ "Columba livia": {
+  "ebird": "rocpig",
+  "mass_g": 354.2,
+  "length_cm": [
+   30.0,
+   35.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Rock_dove",
+   "text": "The adult of the nominate subspecies of the rock dove is 30 to 35 cm (12 to 14 in) long with a 62 to 68 cm (24 to 27 in) wingspan."
+  }
+ },
+ "Tyrannus verticalis": {
+  "ebird": "weskin",
+  "mass_g": 39.6
+ },
+ "Sphyrapicus ruber": {
+  "ebird": "rebsap",
+  "mass_g": 54.8
+ },
+ "Ixoreus naevius": {
+  "ebird": "varthr",
+  "mass_g": 77.5,
+  "length_cm": [
+   20.0,
+   26.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Varied_thrush",
+   "text": "It can range from 20 to 26 cm (7.9 to 10.2 in) in length and can span 34 to 42 cm (13 to 17 in) across the wings."
+  }
+ },
+ "Poecile gambeli": {
+  "ebird": "mouchi",
+  "mass_g": 11.2,
+  "length_cm": [
+   12.7,
+   15.2
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Mountain_chickadee",
+   "text": "The typical adult wingspan is 7.5 in (19 cm), and the overall length is 5–6 in (13–15 cm)."
+  }
+ },
+ "Thryomanes bewickii": {
+  "ebird": "bewwre",
+  "mass_g": 9.9,
+  "length_cm": [
+   14.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Bewick%27s_wren",
+   "text": "At about 14 cm (5.5 in) long, it is grey-brown above, white below, with a long white eyebrow."
+  }
+ },
+ "Vireo cassinii": {
+  "ebird": "casvir",
+  "mass_g": 14.7,
+  "length_cm": [
+   11.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cassin%27s_vireo",
+   "text": "== Appearance == The vireo is 11–14 cm (4–6 inches) long."
+  }
+ },
+ "Dryobates pubescens": {
+  "ebird": "dowwoo",
+  "mass_g": 25.6,
+  "length_cm": [
+   14.0,
+   18.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Downy_woodpecker",
+   "text": "Length ranges from 14 to 18 cm (5.5 to 7.1 in)."
+  }
+ },
+ "Coccothraustes vespertinus": {
+  "ebird": "evegro",
+  "mass_g": 57.3
+ },
+ "Haemorhous cassinii": {
+  "ebird": "casfin",
+  "mass_g": 26.5,
+  "length_cm": [
+   16.0,
+   16.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cassin%27s_finch",
+   "text": "== Description == Measurements: Length: 6.3 in (16 cm) Weight: 0.8–1.2 oz (24–34 g) Wingspan: 9.8–10.6 in (25–27 cm) Adults have a short forked brown tail and brown wings."
+  }
+ },
+ "Empidonax oberholseri": {
+  "ebird": "dusfly",
+  "mass_g": 10.4
+ },
+ "Pica hudsonia": {
+  "ebird": "bkbmag1",
+  "mass_g": 177.1,
+  "length_cm": [
+   45.0,
+   60.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Black-billed_magpie",
+   "text": "It is a medium-sized bird that measures 45–60 cm (18–24 in) from tip to tail."
+  }
+ },
+ "Fulica americana": {
+  "ebird": "y00475",
+  "mass_g": 636.7,
+  "length_cm": [
+   34.0,
+   43.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_coot",
+   "text": "== Description == The American coot measures 34–43 cm (13–17 in) in length with a wingspan of 58 to 71 cm (23 to 28 in)."
+  }
+ },
+ "Larus delawarensis": {
+  "ebird": "ribgul",
+  "mass_g": 516.3
+ },
+ "Pooecetes gramineus": {
+  "ebird": "vesspa",
+  "mass_g": 25.7
+ },
+ "Xanthocephalus xanthocephalus": {
+  "ebird": "yehbla",
+  "mass_g": 62.7,
+  "length_cm": [
+   21.1,
+   25.9
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Yellow-headed_blackbird",
+   "text": "They measure 8.3–10.2 in (21–26 cm) in length, with a wingspan of 16.5–17.3 in (42–44 cm) and a weight of 1.6–3.5 oz (44–100 g)."
+  }
+ },
+ "Setophaga occidentalis": {
+  "ebird": "herwar",
+  "mass_g": 10.4
+ },
+ "Cistothorus palustris": {
+  "ebird": "eamwre1",
+  "mass_g": 10.8,
+  "length_cm": [
+   9.9,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Marsh_wren",
+   "text": "Measurements: Length: 3.9–5.5 in (9.9–14.0 cm) Weight: 0.3–0.5 oz (8.5–14.2 g) Wingspan: 5.9 inches (15 cm) == Foraging and diet == These birds forage actively in vegetation close to the water, occasionally flying up to catch insects in flight."
+  }
+ },
+ "Circus hudsonius": {
+  "ebird": "norhar2",
+  "mass_g": 393.0,
+  "length_cm": [
+   41.0,
+   52.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_harrier",
+   "text": "== Description == The northern harrier is 41–52 cm (16–20 in) long with a 97–122 cm (38–48 in) wingspan."
+  }
+ },
+ "Aythya collaris": {
+  "ebird": "rinduc",
+  "mass_g": 704.6,
+  "length_cm": [
+   38.9,
+   46.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Ring-necked_duck",
+   "text": "== Description == Ring-necked ducks are small to medium-sized diving ducks with the following length, weight, and wingspan measurements: Length: 15.3–18.1 in (39–46 cm) Weight: 17.3–32.1 oz (490–910 g) Wingspan: 24.4–24.8 in (62–63 cm) The adult male is similar in color pattern to the Eurasian tufted duck, its relative."
+  }
+ },
+ "Larus californicus": {
+  "ebird": "calgul",
+  "mass_g": 683.4
+ },
+ "Gallinago delicata": {
+  "ebird": "wilsni1",
+  "mass_g": 112.9,
+  "length_cm": [
+   23.0,
+   28.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Wilson%27s_snipe",
+   "text": "== Description == Adults are 23–28 cm (9.1–11.0 in) in length with a 39–45 cm (15–18 in) wingspan."
+  }
+ },
+ "Tyrannus tyrannus": {
+  "ebird": "easkin",
+  "mass_g": 39.9
+ },
+ "Sialia currucoides": {
+  "ebird": "moublu",
+  "mass_g": 29.6,
+  "length_cm": [
+   15.5,
+   18.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Mountain_bluebird",
+   "text": "== Description == The mountain bluebird is 15.5–18 cm (6.1–7.1 in) in length, weighs 24–37 g (0.85–1.31 oz), and has a wingspan of 11.0-14.2 in (28-36 cm)."
+  }
+ },
+ "Leiothlypis ruficapilla": {
+  "ebird": "naswar",
+  "mass_g": 8.1,
+  "length_cm": [
+   10.9,
+   13.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Nashville_warbler",
+   "text": "Measurements: Length: 4.3–5.1 in (11–13 cm) Weight: 0.2–0.5 oz (5.7–14.2 g) Wingspan: 6.7–7.9 in (17–20 cm) == Call == The song of the nominate eastern subspecies consists of a rapid seewit-seewit-seewit-ti-ti-ti."
+  }
+ },
+ "Mareca strepera": {
+  "ebird": "gadwal",
+  "mass_g": 915.6,
+  "length_cm": [
+   47.0,
+   58.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Gadwall",
+   "text": "== Description == The gadwall is 47–58 cm (19–23 in) long with a 78–85 cm (31–33 in) wingspan."
+  }
+ },
+ "Passerella iliaca": {
+  "ebird": "foxspa",
+  "mass_g": 33.3
+ },
+ "Antigone canadensis": {
+  "ebird": "sancra",
+  "mass_g": 4296.2
+ },
+ "Eremophila alpestris": {
+  "ebird": "horlar",
+  "mass_g": 33.3,
+  "length_cm": [
+   16.0,
+   20.1
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Horned_lark",
+   "text": "Measurements: Length: 6.3-7.9 in (16-20 cm) Weight: 1.0-1.7 oz (28-48 g) Wingspan: 11.8-13.4 in (30-34 cm) Vocalizations are high-pitched, lisping or tinkling, and weak."
+  }
+ },
+ "Podilymbus podiceps": {
+  "ebird": "pibgre",
+  "mass_g": 411.9,
+  "length_cm": [
+   31.0,
+   38.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pied-billed_grebe",
+   "text": "They are 31–38 cm (12–15 in) in length, with a wingspan of 45–62 cm (18–24 in) and weigh 253–568 g (8.9–20.0 oz)."
+  }
+ },
+ "Aix sponsa": {
+  "ebird": "wooduc",
+  "mass_g": 657.6,
+  "length_cm": [
+   47.0,
+   54.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Wood_duck",
+   "text": "A typical adult is from 47 to 54 cm (19 to 21 in) in length with a wingspan of between 66 and 73 cm (26 and 29 in)."
+  }
+ },
+ "Mareca americana": {
+  "ebird": "amewig",
+  "mass_g": 754.6,
+  "length_cm": [
+   42.0,
+   59.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_wigeon",
+   "text": "It is 42–59 cm (17–23 in) long, with a 76–91 cm (30–36 in) wingspan and a weight of 512–1,330 g (1.129–2.932 lb)."
+  }
+ },
+ "Pelecanus erythrorhynchos": {
+  "ebird": "amwpel",
+  "mass_g": 5608.5,
+  "length_cm": [
+   127.0,
+   177.8
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_white_pelican",
+   "text": "Both very large and plump, it has an overall length of about 50–70 in (130–180 cm), courtesy of the huge beak which measures 11.3–15.2 in (290–390 mm) in males and 10.3–14.2 in (260–360 mm) in females."
+  }
+ },
+ "Bucephala albeola": {
+  "ebird": "buffle",
+  "mass_g": 397.5,
+  "length_cm": [
+   32.0,
+   40.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Bufflehead",
+   "text": "== Description == The bufflehead ranges from 32–40 cm (13–16 in) long and weighs 270–550 g (9.5–19.4 oz), with the drakes larger than the females."
+  }
+ },
+ "Tringa melanoleuca": {
+  "ebird": "greyel",
+  "mass_g": 161.7,
+  "length_cm": [
+   29.0,
+   40.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Greater_yellowlegs",
+   "text": "It ranges in length from 29 to 40 cm (11 to 16 in) and in weight from 111 to 250 g (3.9 to 8.8 oz)."
+  }
+ },
+ "Bonasa umbellus": {
+  "ebird": "rufgro",
+  "mass_g": 530.9,
+  "length_cm": [
+   40.0,
+   50.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Ruffed_grouse",
+   "text": "yukonensis (Grinnell, 1916) - Alaska (USA) and northwestern Canada == Description == Ruffed grouse are chunky, medium-sized birds that weigh from 450–750 g (0.99–1.65 lb), measure from 40 to 50 cm (16 to 20 in) in length, and span 50–64 cm (20–25 in) across their short, strong wings."
+  }
+ },
+ "Dendragapus fuliginosus": {
+  "ebird": "soogro1",
+  "mass_g": 1047.3,
+  "length_cm": [
+   40.0,
+   50.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Sooty_grouse",
+   "text": "The bird averages 40–50 cm (16–20 in) in length and weighs 750–1,300 g (1.65–2.87 lb)."
+  }
+ },
+ "Spatula clypeata": {
+  "ebird": "norsho",
+  "mass_g": 612.6,
+  "length_cm": [
+   44.0,
+   52.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_shoveler",
+   "text": "They are 44–52 cm (17.3–20.5 in) long and have a wingspan of 70–84 cm (27.6–33.1 in) with a weight of 500–800 g (1.1–1.8 lb), rarely only 300 g, or as much as 1,000 g."
+  }
+ },
+ "Buteo swainsoni": {
+  "ebird": "swahaw",
+  "mass_g": 946.6,
+  "length_cm": [
+   43.0,
+   56.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Swainson%27s_hawk",
+   "text": "Swainson's hawk is on average a little shorter in length, 43–56 cm (17–22 in) long, and weighs a bit less, 0.5–1.7 kg (1.1–3.7 lb)."
+  }
+ },
+ "Oxyura jamaicensis": {
+  "ebird": "rudduc",
+  "mass_g": 608.2
+ },
+ "Chordeiles minor": {
+  "ebird": "comnig",
+  "mass_g": 79.3,
+  "length_cm": [
+   22.0,
+   25.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Common_nighthawk",
+   "text": "The common nighthawk measures 22 to 25 cm (8.7 to 9.8 in) long, displays a wing span of 51 to 61 cm (20 to 24 in) weighs 55 to 98 g (1.9 to 3.5 oz), and has a life span of 4 to 5 years."
+  }
+ },
+ "Dumetella carolinensis": {
+  "ebird": "grycat",
+  "mass_g": 35.3,
+  "length_cm": [
+   20.5,
+   24.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Gray_catbird",
+   "text": "== Description == Adults weigh from 23.2 to 56.5 g (0.8 to 2.0 oz), with an average of 35–40 g (1.2–1.4 oz) They range in length from 20.5 to 24 cm (8.1 to 9.4 in) and span 22 to 30 cm (8.7 to 11.8 in) across the wings."
+  }
+ },
+ "Riparia riparia": {
+  "ebird": "banswa",
+  "mass_g": 12.7
+ },
+ "Zonotrichia atricapilla": {
+  "ebird": "gocspa",
+  "mass_g": 32.0,
+  "length_cm": [
+   15.0,
+   18.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Golden-crowned_sparrow",
+   "text": "== Description == Measuring 15–18 cm (6–7 in) in length with a wingspan of 24.75 cm (9.74 in) and ranging from 19.0 to 35.4 g (0.67 to 1.25 oz) in mass, the adult golden-crowned sparrow is fairly large for an American sparrow."
+  }
+ },
+ "Melospiza lincolnii": {
+  "ebird": "linspa",
+  "mass_g": 16.6,
+  "length_cm": [
+   13.0,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Lincoln%27s_sparrow",
+   "text": "Adult measurements: Length: 5.1–5.9 in (13–15 cm) Weight: 0.6–0.7 oz (17–19 g) Wingspan: 7.5–8.7 in (19–22 cm) == Taxonomy == Lincoln's sparrow was named by John James Audubon after his friend Thomas Lincoln of Dennysville, Maine."
+  }
+ },
+ "Anas crecca": {
+  "ebird": "gnwtea",
+  "mass_g": 341.9
+ },
+ "Spatula cyanoptera": {
+  "ebird": "cintea",
+  "mass_g": 377.5,
+  "length_cm": [
+   40.6,
+   40.6
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cinnamon_teal",
+   "text": "They are 16 in (41 cm) long, have a 22-inch (560 mm) wingspan, and weigh 14 oz (400 g)."
+  }
+ },
+ "Aythya affinis": {
+  "ebird": "lessca",
+  "mass_g": 819.5,
+  "length_cm": [
+   38.0,
+   48.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Lesser_scaup",
+   "text": "== Description == Adults are 38–48 cm (15–19 in) long, 41.7–43 cm (16.4–16.9 in) on average."
+  }
+ },
+ "Porzana carolina": {
+  "ebird": "sora",
+  "mass_g": 74.8,
+  "length_cm": [
+   19.0,
+   30.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Sora_%28bird%29",
+   "text": "== Description == Adult soras are 19–30 cm (7.5–11.8 in) long, with dark-marked brown upperparts, a blue-grey face and underparts, and black and white barring on the flanks."
+  }
+ },
+ "Aechmophorus occidentalis": {
+  "ebird": "wesgre",
+  "mass_g": 1137.0,
+  "length_cm": [
+   55.0,
+   75.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Western_grebe",
+   "text": "It is 55–75 cm (22–30 in) long, weighs 795–2,000 g (1.753–4.409 lb) and measures 79–102 cm (31–40 in) across the wings."
+  }
+ },
+ "Catharus fuscescens": {
+  "ebird": "veery",
+  "mass_g": 31.9,
+  "length_cm": [
+   16.0,
+   19.5
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Veery",
+   "text": "== Description == This species measures 16–19.5 cm (6.3–7.7 in) in length."
+  }
+ },
+ "Melanitta perspicillata": {
+  "ebird": "sursco",
+  "mass_g": 1096.3,
+  "length_cm": [
+   44.0,
+   48.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Surf_scoter",
+   "text": "The adult male is on average ... 48 cm (19 in) in length while the adult female averages ... 44 cm (17 in) in length."
+  }
+ },
+ "Cepphus columba": {
+  "ebird": "piggui",
+  "mass_g": 530.0,
+  "length_cm": [
+   30.0,
+   37.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pigeon_guillemot",
+   "text": "== Description == The pigeon guillemot is a medium-sized auk, 30 to 37 cm (12 to 15 in) in length and weighing 450 to 550 g (16 to 19 oz)."
+  }
+ },
+ "Hydroprogne caspia": {
+  "ebird": "caster1",
+  "mass_g": 655.0
+ },
+ "Psaltriparus minimus": {
+  "ebird": "bushti",
+  "mass_g": 5.3,
+  "length_cm": [
+   10.0,
+   11.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_bushtit",
+   "text": "== Description == With a length of 100–110 mm (3.9–4.3 in) and a weight of 4.5–6 g (0.16–0.21 oz), the American bushtit is one of the smallest passerines in North America."
+  }
+ },
+ "Vireo huttoni": {
+  "ebird": "hutvir",
+  "mass_g": 11.3,
+  "length_cm": [
+   10.0,
+   12.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Hutton%27s_vireo",
+   "text": "== Description == Hutton's vireo is 10 to 12 cm (3.9 to 4.7 in) long and weighs about 9 to 15 g (0.32 to 0.53 oz)."
+  }
+ },
+ "Archilochus alexandri": {
+  "ebird": "bkchum",
+  "mass_g": 3.4,
+  "length_cm": [
+   8.2,
+   8.2
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Black-chinned_hummingbird",
+   "text": "== Description == The black-chinned hummingbird is 8.25 cm (3.25 in) long."
+  }
+ },
+ "Phasianus colchicus": {
+  "ebird": "rinphe1",
+  "mass_g": 1120.3
+ },
+ "Calidris minutilla": {
+  "ebird": "leasan",
+  "mass_g": 22.9
+ },
+ "Selasphorus calliope": {
+  "ebird": "calhum",
+  "mass_g": 2.6,
+  "length_cm": [
+   7.0,
+   10.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Calliope_hummingbird",
+   "text": "An adult calliope hummingbird can measure 7–10 cm (2.8–3.9 in) in length, span 11 cm (4.3 in) across the wings and weigh 2 to 3 g (0.071 to 0.106 oz)."
+  }
+ },
+ "Podiceps grisegena": {
+  "ebird": "rengre",
+  "mass_g": 1023.0
+ },
+ "Perisoreus canadensis": {
+  "ebird": "gryjay",
+  "mass_g": 71.6,
+  "length_cm": [
+   25.0,
+   33.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Canada_jay",
+   "text": "A typical adult Canada jay is between 25 and 33 cm (9.8 and 13.0 in) long."
+  }
+ },
+ "Meleagris gallopavo": {
+  "ebird": "wiltur",
+  "mass_g": 5791.4
+ },
+ "Sphyrapicus nuchalis": {
+  "ebird": "rensap",
+  "mass_g": 48.5,
+  "length_cm": [
+   19.0,
+   21.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-naped_sapsucker",
+   "text": "== Description == The red-naped sapsucker is a medium-sized woodpecker, measuring 19–21 cm (7.5–8.3 in) long and weighing 32–66 g (1.1–2.3 oz)."
+  }
+ },
+ "Lophodytes cucullatus": {
+  "ebird": "hoomer",
+  "mass_g": 613.8,
+  "length_cm": [
+   40.1,
+   49.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Hooded_merganser",
+   "text": "Measurements: Length: 15.8–19.3 in (40–49 cm) Weight: 16.0–31.0 oz (453–879 g) Wingspan: 23.6–26.0 in (60–66 cm) == Distribution and habitat == Hooded mergansers are short-distance migrants, and they winter in the United States in regions where winter temperatures allow for ice-free conditions on ponds, lakes and rivers."
+  }
+ },
+ "Calidris mauri": {
+  "ebird": "wessan",
+  "mass_g": 27.8
+ },
+ "Parkesia noveboracensis": {
+  "ebird": "norwat",
+  "mass_g": 16.3
+ },
+ "Gavia pacifica": {
+  "ebird": "pacloo",
+  "mass_g": 2251.1,
+  "length_cm": [
+   58.0,
+   74.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pacific_loon",
+   "text": "They measure 58–74 cm (23–29 in) in length, 110–128 cm (43–50 in) in wingspan and weigh 1–2.5 kg (2.2–5.5 lb)."
+  }
+ },
+ "Aphelocoma californica": {
+  "ebird": "cowscj1",
+  "mass_g": 85.7,
+  "length_cm": [
+   27.0,
+   31.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/California_scrub_jay",
+   "text": "== Description == The California scrub jay is a medium-sized bird, approximately 27–31 cm (11–12 in) in length (including its tail), with a 39 cm (15 in) wingspan, and about 80 g (2.8 oz) in weight."
+  }
+ },
+ "Phalaropus tricolor": {
+  "ebird": "wilpha",
+  "mass_g": 59.4,
+  "length_cm": [
+   23.0,
+   23.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Wilson%27s_phalarope",
+   "text": "== Description == Wilson's phalarope is slightly larger than the red phalarope at about 23 cm (9.1 in) in length."
+  }
+ },
+ "Aythya americana": {
+  "ebird": "redhea",
+  "mass_g": 1075.7,
+  "length_cm": [
+   40.0,
+   56.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Redhead_%28bird%29",
+   "text": "The redhead is 40–56 cm (16–22 in) long with an 74–84 cm (29–33 in) wingspan; weights range from 1,030–1,080 g (36–38 oz), with males weighing an average of 1,080 g (38 oz) and females an average of 1,030 g (36 oz)."
+  }
+ },
+ "Ardea alba": {
+  "ebird": "greegr",
+  "mass_g": 871.3,
+  "length_cm": [
+   80.0,
+   104.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Great_egret",
+   "text": "Standing up to 1 m (3 ft 3 in) tall, this species can measure 80 to 104 cm (31 to 41 in) in length with a wingspan of 131 to 170 cm (52 to 67 in)."
+  }
+ },
+ "Bubo virginianus": {
+  "ebird": "grhowl",
+  "mass_g": 1354.5,
+  "length_cm": [
+   43.0,
+   64.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Great_horned_owl",
+   "text": "Adult great horned owls range in length from 43 to 64 cm (17 to 25 in), with an average of 55 cm (22 in), and possess a wingspan of 91 to 153 cm (3 ft 0 in to 5 ft 0 in), with an average of 122 cm (48 in)."
+  }
+ },
+ "Icteria virens": {
+  "ebird": "yebcha",
+  "mass_g": 24.9
+ },
+ "Spatula discors": {
+  "ebird": "buwtea",
+  "mass_g": 359.4
+ },
+ "Falco columbarius": {
+  "ebird": "merlin",
+  "mass_g": 188.5,
+  "length_cm": [
+   24.0,
+   33.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Merlin_%28bird%29",
+   "text": "pacificus (Stegmann, 1929) – Pacific merlin Russian Far East to Sakhalin, migratory, winters in Japan, Korea, and nearby == Description == The merlin is 24–33 cm (9.4–13.0 in) long with a 50–73 cm (20–29 in) wingspan."
+  }
+ },
+ "Myadestes townsendi": {
+  "ebird": "towsol",
+  "mass_g": 33.2
+ },
+ "Tringa semipalmata": {
+  "ebird": "willet2",
+  "mass_g": 245.7
+ },
+ "Podiceps auritus": {
+  "ebird": "horgre",
+  "mass_g": 453.0,
+  "length_cm": [
+   31.0,
+   38.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Horned_grebe",
+   "text": "It is 31–38 cm (12–15 in) long, has a wingspan 55–74 cm (22–29 in) wide and weighs 300–570 g (11–20 oz)."
+  }
+ },
+ "Cinclus mexicanus": {
+  "ebird": "amedip",
+  "mass_g": 56.7,
+  "length_cm": [
+   16.5,
+   16.5
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_dipper",
+   "text": "On average, it measures 16.5 cm (6.5 in) in length, has a wingspan of 23 cm (9.1 in), and weighs 46 g (1.6 oz)."
+  }
+ },
+ "Recurvirostra americana": {
+  "ebird": "ameavo",
+  "mass_g": 304.5,
+  "length_cm": [
+   40.0,
+   51.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_avocet",
+   "text": "== Description == The American avocet measures 40–51 cm (16–20 in) in length, has a wingspan of 68–76 cm (27–30 in) and weighs 275–420 g (9.7–14.8 oz) The bill is black, pointed, and curved slightly upwards towards the tip."
+  }
+ },
+ "Bucephala islandica": {
+  "ebird": "bargol",
+  "mass_g": 921.2,
+  "length_cm": [
+   43.0,
+   49.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Barrow%27s_goldeneye",
+   "text": "On average, adult males are 49 cm (19.2 in) long ...; females are typically 43 cm (17 in) long."
+  }
+ },
+ "Accipiter striatus": {
+  "ebird": "shshaw",
+  "mass_g": 130.6
+ },
+ "Charadrius semipalmatus": {
+  "ebird": "semplo",
+  "mass_g": 46.7,
+  "length_cm": [
+   17.0,
+   19.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Semipalmated_plover",
+   "text": "and measures 17–19 cm (6.7–7.5 in) in length with a 12–13 cm (4.7–5.1 in) mean wing length."
+  }
+ },
+ "Anas acuta": {
+  "ebird": "norpin",
+  "mass_g": 944.6,
+  "length_cm": [
+   51.0,
+   76.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_pintail",
+   "text": "The male is 59–76 cm (23–30 in) in length ..., the female, which is 51–64 cm (20–25 in) long."
+  }
+ },
+ "Numenius americanus": {
+  "ebird": "lobcur",
+  "mass_g": 583.9,
+  "length_cm": [
+   50.0,
+   65.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Long-billed_curlew",
+   "text": "It is 50–65 cm (20–26 in) long, 62–90 cm (24+1⁄2–35+1⁄2 in) across the wing and weighs 490–950 g (1 lb 1+1⁄2 oz – 2 lb 1+1⁄2 oz)."
+  }
+ },
+ "Falco peregrinus": {
+  "ebird": "perfal",
+  "mass_g": 760.0
+ },
+ "Himantopus mexicanus": {
+  "ebird": "bknsti",
+  "mass_g": 176.8,
+  "length_cm": [
+   35.1,
+   38.9
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Black-necked_stilt",
+   "text": "== Description == Measurements: Length: 13.8–15.3 in (35–39 cm) Weight: 5.3–6.2 oz (150–180 g) Wingspan: 28.1–29.7 in (71–75 cm) They have long pink legs and a long thin black bill."
+  }
+ },
+ "Salpinctes obsoletus": {
+  "ebird": "rocwre",
+  "mass_g": 16.4,
+  "length_cm": [
+   12.5,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Rock_wren",
+   "text": "== Description == The rock wren is between 12.5–15 cm (4.9–5.9 in) in length and has a wingspan of 22–24 cm (8.7–9.4 in)."
+  }
+ },
+ "Sialia mexicana": {
+  "ebird": "wesblu",
+  "mass_g": 26.4,
+  "length_cm": [
+   15.0,
+   18.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Western_bluebird",
+   "text": "mexicana Swainson, 1832 – south central Mexico == Description == The western bluebird is a small stocky bird with a length of 15 to 18 cm (5.9 to 7.1 in)."
+  }
+ },
+ "Rallus limicola": {
+  "ebird": "virrai",
+  "mass_g": 84.1,
+  "length_cm": [
+   20.0,
+   27.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Virginia_rail",
+   "text": "Adults measure 20–27 cm (7.9–10.6 in) in total length, and weigh about 85 g (3.0 oz) on average."
+  }
+ },
+ "Gavia stellata": {
+  "ebird": "retloo",
+  "mass_g": 1486.0,
+  "length_cm": [
+   53.0,
+   69.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-throated_loon",
+   "text": "The red-throated loon is the smallest and lightest of the world's loon species, ranging from 53 to 69 cm (21 to 27 in) in length with a 91–120 cm (36–47 in) wingspan, and weighing 1–2.7 kg (2.2–6.0 lb)."
+  }
+ },
+ "Chroicocephalus philadelphia": {
+  "ebird": "bongul",
+  "mass_g": 210.7,
+  "length_cm": [
+   28.0,
+   38.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Bonaparte%27s_gull",
+   "text": "At 28 to 38 cm (11 to 15 in) in length, it is one of the smallest species of gull."
+  }
+ },
+ "Setophaga ruticilla": {
+  "ebird": "amered",
+  "mass_g": 8.2,
+  "length_cm": [
+   11.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_redstart",
+   "text": "It measures 11 to 14 cm (4.3 to 5.5 in) in total length and has a wingspan of 16 to 23 cm (6.3 to 9.1 in)."
+  }
+ },
+ "Aquila chrysaetos": {
+  "ebird": "goleag",
+  "mass_g": 4248.0,
+  "length_cm": [
+   6.0,
+   6.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Golden_eagle",
+   "text": "The bill length from the gape measures around 6 cm (2.4 in)."
+  }
+ },
+ "Empidonax minimus": {
+  "ebird": "leafly",
+  "mass_g": 10.0
+ },
+ "Limnodromus scolopaceus": {
+  "ebird": "lobdow",
+  "mass_g": 104.4
+ },
+ "Anthus rubescens": {
+  "ebird": "amepip",
+  "mass_g": 20.7,
+  "length_cm": [
+   16.0,
+   16.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_pipit",
+   "text": "Measurements: Length: 16 cm Weight: 22 g Wingspan: 24 cm == Taxonomy == The scientific name is from Latin."
+  }
+ },
+ "Spinus psaltria": {
+  "ebird": "lesgol",
+  "mass_g": 8.8,
+  "length_cm": [
+   9.0,
+   12.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Lesser_goldfinch",
+   "text": "This species ranges from 9 to 12 cm (3.5 to 4.7 in) in length and can weigh from 8 to 11.5 g (0.28 to 0.41 oz)."
+  }
+ },
+ "Podiceps nigricollis": {
+  "ebird": "eargre",
+  "mass_g": 412.4
+ },
+ "Chondestes grammacus": {
+  "ebird": "larspa",
+  "mass_g": 29.0,
+  "length_cm": [
+   15.0,
+   17.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Lark_sparrow",
+   "text": "Measurements: Length: 5.9–6.7 in (15–17 cm) Weight: 0.8–1.2 oz (24–33 g) Wingspan: 11.0 in (28 cm) == Diet and behaviour == They forage on the ground or in low bushes."
+  }
+ },
+ "Sayornis saya": {
+  "ebird": "saypho",
+  "mass_g": 20.9,
+  "length_cm": [
+   19.1,
+   19.1
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Say%27s_phoebe",
+   "text": "The adult bird is 7.5 in (19 cm) long, has a wingspan of 13 in (33 cm) and weighs 0.75 oz (21 g)."
+  }
+ },
+ "Calidris alpina": {
+  "ebird": "dunlin",
+  "mass_g": 51.9,
+  "length_cm": [
+   16.0,
+   20.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Dunlin",
+   "text": "== Description == Measurements: Length: 16–20 cm (6.3–7.9 in) Weight: 34–77 g (1+1⁄4–2+3⁄4 oz) Wingspan: 38–43 cm (15–17 in) An adult dunlin in breeding plumage shows the distinctive black belly which no other similar-sized wader possesses."
+  }
+ },
+ "Tringa flavipes": {
+  "ebird": "lesyel",
+  "mass_g": 77.5
+ },
+ "Haematopus bachmani": {
+  "ebird": "blkoys",
+  "mass_g": 582.0
+ },
+ "Limosa fedoa": {
+  "ebird": "margod",
+  "mass_g": 357.0,
+  "length_cm": [
+   40.0,
+   50.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Marbled_godwit",
+   "text": "== Description == The total length is 40–50 cm (16–20 in), including a large bill of 8–13 cm (3.1–5.1 in), and wingspan is 70–88 cm (28–35 in)."
+  }
+ },
+ "Sitta carolinensis": {
+  "ebird": "whbnut",
+  "mass_g": 21.0,
+  "length_cm": [
+   15.5,
+   15.5
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/White-breasted_nuthatch",
+   "text": "It is a medium-sized nuthatch, measuring approximately 15.5 cm (6.1 in) in length."
+  }
+ },
+ "Vireo olivaceus": {
+  "ebird": "reevir1",
+  "mass_g": 16.1,
+  "length_cm": [
+   11.9,
+   13.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-eyed_vireo",
+   "text": "Measurements: Both sexes: Length: 4.7–5.1 in (12–13 cm) Weight: 0.4–0.9 oz (12–26 g) Wingspan: 9.1-9.8 in (23–25 cm) == Song == Red-eyed vireos are one of the most prolific singers in the bird world."
+  }
+ },
+ "Brachyramphus marmoratus": {
+  "ebird": "marmur",
+  "mass_g": 220.0
+ },
+ "Bucephala clangula": {
+  "ebird": "comgol",
+  "mass_g": 918.6
+ },
+ "Spizella breweri": {
+  "ebird": "brespa",
+  "mass_g": 10.9,
+  "length_cm": [
+   13.0,
+   15.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Brewer%27s_sparrow",
+   "text": "Measurements: Length: 5.1–5.9 in (13–15 cm) Weight: 0.4–0.5 oz (11–14 g) Wingspan: 7.1–7.9 in (18–20 cm) The male sings to defend a nesting territory."
+  }
+ },
+ "Nucifraga columbiana": {
+  "ebird": "clanut",
+  "mass_g": 129.8,
+  "length_cm": [
+   27.0,
+   30.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Clark%27s_nutcracker",
+   "text": "=== Measurements === Length: 27–30 cm (11–12 in) Weight: 106–161 g (3.7–5.7 oz) Wingspan: 60 cm (24 in) == Food == The most important food resources for this species are the seeds of pines (Pinus sp.), principally two cold-climate (high-altitude) species of white pine with large seeds: the whitebark pine (P."
+  }
+ },
+ "Melanerpes lewis": {
+  "ebird": "lewwoo",
+  "mass_g": 105.8,
+  "length_cm": [
+   25.9,
+   27.9
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Lewis%27s_woodpecker",
+   "text": "Measurements: Length: 10.2–11.0 in (26–28 cm) Weight: 3.1–4.9 oz (88–139 g) Wingspan: 19.3–20.5 in (49–52 cm) == Range and Habitat == Lewis's woodpecker is locally common to the northwestern United States, dwelling mostly in open pine woodlands, and other areas with scattered trees and snags."
+  }
+ },
+ "Larus occidentalis": {
+  "ebird": "wesgul",
+  "mass_g": 922.8,
+  "length_cm": [
+   55.0,
+   68.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Western_gull",
+   "text": "== Physical description == The western gull is a large gull that can measure 55 to 68 cm (22 to 27 in) in total length, spans 130 to 144 cm (51 to 57 in) across the wings, and weighs 800 to 1,400 g (1.8 to 3.1 lb)."
+  }
+ },
+ "Tringa solitaria": {
+  "ebird": "solsan",
+  "mass_g": 48.4,
+  "length_cm": [
+   18.0,
+   23.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Solitary_sandpiper",
+   "text": "== Description == This species measures 18–23 cm (7.1–9.1 in) long, with a wingspan up to 50 cm (20 in) and a body mass of 31–65 g (1.1–2.3 oz)."
+  }
+ },
+ "Sitta pygmaea": {
+  "ebird": "pygnut",
+  "mass_g": 10.6,
+  "length_cm": [
+   9.0,
+   11.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pygmy_nuthatch",
+   "text": "== Description == The pygmy nuthatch is 9–11 cm (3.5–4.3 in) long and with a wingspan of 19.7 cm (7.8 in), and weighs 9.3–11.4 g (0.33–0.40 oz)."
+  }
+ },
+ "Pelecanus occidentalis": {
+  "ebird": "brnpel",
+  "mass_g": 3427.8
+ },
+ "Pinicola enucleator": {
+  "ebird": "pingro",
+  "mass_g": 56.4,
+  "length_cm": [
+   20.0,
+   25.5
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pine_grosbeak",
+   "text": "It measures from 20 to 25.5 cm (7.9 to 10.0 in) in length and weighs from 52 to 78 g (1.8 to 2.8 oz), with an average mass of 56.4 g (1.99 oz)."
+  }
+ },
+ "Larus argentatus": {
+  "ebird": "euhgul1",
+  "mass_g": 1091.0
+ },
+ "Accipiter cooperii": {
+  "ebird": "coohaw",
+  "mass_g": 429.7,
+  "length_cm": [
+   35.0,
+   50.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cooper%27s_hawk",
+   "text": "Total length of full-grown birds can vary from 35 to 46 cm (14 to 18 in) in males and 42 to 50 cm (17 to 20 in) in females."
+  }
+ },
+ "Nycticorax nycticorax": {
+  "ebird": "bcnher",
+  "mass_g": 810.0
+ },
+ "Larus brachyrhynchus": {
+  "ebird": "mewgul2",
+  "mass_g": 412.5
+ },
+ "Asio flammeus": {
+  "ebird": "sheowl",
+  "mass_g": 322.6,
+  "length_cm": [
+   34.0,
+   43.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Short-eared_owl",
+   "text": "ponapensis – Mayr, 1933: found on Pohnpei in the Caroline Islands == Description == The short-eared owl is a medium-sized owl measuring 34–43 cm (13–17 in) in length and weighing 206–475 g (7.3–16.8 oz)."
+  }
+ },
+ "Uria aalge": {
+  "ebird": "commur",
+  "mass_g": 991.9,
+  "length_cm": [
+   38.0,
+   46.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Common_murre",
+   "text": "californica (Bryant, H, 1861) – coastal north Washington to south California (east North Pacific) == Description == The common murre is 38–46 cm (15–18 in) in length with a 61–73 cm (24–29 in) wingspan."
+  }
+ },
+ "Mergus serrator": {
+  "ebird": "rebmer",
+  "mass_g": 1015.2,
+  "length_cm": [
+   51.0,
+   64.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-breasted_merganser",
+   "text": "== Description == The adult red-breasted merganser is 51–64 cm (20–25 in) long, has a wingspan of 66–74 cm (26–29 in)."
+  }
+ },
+ "Limnodromus griseus": {
+  "ebird": "shbdow",
+  "mass_g": 110.5,
+  "length_cm": [
+   23.0,
+   32.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Short-billed_dowitcher",
+   "text": "This bird can range from 23 to 32 cm (9.1 to 12.6 in) in length, 46 to 56 cm (18 to 22 in) in wingspan and 73–155 g (2.6–5.5 oz) in body mass."
+  }
+ },
+ "Histrionicus histrionicus": {
+  "ebird": "harduc",
+  "mass_g": 561.6
+ },
+ "Aythya marila": {
+  "ebird": "gresca",
+  "mass_g": 1005.4,
+  "length_cm": [
+   39.0,
+   56.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Greater_scaup",
+   "text": "== Description == The adult greater scaup is 39–56 cm (15–22 in) long with a 71–84 cm (28–33 in) wingspan and a weight of 726–1,360 g (1.601–2.998 lb)."
+  }
+ },
+ "Plegadis chihi": {
+  "ebird": "whfibi",
+  "mass_g": 616.9,
+  "length_cm": [
+   46.0,
+   56.1
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/White-faced_ibis",
+   "text": "Measurements: Length: 18.1–22.1 in (46–56 cm) Weight: 15.9–18.5 oz (450–525 g) Wingspan: 35.4–36.6 in (90–93 cm) == Distribution == The white-faced ibis occurs in Canada, the United States, and Central America, and a second subspecies inhabits the southern half of South America, east of the Andes Mountains."
+  }
+ },
+ "Glaucidium gnoma": {
+  "ebird": "nopowl",
+  "mass_g": 61.3
+ },
+ "Phalaropus lobatus": {
+  "ebird": "renpha",
+  "mass_g": 36.7,
+  "length_cm": [
+   18.0,
+   18.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Red-necked_phalarope",
+   "text": "== Description == The red-necked phalarope is about 18 cm (7.1 in) in length, with lobed toes and a straight, fine bill."
+  }
+ },
+ "Cygnus buccinator": {
+  "ebird": "truswa",
+  "mass_g": 11071.1,
+  "length_cm": [
+   138.0,
+   165.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Trumpeter_swan",
+   "text": "Adults usually measure 138–165 cm (4 ft 6 in – 5 ft 5 in) long, though large males can exceed 180 cm (5 ft 11 in) in total length."
+  }
+ },
+ "Aythya valisineria": {
+  "ebird": "canvas",
+  "mass_g": 1202.0,
+  "length_cm": [
+   48.0,
+   56.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Canvasback",
+   "text": "== Description == It ranges from 48–56 cm (19–22 in) in length and weighs 862–1,588 g (1.900–3.501 lb), with a wingspan of 79–89 cm (31–35 in)."
+  }
+ },
+ "Falco mexicanus": {
+  "ebird": "prafal",
+  "mass_g": 713.1
+ },
+ "Calidris bairdii": {
+  "ebird": "baisan",
+  "mass_g": 41.0
+ },
+ "Cypseloides niger": {
+  "ebird": "blkswi",
+  "mass_g": 39.7
+ },
+ "Aegolius acadicus": {
+  "ebird": "nswowl",
+  "mass_g": 100.7,
+  "length_cm": [
+   17.0,
+   22.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_saw-whet_owl",
+   "text": "== Description == Adults are 17–22 cm (6.7–8.7 in) long with a 42–56.3 cm (16.5–22.2 in) wingspan."
+  }
+ },
+ "Strix varia": {
+  "ebird": "brdowl",
+  "mass_g": 711.5
+ },
+ "Lanius borealis": {
+  "ebird": "norshr4",
+  "mass_g": 63.4,
+  "length_cm": [
+   23.1,
+   23.9
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Northern_shrike",
+   "text": "Measurements: Length: 9.1–9.4 in (23–24 cm) Weight: 2.0–2.8 oz (57–79 g) Wingspan: 11.8–13.8 in (30–35 cm) == Distribution and habitat == The northern shrike breeds in taiga and tundra from Labrador west through Alaska (including some Aleutian Islands) to western Siberia, and south to extreme northwestern China, northern Mongolia, and James Bay."
+  }
+ },
+ "Accipiter gentilis": {
+  "ebird": "norgos",
+  "mass_g": 866.0
+ },
+ "Calidris melanotos": {
+  "ebird": "pecsan",
+  "mass_g": 79.7,
+  "length_cm": [
+   19.0,
+   23.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Pectoral_sandpiper",
+   "text": "The pectoral sandpiper is 19–23 cm (7.5–9.1 in) long, with a wingspan of 38–46 cm (15–18 in)."
+  }
+ },
+ "Calidris pusilla": {
+  "ebird": "semsan",
+  "mass_g": 27.5
+ },
+ "Acanthis flammea": {
+  "ebird": "redpol1",
+  "mass_g": 13.0
+ },
+ "Zonotrichia albicollis": {
+  "ebird": "whtspa",
+  "mass_g": 24.4,
+  "length_cm": [
+   15.0,
+   19.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/White-throated_sparrow",
+   "text": "It measures 15 to 19 cm (5.9 to 7.5 in) in length with a wingspan of 23 cm (9.1 in)."
+  }
+ },
+ "Megascops kennicottii": {
+  "ebird": "wesowl1",
+  "mass_g": 141.8
+ },
+ "Buteo lagopus": {
+  "ebird": "rolhaw",
+  "mass_g": 949.8
+ },
+ "Bombycilla garrulus": {
+  "ebird": "bohwax",
+  "mass_g": 54.4
+ },
+ "Pluvialis squatarola": {
+  "ebird": "bkbplo",
+  "mass_g": 250.0,
+  "length_cm": [
+   27.0,
+   30.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Grey_plover",
+   "text": "cynosurae (Thayer & Bangs, 1914) – breeds north Canada; non-breeding along coastal North and South America == Description == The grey plover is 27–30 cm (11–12 in) long with a wingspan of 71–83 cm (28–33 in) and a weight of 190–280 g (6.7–9.9 oz) (up to 345 g (12.2 oz) in preparation for migration)."
+  }
+ },
+ "Calidris alba": {
+  "ebird": "sander",
+  "mass_g": 51.7,
+  "length_cm": [
+   18.0,
+   20.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Sanderling",
+   "text": "== Description == The sanderling is a small plump sandpiper, 18–20 cm (7–8 in) in length."
+  }
+ },
+ "Anser albifrons": {
+  "ebird": "gwfgoo",
+  "mass_g": 2506.4,
+  "length_cm": [
+   64.0,
+   81.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Greater_white-fronted_goose",
+   "text": "== Description == Greater white-fronted geese are 64–81 cm (25–32 in) in length, have a 130–165 cm (51–65 in) wingspan, and weigh 1.93–3.31 kg (4 lb 4 oz – 7 lb 5 oz)."
+  }
+ },
+ "Anser caerulescens": {
+  "ebird": "snogoo",
+  "mass_g": 2636.2
+ },
+ "Branta hutchinsii": {
+  "ebird": "cacgoo1",
+  "mass_g": 2811.7,
+  "length_cm": [
+   63.0,
+   65.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Cackling_goose",
+   "text": "Measurements: Length: 24.8–25.6 in (63–65 cm) Weight: 49.3–84.0 oz (1,400–2,380 g) Wingspan: 42.5–43.7 in (108–111 cm) == Range == This species is native to North America, breeding in Northern Canada and Alaska in a variety of tundra habitats, where the nest is usually located in an elevated area near water."
+  }
+ },
+ "Larus heermanni": {
+  "ebird": "heegul",
+  "mass_g": 500.0
+ },
+ "Ardenna grisea": {
+  "ebird": "sooshe",
+  "mass_g": 787.0,
+  "length_cm": [
+   40.0,
+   51.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Sooty_shearwater",
+   "text": "== Description == Sooty shearwaters are 40–51 cm (16–20 in) in length with a 94–110 cm (37–43 in) wingspan."
+  }
+ },
+ "Mareca penelope": {
+  "ebird": "eurwig",
+  "mass_g": 770.0,
+  "length_cm": [
+   42.0,
+   52.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Eurasian_wigeon",
+   "text": "== Description == This dabbling duck is 42–52 cm (17–20 in) long with a 71–80 cm (28–31 in) wingspan, and a weight of 500–1,073 g (1–2 lb)."
+  }
+ },
+ "Branta bernicla": {
+  "ebird": "brant",
+  "mass_g": 1277.9,
+  "length_cm": [
+   55.0,
+   66.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Brant_%28goose%29",
+   "text": "It measures 55–66 cm (22–26 in) long, 106–121 cm (42–48 in) across the wings and weighs 0.88–2.2 kg (1.9–4.9 lb)."
+  }
+ },
+ "Arenaria melanocephala": {
+  "ebird": "blktur",
+  "mass_g": 126.2
+ },
+ "Cygnus columbianus": {
+  "ebird": "tunswa",
+  "mass_g": 6378.0,
+  "length_cm": [
+   115.0,
+   150.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Tundra_swan",
+   "text": "It is the smallest of the Holarctic swans, at 115–150 cm (45–59 in) in length, 168–211 cm (66–83 in) in wingspan and 3.4–9.6 kg (7.5–21.2 lb) in weight."
+  }
+ },
+ "Larus glaucoides": {
+  "ebird": "y00478",
+  "mass_g": 693.3
+ },
+ "Spizelloides arborea": {
+  "ebird": "amtspa",
+  "mass_g": 17.8,
+  "length_cm": [
+   14.0,
+   14.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/American_tree_sparrow",
+   "text": "== Description == The bird's measurements are as follows: Length: 5.5 in (14 cm) Weight: 0.5–1.0 oz (13–28 g) Wingspan: 9.4 in (24 cm) Adults have a rusty cap and grey underparts with a small dark spot on the breast."
+  }
+ },
+ "Melanitta americana": {
+  "ebird": "blksco2",
+  "mass_g": 1117.0,
+  "length_cm": [
+   43.0,
+   49.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Black_scoter",
+   "text": "The black scoter or American scoter (Melanitta americana) is a large sea duck, 43 to 49 cm (17 to 19 in) in length."
+  }
+ },
+ "Plectrophenax nivalis": {
+  "ebird": "snobun",
+  "mass_g": 42.2
+ },
+ "Clangula hyemalis": {
+  "ebird": "lotduc",
+  "mass_g": 871.0,
+  "length_cm": [
+   3.6,
+   4.0
+  ],
+  "length_source": {
+   "url": "https://en.wikipedia.org/wiki/Long-tailed_duck",
+   "text": "Six to nine pale–gray to olive colored eggs are laid per clutch, each measuring 4.8–6 cm (1.9–2.4 in) in length and 3.6–4 cm (1.4–1.6 in) in width."
+  }
+ }
+}

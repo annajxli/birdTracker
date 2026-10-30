@@ -7,11 +7,12 @@ toc: false
 
 ```js
 import {includedDetection, speciesThreshold} from "./components/detection-policy.js";
-import {loadDetections, loadSun, loadPhotos, loadCategories, loadThresholds, thresholdText, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
+import {sizeText} from "./components/species-size.js";
+import {loadDetections, loadSun, loadPhotos, loadTraits, loadCategories, loadThresholds, thresholdText, birdPhoto, minutesHeard, dateSpan, sequential, dateRange, confidenceInput, seriesColor, MUTED, formatHour, formatDate, guideHref, clipPlayer} from "./components/birds.js";
 ```
 
 ```js
-const [all, photos, categories, thresholdsFile, sun] = await Promise.all([loadDetections(), loadPhotos(), loadCategories(), loadThresholds(), loadSun()]);
+const [all, photos, categories, thresholdsFile, sun, traits] = await Promise.all([loadDetections(), loadPhotos(), loadCategories(), loadThresholds(), loadSun(), loadTraits()]);
 const thresholds = thresholdsFile?.species ?? null; // learned per-species thresholds; the control covers the rest
 if (!all.length) {
   // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
@@ -68,7 +69,9 @@ function speciesPicker(value) {
   button.onclick = () => { panel.hidden = !panel.hidden; button.setAttribute("aria-expanded", String(!panel.hidden)); if (!panel.hidden) tab = categoryOf(root.value); render(); };
   const close = () => { if (!panel.hidden) { panel.hidden = true; button.setAttribute("aria-expanded", "false"); render(); } };
   addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
-  addEventListener("click", (e) => { if (!root.contains(e.target)) close(); });
+  root.querySelector(".picker-label").onclick = () => button.click();
+  // composedPath, not contains: render() has replaced the clicked label by the time this runs.
+  addEventListener("click", (e) => { if (!e.composedPath().includes(root)) close(); });
   render();
   return root;
 }
@@ -98,14 +101,15 @@ const peakHour = heard.length ? d3.greatest(byHour, (d) => d.count).hour : null;
 
 ```js
 const photo = photos[species];
+const trait = traits[sp[0]?.scientific] ?? {};
 ```
 
 <div class="species-summary">
 <div class="species-head">
   <div>
-    <p class="eyebrow">Species</p>
     <h1>${species}</h1>
-    <p class="sub"><i>${sp[0]?.scientific}</i> · ${html`<a href=${guideHref(species)} target="_blank" rel="noopener">All About Birds guide ↗</a>`}${photo ? html` · <a href=${photo.wikipedia} target="_blank" rel="noopener">Wikipedia ↗</a>` : ""}</p>
+    <p class="sub"><i>${sp[0]?.scientific}</i> · ${html`<a href=${guideHref(species)} target="_blank" rel="noopener">All About Birds guide ↗</a>`}${photo ? html` · <a href=${photo.wikipedia} target="_blank" rel="noopener">Wikipedia ↗</a>` : ""}${trait.ebird ? html` · <a href=${`https://birdsoftheworld.org/bow/species/${trait.ebird}/cur/introduction`} target="_blank" rel="noopener">Birds of the World ↗</a>` : ""}</p>
+    ${sizeText(trait) ? html`<p class="sub">${sizeText(trait)}${trait.mass_g ? html` <small>Mass: AVONET (Tobias et al. 2022)</small>` : ""}</p>` : ""}
     <p class="sub">Threshold: ${thresholdText(sp[0]?.scientific, minConf, thresholds)}</p>
   </div>
   <div class="species-photo-slot">${birdPhoto(species, photo)}</div>
@@ -135,6 +139,16 @@ const photo = photos[species];
     <h2>Busiest hour</h2>
     <div class="stat-content">
     <div class="big">${peakHour === null ? "–" : formatHour(peakHour)}</div>
+    ${heard.length ? html`<div class="card-history">${resize((width) => Plot.plot({
+      width, height: 56, marginTop: 2, marginBottom: 2, marginLeft: 0, marginRight: 0,
+      x: {domain: [0, 24], axis: null},
+      y: {axis: null},
+      marks: [
+        Plot.rectY(byHour, {x1: "hour", x2: (d) => d.hour + 1, y: "count", inset: 0.5,
+          fill: (d) => d.hour === peakHour ? seriesColor(dark) : MUTED}),
+        Plot.tip(byHour, Plot.pointerX({x: (d) => d.hour + 0.5, y: "count", title: (d) => `${formatHour(d.hour)}\n${d3.format(",")(d.count)} min heard`}))
+      ]
+    }))}<div class="strip-axis"><span>12a</span><span>12p</span><span>12a</span></div></div>` : ""}
     </div>
   </div>
 </div>

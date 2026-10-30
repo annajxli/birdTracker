@@ -223,6 +223,9 @@ see
 | `species_images.json` | A photo URL, credit, and license for each species |
 | `species_categories.csv` | A rough category for each species, such as songbirds or raptors |
 | `photo_focus.json` | The focal point of each species photo, for cropping |
+| `species_traits.json` | Each species' eBird code, for Birds of the World links, and its body mass and length |
+| `avonet_mass.csv` | Body mass for every species, from AVONET (Tobias et al. 2022, CC BY 4.0) |
+| `species_length_fixes.csv` | Hand corrections to lengths parsed from Wikipedia |
 | `weather.csv`, `weather_hourly.csv` | Daily and hourly weather from Open-Meteo |
 
 ### R2 bucket

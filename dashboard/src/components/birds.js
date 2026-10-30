@@ -174,6 +174,9 @@ export function loadPhotos() {
   return FileAttachment("../data/species-images.json").json();
 }
 
+export function loadTraits() {
+  return FileAttachment("../data/species-traits.json").json();
+}
 export const RANGES = new Map([
   ["30 days", 30],
   ["90 days", 90],
