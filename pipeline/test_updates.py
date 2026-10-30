@@ -53,7 +53,7 @@ class CodeVersionTest(unittest.TestCase):
             self.git("config", "user.email", "test@example.com")
             self.git("config", "user.name", "Test")
             (root / "pipeline").mkdir()
-            (root / "pipeline" / "a.py").write_text("one\n")
+            (root / "pipeline" / "publish.py").write_text("one\n")
             (root / "README.md").write_text("not deployed\n")
             self.git("add", ".")
             self.git("commit", "-qm", "first")
@@ -62,10 +62,35 @@ class CodeVersionTest(unittest.TestCase):
 
             (root / "README.md").write_text("changed, still not deployed\n")
             self.assertEqual(code_version.fingerprint(root), first)
-            (root / "pipeline" / "a.py").write_text("two\n")
+            (root / "pipeline" / "publish.py").write_text("two\n")
             self.assertNotEqual(code_version.fingerprint(root), first)
             self.git("commit", "-qam", "second")
             self.assertEqual(code_version.fingerprint(root), code_version.fingerprint_at("HEAD", root))
+
+    def test_files_the_pi_never_runs_leave_the_fingerprint_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.root = root = Path(tmp)
+            self.git("init", "-q")
+            self.git("config", "user.email", "test@example.com")
+            self.git("config", "user.name", "Test")
+            (root / "pipeline").mkdir()
+            (root / "pipeline" / "publish.py").write_text("import helper\n")
+            (root / "pipeline" / "helper.py").write_text("one\n")
+            (root / "pipeline" / "offline.py").write_text("one\n")
+            (root / "pipeline" / "test_publish.py").write_text("import publish\n")
+            self.git("add", ".")
+            self.git("commit", "-qm", "first")
+            first = code_version.fingerprint_at("HEAD", root)
+
+            (root / "pipeline" / "offline.py").write_text("two\n")
+            (root / "pipeline" / "test_publish.py").write_text("import publish  # more\n")
+            self.assertEqual(code_version.fingerprint(root), first)
+            self.assertNotEqual(code_version.fingerprint(root, files=True), code_version.fingerprint_at("HEAD", root, files=True))
+            (root / "pipeline" / "helper.py").write_text("two\n")
+            self.assertNotEqual(code_version.fingerprint(root), first)
+            self.git("commit", "-qam", "second")
+            self.assertEqual(code_version.fingerprint(root), code_version.fingerprint_at("HEAD", root))
+
 
 
 if __name__ == "__main__":
