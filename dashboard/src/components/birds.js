@@ -969,10 +969,13 @@ export function categoryToggleAll(groups, collapsedOf, onToggle) {
 }
 
 /** Label for a dayTicks tick: "Oct 23", "Nov 1"; adds the year to the first tick and Jan 1 when the range spans years. */
-export function dayTickFormat(dates) {
+// short: name the month only on the first day and the 1st ("Oct 24", "25", ...), for daily
+// ticks too close together for full dates.
+export function dayTickFormat(dates, {short = false} = {}) {
   const multiYear = dates[0].slice(0, 4) !== dates.at(-1).slice(0, 4);
   return (t) => {
     const key = t.toISOString().slice(0, 10);
+    if (short && key !== dates[0] && !key.endsWith("-01")) return String(t.getUTCDate());
     const withYear = multiYear && (key === dates[0] || key.endsWith("-01-01"));
     return t.toLocaleDateString("en-US", {timeZone: "UTC", month: "short", day: "numeric", ...(withYear ? {year: "numeric"} : {})});
   };

@@ -296,15 +296,13 @@
     gap: 0.35rem;
   }
 
-  /* Compact controls that fit one row down to about 340px: 30px span buttons and arrows, and
-     the date shrinks to its calendar icon (the charts' own labels already show the dates). */
+  /* Compact controls that fit one row down to about 340px: 30px span buttons and arrows. */
   .period-picker { gap: 0.4rem; min-width: 0; }
   .period-segments { padding: 2px; }
   .period-segments button { padding: 0.2rem 0.3rem; font-size: 0.8rem; min-height: 30px; min-width: 28px; }
   .period-navigation { gap: 0.15rem; }
   .overview-navigation { padding: 0.3rem 0.4rem; }
-  .period-label { width: 30px; min-width: 30px; min-height: 30px; padding: 0; justify-content: center; }
-  .period-label-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .period-label { min-height: 30px; }
   .period-label svg { width: 18px; height: 18px; }
   .period-navigation > button[data-step] { width: 30px; height: 30px; }
 }
@@ -2227,4 +2225,18 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
   .live-gantt-name { grid-column: 2; align-self: start; z-index: 1; justify-self: start; max-width: 100%; text-align: left; font-size: 12px; line-height: 1.2; padding-top: 1px; }
   .live-gantt-lane { height: 36px; }
   .live-gantt-bar { top: 17px; bottom: 4px; }
+}
+
+/* A section's own span: at the right end of its heading row. */
+.section-top .span-input { margin-left: auto; }
+.span-input button { min-height: 24px; padding: 0.1rem 0.45rem; font-size: 0.72rem; }
+
+/* Most heard and Trends: one card, one span. */
+.species-card { position: relative; }
+.species-card-span { position: absolute; top: 0.9rem; right: 1rem; z-index: 1; }
+.species-card .pair-grid > .zoom:last-child .section-top { padding-right: 9rem; }
+@media (max-width: 960px) {
+  /* Stacked: the span sits above the first heading instead. */
+  .species-card-span { position: static; display: flex; justify-content: flex-end; margin-bottom: 0.4rem; }
+  .species-card .pair-grid > .zoom:last-child .section-top { padding-right: 0; }
 }
