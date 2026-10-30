@@ -1,4 +1,5 @@
 import {dailyTemperatureSeries} from "./weather-series.js";
+import {NWS_GRID, nwsDay} from "./nws.js";
 import {FileAttachment} from "observablehq:stdlib";
 import * as d3 from "npm:d3";
 import * as Inputs from "npm:@observablehq/inputs";
@@ -1007,9 +1008,15 @@ export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
  * Weather: the copy built into the site (pipeline/weather.py, from Open-Meteo), with the last
  * month fetched fresh from Open-Meteo's forecast API when a page opens, so recent days don't
  * wait for a rebuild. Like the build, it stops at yesterday: today's numbers are still mostly
- * forecast.
+ * forecast. Today's weather, precipitation, and rest-of-day temperatures come from the National
+ * Weather Service instead (nws.js), falling back to Open-Meteo's when NWS is unavailable.
  */
 let recentWeather = null;
+async function nwsToday(today) {
+  const get = (url) => fetch(url, {headers: {Accept: "application/geo+json"}}).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+  const [hourly, grid] = await Promise.all([get(`${NWS_GRID}/forecast/hourly`), get(NWS_GRID)]);
+  return nwsDay(today, hourly.properties.periods, grid.properties.quantitativePrecipitation);
+}
 function fetchRecentWeather() {
   recentWeather ??= (async () => {
     const params = new URLSearchParams({
@@ -1035,6 +1042,12 @@ function fetchRecentWeather() {
       if (d < today || (d === today && hour <= hourNow)) (hourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
       if (d === today && hour >= hourNow) (forecastHourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
     });
+    const nws = await nwsToday(today).catch((error) => { console.warn("NWS forecast unavailable; using Open-Meteo's.", error); return null; });
+    if (nws) {
+      const temps = [...(hourly[today] ?? []), ...nws.hourly].filter((t) => t != null);
+      daily[today] = {high: Math.max(...temps), low: Math.min(...temps), precip: nws.precip, code: nws.code, forecast: true};
+      forecastHourly[today] = nws.hourly.map((t, hour) => (hour >= hourNow ? t : null));
+    }
     return {daily, hourly, forecastHourly};
   })().catch((error) => {
     console.warn("Recent weather unavailable; using the built copy.", error);

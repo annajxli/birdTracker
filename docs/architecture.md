@@ -299,8 +299,10 @@ start. A pause takes effect once the publisher next fetches it, within about
 
 When a page opens, it loads the newest Parquet exports from `/api/data/`. If
 that request fails, the page uses the copy built into the site. Pages also
-fetch the most recent weather directly from Open-Meteo. New data therefore
-appears without a rebuild. The site has the following pages:
+fetch the most recent weather directly from Open-Meteo, and today's forecast
+from the National Weather Service (`dashboard/src/components/nws.js`), whose
+Seattle forecasters adjust the models by hand. If NWS is unavailable, today
+uses Open-Meteo's forecast. New data therefore appears without a rebuild. The site has the following pages:
 
 - **Overview**: daily activity, species, and weather. One date selector sets
   the day that every chart ends on. The daily rhythm, activity over time, and
