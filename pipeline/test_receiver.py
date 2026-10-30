@@ -1,4 +1,4 @@
-"""Receiver checks: minute files around a recorder pause, with no network."""
+"""Receiver checks: minute files around a recorder pause, and frame counts, with no network."""
 import json
 import os
 import tempfile
@@ -8,6 +8,7 @@ import wave
 from datetime import UTC, datetime
 from pathlib import Path
 
+import receiver
 from receiver import MinuteFiles, Pause, remove_stale_parts
 
 RATE = 100  # samples per second, small so a minute is cheap
@@ -95,6 +96,23 @@ class StalePartsTest(unittest.TestCase):
                 (d / name).write_text("x")
             self.assertEqual(remove_stale_parts(d), 1)
             self.assertEqual(sorted(p.name for p in d.iterdir()), ["20261028T053300Z.json", "20261028T053300Z.wav"])
+
+class FrameCountTest(unittest.TestCase):
+    def setUp(self):
+        receiver.last_counts.clear()
+
+    def test_a_new_receiver_takes_its_first_counts_as_a_baseline(self):
+        files = MinuteFiles(Path("."), RATE, 0, T0 * 1000, "board", None)
+        files.health("frames_sent=360000 frames_dropped=3600")  # the board has streamed for hours
+        self.assertEqual((files.sent, files.dropped), (None, None))
+        files.health("frames_sent=363750 frames_dropped=3602")
+        self.assertEqual((files.sent, files.dropped), (3750, 2))
+
+    def test_counts_that_start_again_after_a_board_restart_count_in_full(self):
+        files = MinuteFiles(Path("."), RATE, 0, T0 * 1000, "board", None)
+        files.health("frames_sent=360000 frames_dropped=3600")
+        files.health("frames_sent=8 frames_dropped=141")
+        self.assertEqual((files.sent, files.dropped), (8, 141))
 
 
 if __name__ == "__main__":

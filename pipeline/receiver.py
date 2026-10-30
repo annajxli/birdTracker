@@ -35,7 +35,8 @@ timing stays right, and a longer gap or a disconnect ends the file. The
 recorder reconnects now and then, which re-anchors the index to the clock.
 Next to each minute's WAV goes <name>.json, written just before the WAV appears:
 the wifi signal, the board's temperature and uptime, how many audio frames it
-sent and had to drop meanwhile (from its health frames), when the minute was
+sent and had to drop meanwhile (from its health frames; a new receiver process
+takes the first counts it gets as a baseline), when the minute was
 finished, and how much of it was silence filling gaps. analyzer.py stores it as that minute's row in the recordings table.
 
 With --live-port, the stream is also forwarded to pipeline/live.py on
@@ -221,12 +222,14 @@ class MinuteFiles:
                 self.rssi = int(fields["rssi_dbm"])
             if "frames_sent" in fields and "frames_dropped" in fields:
                 now = int(fields["frames_sent"]), int(fields["frames_dropped"])
-                was = last_counts.get(self.source, (0, 0))
+                was = last_counts.get(self.source)
+                last_counts[self.source] = now
+                if was is None:
+                    return  # the first counts since this receiver started: a baseline, as they span the board's whole stream
                 if now[0] < was[0] or now[1] < was[1]:
                     was = (0, 0)  # the board restarted streaming: its counts began again
                 self.sent = (self.sent or 0) + now[0] - was[0]
                 self.dropped = (self.dropped or 0) + now[1] - was[1]
-                last_counts[self.source] = now
         except ValueError:
             log.warning("stream from %s: bad health frame %r", self.source, text)
 
