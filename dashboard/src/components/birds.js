@@ -1,5 +1,5 @@
 import {dailyTemperatureSeries} from "./weather-series.js";
-import {NWS_GRID, nwsDay} from "./nws.js";
+import {NWS_GRID, NWS_STATION, nwsDay, nwsNow} from "./nws.js";
 import {FileAttachment} from "observablehq:stdlib";
 import * as d3 from "npm:d3";
 import * as Inputs from "npm:@observablehq/inputs";
@@ -1014,8 +1014,10 @@ export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
 let recentWeather = null;
 async function nwsToday(today) {
   const get = (url) => fetch(url, {headers: {Accept: "application/geo+json"}}).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
-  const [hourly, grid] = await Promise.all([get(`${NWS_GRID}/forecast/hourly`), get(NWS_GRID)]);
-  return nwsDay(today, hourly.properties.periods, grid.properties.quantitativePrecipitation);
+  // Observations since midnight Pacific (8 AM UTC covers both PST and PDT; nwsDay drops the rest).
+  const [hourly, grid, observed] = await Promise.all([get(`${NWS_GRID}/forecast/hourly`), get(NWS_GRID),
+    get(`${NWS_STATION}/observations?start=${today}T07:00:00Z`).catch(() => ({features: []}))]);
+  return {...nwsDay(today, hourly.properties.periods, grid.properties.quantitativePrecipitation, observed.features), now: nwsNow(observed.features)};
 }
 function fetchRecentWeather() {
   recentWeather ??= (async () => {
@@ -1042,16 +1044,18 @@ function fetchRecentWeather() {
       if (d < today || (d === today && hour <= hourNow)) (hourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
       if (d === today && hour >= hourNow) (forecastHourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
     });
+    let now = null;
     const nws = await nwsToday(today).catch((error) => { console.warn("NWS forecast unavailable; using Open-Meteo's.", error); return null; });
-    if (nws) {
+    if (nws?.code != null) {
+      now = nws.now;
       const temps = [...(hourly[today] ?? []), ...nws.hourly].filter((t) => t != null);
       daily[today] = {high: Math.max(...temps), low: Math.min(...temps), precip: nws.precip, code: nws.code, forecast: true};
       forecastHourly[today] = nws.hourly.map((t, hour) => (hour >= hourNow ? t : null));
     }
-    return {daily, hourly, forecastHourly};
+    return {daily, hourly, forecastHourly, now};
   })().catch((error) => {
     console.warn("Recent weather unavailable; using the built copy.", error);
-    return {daily: {}, hourly: {}, forecastHourly: {}};
+    return {daily: {}, hourly: {}, forecastHourly: {}, now: null};
   });
   return recentWeather;
 }
@@ -1064,6 +1068,11 @@ export async function loadWeatherHourly() {
 /** The rest of today's hourly temperatures, forecast: {date: [24 values, null outside it]}. */
 export async function loadForecastHourly() {
   return (await fetchRecentWeather()).forecastHourly;
+}
+
+/** Boeing Field's latest observation (nws.js's nwsNow), or null. */
+export async function loadWeatherNow() {
+  return (await fetchRecentWeather()).now;
 }
 
 export async function loadWeather() {

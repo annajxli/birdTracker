@@ -9,15 +9,15 @@ toc: false
 ```js
 import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip, splitAt} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, loadWeatherNow, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip, splitAt} from "./components/birds.js";
 import {periodInput, spanInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, dayChanges, windowChanges} from "./components/changes.js";
 ```
 
 ```js
-const [photos, sun, categories, weather, weatherHourly, forecastHourly] = await Promise.all([
-  loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadForecastHourly()
+const [photos, sun, categories, weather, weatherHourly, forecastHourly, weatherNow] = await Promise.all([
+  loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadForecastHourly(), loadWeatherNow()
 ]);
 ```
 
@@ -369,7 +369,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             // Solid up to now, then dashed: the forecast. A past day is all solid.
             const [points, ahead] = forecast.length ? splitAt(line, new Date(), (t) => at(t).when) : [line, []];
             return line.length ? hourlyTemperatureStrip(points, {width, domain: daylightWindow, inset: 8, forecast: ahead, ...margins}) : "";
-          })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div></div>`;
+          })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div>${w?.forecast && weatherNow ? html`<div class="period-weather">Now: ${weatherNow.text}${weatherNow.tempF == null ? "" : ` · ${Math.round(weatherNow.tempF)}°F`} (Boeing Field, ${weatherNow.time.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})})</div>` : ""}</div>`;
         }
         const ticks = dayTicks(period, width - margins.marginLeft - margins.marginRight);
         const tickFormat = dayTickFormat(period, {short: period.length <= 14 && (width - margins.marginLeft - margins.marginRight) / period.length < 45});
