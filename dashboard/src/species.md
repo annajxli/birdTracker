@@ -139,6 +139,16 @@ const trait = traits[sp[0]?.scientific] ?? {};
     <h2>Busiest hour</h2>
     <div class="stat-content">
     <div class="big">${peakHour === null ? "–" : formatHour(peakHour)}</div>
+    ${heard.length ? html`<div class="card-history">${resize((width) => Plot.plot({
+      width, height: 56, marginTop: 2, marginBottom: 2, marginLeft: 0, marginRight: 0,
+      x: {domain: [0, 24], axis: null},
+      y: {axis: null},
+      marks: [
+        Plot.rectY(byHour, {x1: "hour", x2: (d) => d.hour + 1, y: "count", inset: 0.5,
+          fill: (d) => d.hour === peakHour ? seriesColor(dark) : MUTED}),
+        Plot.tip(byHour, Plot.pointerX({x: (d) => d.hour + 0.5, y: "count", title: (d) => `${formatHour(d.hour)}\n${d3.format(",")(d.count)} min heard`}))
+      ]
+    }))}<div class="strip-axis"><span>12a</span><span>12p</span><span>12a</span></div></div>` : ""}
     </div>
   </div>
 </div>
