@@ -2,6 +2,8 @@
 // adjust the models by hand, so it doesn't show model artifacts such as snow at 44 °F. The grid
 // cell is fixed for the station: /points/47.61,-122.33 gives SEW 125,68.
 export const NWS_GRID = "https://api.weather.gov/gridpoints/SEW/125,68";
+// Observations from the nearest airport weather station, Boeing Field, a few miles from the yard.
+export const NWS_STATION = "https://api.weather.gov/stations/KBFI";
 
 // NWS short forecasts ("Light Rain Likely", "Partly Sunny") as the WMO weather codes the
 // dashboard's icons use. "Slight Chance" and "Chance" of precipitation count as cloudy: the
@@ -26,11 +28,12 @@ const pacificDate = (t) => new Date(t).toLocaleDateString("en-CA", {timeZone: "A
 const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
 
 /**
- * The rest of a Pacific day from NWS's hourly forecast and gridpoint data: hourly temperatures
- * (°F, from the current hour on), the day's worst weather code, and its precipitation (inches,
- * the day's share of each forecast period). Null when the forecast doesn't cover the day.
+ * A Pacific day from NWS's hourly forecast, gridpoint data, and station observations: hourly
+ * temperatures (°F, from the current hour on), the day's worst weather code, whether observed so
+ * far or still forecast, and its precipitation (inches, the day's share of each forecast period).
+ * Null when the forecast doesn't cover the day.
  */
-export function nwsDay(day, hourlyPeriods, quantitativePrecipitation) {
+export function nwsDay(day, hourlyPeriods, quantitativePrecipitation, observations = []) {
   const hourly = Array(24).fill(null);
   let code = null;
   for (const p of hourlyPeriods) {
@@ -40,6 +43,11 @@ export function nwsDay(day, hourlyPeriods, quantitativePrecipitation) {
     if (code === null || severity(c) > severity(code)) code = c;
   }
   if (code === null) return null;
+  for (const {properties: o} of observations) {
+    if (!o.textDescription || pacificDate(o.timestamp) !== day) continue;
+    const c = nwsCode(o.textDescription);
+    if (severity(c) > severity(code)) code = c;
+  }
   // Periods are "START/PTnH": spread each period's amount evenly over its hours.
   let mm = 0;
   for (const {validTime, value} of quantitativePrecipitation?.values ?? []) {
@@ -48,4 +56,13 @@ export function nwsDay(day, hourlyPeriods, quantitativePrecipitation) {
     for (let h = 0; h < hours; h++) if (pacificDate(Date.parse(start) + h * 36e5) === day) mm += value / hours;
   }
   return {hourly, code, precip: Math.round(mm / 25.4 * 100) / 100};
+}
+
+/** The newest observation with a description: {text, tempF (or null), time}. Null if none. */
+export function nwsNow(observations) {
+  const newest = [...observations].map((f) => f.properties).filter((o) => o.textDescription)
+    .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))[0];
+  if (!newest) return null;
+  const c = newest.temperature?.value;
+  return {text: newest.textDescription, tempF: c == null ? null : c * 9 / 5 + 32, time: new Date(newest.timestamp)};
 }
