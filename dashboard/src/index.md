@@ -287,6 +287,9 @@ const untilTime = new Date(coveredUntil).toLocaleTimeString("en-US", {timeZone: 
 const compareDates = !comparable ? "" : `${cmp.prevLabel} vs. ${cmp.nowLabel}${Number.isFinite(dayCutoff) ? ` (data until ${untilTime})` : ""}`;
 const trendMinutes = minutesHeard(confident.filter((d) => d.date >= cmp.prevFrom && d.date <= cmp.nowTo
   && +d.time - pacificMidnight(d.date) < dayCutoff));
+// Today with nothing heard yet: no trends, rather than a few minutes of one day against another.
+const nothingYetToday = trendScale === "D" && cmp.nowTo === new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"})
+  && !confident.some((d) => d.date === cmp.nowTo);
 const changes = !comparable ? []
   : trendScale === "D" ? dayChanges(trendMinutes, cmp.nowTo, cmp.prevTo)
   : windowChanges(trendMinutes,
@@ -455,7 +458,9 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
         <p class="sub section-sub">${comparable ? compareDates : dateRange(start, end)}</p>
       </div>
       <div id="home-trends" class="card layout-reserve">
-        ${comparable
+        ${nothingYetToday
+          ? html`<p class="sub">No detections yet today</p>`
+          : comparable
           ? changes.length
             ? resize((width) => changeChart(changes, {width, dark, beforeLabel: cmp.prevLabel, nowLabel: cmp.nowLabel, ...(trendScale === "D" ? {xLabel: "Minutes heard", daily: true, asOf: Number.isFinite(dayCutoff) ? untilTime : null} : {})}))
             : html`<p class="sub">${trendScale === "D" ? "No daily trends detected" : "No changes beyond normal day-to-day variation."}</p>`

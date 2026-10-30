@@ -587,6 +587,7 @@ const BIN_MINUTES = 15;
 // to last call). A guess from simulated data; see README "Tuning with real data".
 const BOUT_GAP_MINUTES = 2;
 const SEGMENT_MS = 3000; // BirdNET scores 3-second segments
+const EMPTY_ROWS = 3; // height of today's empty timeline, in species rows
 const NO_AUDIO_MINUTES = 5; // shorter breaks between recordings aren't marked
 // Over several days sunrise and sunset move; once they move this much they're drawn as a band
 // (earliest to latest) instead of a line.
@@ -738,12 +739,15 @@ export function dayTimeline(rows, sun, dates, {
     rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2, label: pos + h / 2});
     pos += h;
   }
-  const total = pos;
+  // Today with nothing heard yet: an empty timeline (gaps still hatched) with a note, not a bare message.
+  const emptyToday = !firstHeard.size && n === 1 && dates[0] === localDate(new Date());
+  const total = emptyToday ? EMPTY_ROWS : pos;
   const rowOf = (species) => rowsAt.get(rowKeyOf(species));
   const speciesTicks = order.filter((k) => !k.startsWith(HEADER) && k !== UNIDENTIFIED).map((k) => rowsAt.get(k).label);
   const nameAt = new Map(order.map((k) => [rowsAt.get(k).label, k]));
 
-  if (!firstHeard.size) return htl.html`<p class="sub">No detections ${daylightOnly ? "in daylight " : ""}${n === 1 ? "on this day" : "in these days"}.</p>`;
+  // "In daylight" only when there were detections outside it.
+  if (!firstHeard.size && !emptyToday) return htl.html`<p class="sub">No detections ${daylightOnly && rows.length ? "in daylight " : ""}${n === 1 ? "on this day" : "in these days"}.</p>`;
 
   const fade = n === 1 ? 1 : n <= 3 ? 0.6 : 0.4; // overlapping days stack up
   const hourStep = width < 480 ? 4 : width < 800 ? 2 : 1;
@@ -850,10 +854,14 @@ export function dayTimeline(rows, sun, dates, {
     const known = d3.max(audio, ([, b]) => b) ?? -Infinity;
     const dayFrom = +new Date(sun[dates[0]].start), dayTo = Math.min(+new Date(sun[dates[0]].end), recordedAt ? +recordedUntil : Infinity, known);
     const spans = audio.filter(([a, b]) => b > dayFrom && a < dayTo).sort((p, q) => p[0] - q[0]);
-    if (spans.length) { // a day without any rows predates the recordings table: unknown, not missed
+    // A past day without any rows predates the recordings table: unknown, not missed. Today
+    // without any is missed up to now.
+    const todayNoAudio = !spans.length && dates[0] === localDate(new Date());
+    if (spans.length || todayNoAudio) {
+      const until = todayNoAudio ? Math.min(+new Date(sun[dates[0]].end), Date.now()) : dayTo;
       let from = dayFrom;
-      for (const [a, b] of [...spans, [dayTo, dayTo]]) {
-        if (a - from >= NO_AUDIO_MINUTES * 6e4) noAudio.push([onRef(dates[0], new Date(from)), onRef(dates[0], new Date(Math.min(a, dayTo)))]);
+      for (const [a, b] of [...spans, [until, until]]) {
+        if (a - from >= NO_AUDIO_MINUTES * 6e4) noAudio.push([onRef(dates[0], new Date(from)), onRef(dates[0], new Date(Math.min(a, until)))]);
         from = Math.max(from, b);
       }
     }
@@ -892,6 +900,8 @@ export function dayTimeline(rows, sun, dates, {
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
       ...(compact ? [] : names),
       ...dataMarks,
+      emptyToday ? Plot.text([!audio || audio.some(([a, b]) => b > +new Date(sun[dates[0]].start) && a < +new Date(sun[dates[0]].end)) ? "No detections yet today" : "No data yet today"],
+        {x: () => new Date((+domain[0] + +domain[1]) / 2), y: total / 2, text: (d) => d, fontSize: 13, fill: "currentColor", fillOpacity: 0.7, stroke: "var(--theme-background-alt)", strokeWidth: 6, paintOrder: "stroke"}) : null,
       // Over many days, sunrise and sunset are light-blue bands on top of the data, as opaque as
       // the share of days it's dark at that time.
       sunBandMark(sunBands, gridTop, total, dark ? "#8cc4f0" : "#4f9ad6", dark ? 0.38 : 0.5),
