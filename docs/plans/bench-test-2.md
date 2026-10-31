@@ -177,6 +177,20 @@ hours of recording and 14 hours of night. The projection for build A is the
 recording mode's average power for the recording hours, plus M5 for the
 night.
 
+## Results logging
+
+Each capture gets one folder on the laptop, outside Git, named by board, group,
+and time. It holds the PPK2 trace, the receiver and board logs, the commit, and
+the settings. The analysis script writes one CSV row per board, state, and run,
+and the record keeps those summaries.
+
+Packet and bit counts come from the following sources:
+
+| Link | Bits received intact | Packets received | Lost or retried |
+| --- | --- | --- | --- |
+| Wi-Fi | File size and SHA-256 at `pipeline/receiver.py` | `tcpdump` on the laptop | Retransmits in the capture |
+| BLE | File size and SHA-256 from the laptop script | Notifications counted by the dongle app | Sequence-number gaps |
+
 ## Tests
 
 Run T1 to T5 on each board. Run T7 on the best configuration that passes T1
