@@ -9,6 +9,7 @@ toc: false
 ```js
 import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
+import {log2Axis, LOG2_FLOOR} from "./components/log2-axis.js";
 import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, loadWeatherNow, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip, splitAt} from "./components/birds.js";
 import {periodInput, spanInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
@@ -91,6 +92,8 @@ const presenceEnd = latest;
 ```js
 const confIn = confidenceInput();
 const minConf = Generators.input(confIn);
+const rankLog2In = Inputs.toggle({label: "Log2", value: true});
+const rankLog2 = Generators.input(rankLog2In);
 const daylightIn = Inputs.toggle({label: "Daylight only", value: true}); // off: owls and other night callers show
 const daylightOnly = Generators.input(daylightIn);
 ```
@@ -443,6 +446,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       <div class="section-top">
         <p class="eyebrow">Most heard species</p>
         <p class="sub section-sub">${dateRange(lists.start, lists.end)}</p>
+        <div class="filters">${rankLog2In}</div>
       </div>
       <div id="home-ranking" class="layout-reserve">
         ${resize((width) => {
@@ -459,13 +463,13 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           marginLeft: compact ? 4 : nameMargin(width),
           marginRight: 48,
           marginTop: 0,
-          x: {label: "Minutes heard", labelAnchor: "center", labelArrow: "none", tickFormat: "s", ticks: 4},
+          x: {label: "Minutes heard", labelAnchor: "center", labelArrow: "none", ...(rankLog2 ? log2Axis(d3.max(top, (d) => d.count)) : {tickFormat: "s", ticks: 4})},
           y: {label: null, domain: top.map((d) => d.species)},
           marks: [
             compact ? nameAxis(width, {textAnchor: "start", tickPadding: 0, dy: -band * 0.22, lineWidth: 60, textOverflow: "ellipsis"}) : nameAxis(width),
-            Plot.barX(top, {x: "count", y: "species", fill: seriesColor(dark), insetTop: band * (compact ? 0.5 : 0.18), insetBottom: band * (compact ? 0.08 : 0.18), rx2: 4, tip: {format: {x: ","}}}),
+            Plot.barX(top, {x1: rankLog2 ? LOG2_FLOOR : 0, x2: "count", y: "species", fill: seriesColor(dark), insetTop: band * (compact ? 0.5 : 0.18), insetBottom: band * (compact ? 0.08 : 0.18), rx2: 4, channels: {"Minutes heard": "count"}, tip: {format: {x1: false, x2: false, "Minutes heard": ","}}}),
             Plot.text(top, {x: "count", y: "species", text: (d) => d3.format(",")(d.count), dx: 6, dy: compact ? band * 0.21 : 0, textAnchor: "start", fill: "currentColor"}),
-            Plot.ruleX([0], {strokeOpacity: 0.3})
+            Plot.ruleX([rankLog2 ? LOG2_FLOOR : 0], {strokeOpacity: 0.3})
           ]
         });
         })}
