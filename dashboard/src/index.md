@@ -415,7 +415,9 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           marginTop: 10,
           marginBottom: (strips.length ? 6 : 30) + (hoursPerBin ? 28 : 0),
           x: {...frame.x, ...(strips.length ? {axis: null} : {ticks, tickFormat})},
-          y: {label: hoursPerBin ? `Minutes of birdsong per ${hoursPerBin === 1 ? "hour" : "3 hours"}` : "Minutes of birdsong per day", labelAnchor: "center", labelArrow: "none", grid: true, tickFormat: "s"},
+          y: {label: hoursPerBin ? `Minutes of birdsong per ${hoursPerBin === 1 ? "hour" : "3 hours"}` : "Minutes of birdsong per day", labelAnchor: "center", labelArrow: "none", grid: true, tickFormat: "s",
+            // Week: the most a bin can hold, so a bar's height compares across weeks.
+            ...(hoursPerBin ? {domain: [0, 60 * hoursPerBin], ticks: d3.range(0, 60 * hoursPerBin + 1, 15 * hoursPerBin)} : {})},
           marks: [
             hoursPerBin
               ? (() => {
