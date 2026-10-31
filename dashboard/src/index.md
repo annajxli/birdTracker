@@ -446,7 +446,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       <div class="section-top">
         <p class="eyebrow">Most heard species</p>
         <p class="sub section-sub">${dateRange(lists.start, lists.end)}</p>
-        <div class="filters">${rankLog2In}</div>
+        <div class="filters section-toggle">${rankLog2In}</div>
       </div>
       <div id="home-ranking" class="layout-reserve">
         ${resize((width) => {

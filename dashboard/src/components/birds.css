@@ -872,6 +872,20 @@ section.zoom {
   margin-right: 0.5rem;
 }
 
+.section-top .section-toggle { /* a small control at the section's right */
+  margin-left: auto;
+}
+
+.section-top .section-toggle form > label {
+  margin-right: 0.3rem;
+  font-size: 0.68rem;
+}
+
+.section-top .section-toggle input[type="checkbox"] {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
 /* Compact stat tiles: label, number, one line of context, always three across. */
 .grid.stats {
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;

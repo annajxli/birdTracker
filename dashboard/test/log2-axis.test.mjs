@@ -8,11 +8,12 @@ test("the axis reaches the next power of two and starts below a count of 1", () 
   assert.ok(LOG2_FLOOR < 1);
 });
 
-test("ticks are whole powers of two, labeled 2**x, and thinned to fit", () => {
+test("ticks are whole powers of two, labeled with superscript powers, and thinned to fit", () => {
   const axis = log2Axis(134);
   assert.deepEqual(axis.ticks, [1, 4, 16, 64, 256]);
-  assert.deepEqual(axis.ticks.map(axis.tickFormat), ["2**0", "2**2", "2**4", "2**6", "2**8"]);
+  assert.deepEqual(axis.ticks.map(axis.tickFormat), ["2⁰", "2²", "2⁴", "2⁶", "2⁸"]);
   assert.deepEqual(log2Axis(4).ticks, [1, 2, 4]);
+  assert.equal(axis.tickFormat(1024), "2¹⁰");
 });
 
 test("no data or a single count still gives a usable axis", () => {
