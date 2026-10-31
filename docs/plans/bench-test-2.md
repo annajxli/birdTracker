@@ -186,7 +186,7 @@ to T6.
 | --- | --- | --- | --- |
 | T1 | Power per mode | Measure M1, M1s, M2, M3 with each N and between-burst setting, M4, and M5 | A summary for each mode, with average power and the current in each marked state |
 | T2 | Wi-Fi connect cost | In M3 with the radio off between bursts, measure the energy from wake to the first upload byte | A figure in millijoules per connect, used to choose N |
-| T3 | Upload energy | In M3 and M4, measure the energy per uploaded MB | A figure in millijoules per MB for each board |
+| T3 | Radio efficiency | In M3 and M4, measure the send energy per payload bit that the receiver gets intact, with and without T2's connect energy. Also record the payload bit rate and packets per second. | Figures in microjoules per bit, kbit/s, and packets per second for each board, comparable across BLE and Wi-Fi |
 | T4 | Audio continuity | Run M3 or M4 for 2 hours with the receiver | Every minute file arrives. `samples_dropped` stays 0. Consecutive files' start times differ by the file length, within 10 ms. |
 | T5 | Compression is lossless | In M4, also write each minute as WAV to the microSD card for 10 minutes, and compare the two on the indoor computer | The decoded FLAC samples equal the WAV samples exactly |
 | T6 | BirdNET parity | Play the bench test 1 Merlin clip from a phone at about 1 m, in M1 and then in M3, on the same board | BirdNET finds the same species in the same 3-second windows. Don't compare confidence scores; hand-held playback can't repeat exactly. |
