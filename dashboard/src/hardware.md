@@ -347,11 +347,13 @@ const showStripTip = (e) => {
   stripTip.textContent = bar.dataset.tip;
   stripTip.hidden = false;
   const w = stripTip.offsetWidth;
-  stripTip.style.left = `${Math.max(4, Math.min(innerWidth - w - 4, r.left + r.width / 2 - w / 2)) + scrollX}px`;
-  stripTip.style.top = `${r.top + scrollY - stripTip.offsetHeight - 6}px`;
+  stripTip.style.left = `${Math.max(4, Math.min(document.documentElement.clientWidth - w - 4, r.left + r.width / 2 - w / 2))}px`;
+  stripTip.style.top = `${r.top - stripTip.offsetHeight - 6}px`;
 };
+const hideStripTip = () => { stripTip.hidden = true; };
 document.addEventListener("pointerover", showStripTip);
-invalidation.then(() => { document.removeEventListener("pointerover", showStripTip); stripTip.remove(); });
+addEventListener("scroll", hideStripTip, {passive: true});
+invalidation.then(() => { document.removeEventListener("pointerover", showStripTip); removeEventListener("scroll", hideStripTip); stripTip.remove(); });
 const piSection = pi && html`<div class="grid stats">
   ${pi.temp_c != null ? meterCard("CPU temperature", `${d3.format(".0f")(pi.temp_c)} °C`, meter(pi.temp_c, TEMP_ZONES, (v) => `${v}°`), "CPU throttles at 80 °C", statusStrip(piHistory, "temp_c", TEMP_ZONES, (v) => `${v} °C`)) : ""}
   ${pi.cpu_percent != null ? meterCard("CPU in use", pctFormat(pi.cpu_percent), meter(pi.cpu_percent, CPU_ZONES, pctFormat), `1-min average · load ${pi.load?.[0] ?? "–"} on 4 cores`, statusStrip(piHistory, "cpu_percent", CPU_ZONES, pctFormat)) : ""}

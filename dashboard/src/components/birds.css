@@ -2080,7 +2080,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 /* The strip's values as a line over its bars (scaled to their own range), for trends. */
 .status-strip { position: relative; }
 .strip-tip { /* hardware.md's history bars: their value on hover */
-  position: absolute;
+  position: fixed;
   z-index: 30;
   padding: 3px 7px;
   border: 1px solid var(--rule);
