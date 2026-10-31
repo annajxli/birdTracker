@@ -56,8 +56,11 @@ The test uses the boards and parts in
    own flash. Check whether the isolated full-scale samples from bench test 1
    recur.
 
-The XIAO nRF52840 and BLE are out of scope unless no Wi-Fi board passes. For
-the other exclusions, see [Out of scope](#out-of-scope).
+4. **Seeed XIAO nRF52840 Sense.** It sends over BLE to the nRF52840 USB dongle
+   instead of Wi-Fi. For its firmware, see
+   [Firmware for the XIAO nRF52840 Sense](#firmware-for-the-xiao-nrf52840-sense).
+
+For the exclusions, see [Out of scope](#out-of-scope).
 
 ## Recording check
 
@@ -120,10 +123,11 @@ drive that appears.
 
 ## Firmware modes
 
-The modes extend the Arduino bench sketch in `firmware/recorder_test/`, with a
-constant that selects the mode. The sketch stays a bench tool. A production
-recorder uses ESP-IDF on an ESP32 or the Pico SDK on a Pico, as
-[Recorder hardware](../hardware.md#build-the-bench-recorder) describes.
+The ESP32 boards share the Arduino sketch in `firmware/power_test/`. The Pico
+2 W uses the Pico SDK, and the XIAO nRF52840 Sense uses Zephyr. These are bench
+tools. A production recorder uses ESP-IDF on an ESP32 or the Pico SDK on a
+Pico, as [Recorder hardware](../hardware.md#build-the-bench-recorder)
+describes.
 
 | Mode | What the board does | What it isolates |
 | --- | --- | --- |
@@ -226,8 +230,6 @@ The steps say who does each one: *Claude* for code and documentation, and
 
 ## Out of scope
 
-- **BLE**, unless no Wi-Fi board passes. Then add the XIAO nRF52840 and the
-  nRF52840 dongle as a third section.
 - **Solar charging**, the charger's efficiency, and the battery gauge. A
   later test sizes the panel from this test's winning number.
 - **Microphones.** Every board uses the same INMP441. For microphone
