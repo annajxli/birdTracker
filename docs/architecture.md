@@ -319,7 +319,8 @@ today uses Open-Meteo's forecast. New data therefore appears without a rebuild. 
 - **Live**: published minutes with spectrograms, audio, and detections, where
   you can confirm or reject detections.
 - **Species**: every species heard, with photos and counts.
-- **Display**: a slideshow of the Overview charts for a wall screen.
+- **Display**: a slideshow of the Overview charts for a wall screen, at
+  `/display`. The site header doesn't link to it.
 - **Hardware analytics**: recorder coverage, background level, Wi-Fi signal,
   pipeline delay, and the indoor computer's health, code version, and
   operating system updates.

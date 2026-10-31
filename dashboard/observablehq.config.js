@@ -151,9 +151,6 @@ const header = `<div class="site-header">
     <a class="icon-link" href="./live" aria-label="Live" title="Live">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/></svg>
     </a>
-    <a class="icon-link" href="./display" aria-label="Display" title="Display">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M9 20h6M12 16.5V20"/></svg>
-    </a>
     <a class="icon-link" href="./species" aria-label="Species" title="Species">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16c3 0 5-1.2 6-4 .9-2.6 3-4.5 5.5-4.5 1.6 0 2.8.9 3.3 2.2L21 10l-2.2 1c0 3.6-3 6.5-7 6.5H7z"/><path d="M10.5 17.5 9 20.5M13.5 17.5l.5 3"/><circle cx="16.2" cy="9.6" r="0.4" fill="currentColor"/></svg>
     </a>
