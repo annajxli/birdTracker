@@ -93,7 +93,7 @@ class EnvironmentProblem(Exception):
 
 
 def is_environment_error(e: BaseException) -> bool:
-    if isinstance(e, (ImportError, MemoryError, sqlite3.OperationalError, sqlite3.DatabaseError)):
+    if isinstance(e, (EnvironmentProblem, ImportError, MemoryError, sqlite3.OperationalError, sqlite3.DatabaseError)):
         return True
     return isinstance(e, OSError) and e.errno in {errno.ENOSPC, errno.EROFS, errno.EACCES, errno.EDQUOT}
 
@@ -136,8 +136,11 @@ def run_birdnet(audio: Path, out_dir: Path, args) -> Path:
     week = birdnet_week(recording_start(audio.name, None).astimezone(LOCAL_TZ))
     if args.engine == "lite":
         if _lite is None:
-            from birdnet_lite import BirdNET
-            _lite = BirdNET(threads=args.threads)
+            try:
+                from birdnet_lite import BirdNET
+                _lite = BirdNET(threads=args.threads)
+            except Exception as e:  # missing or damaged model files: no recording's fault
+                raise EnvironmentProblem(f"can't load BirdNET: {e}") from e
         return _lite.analyze(audio, out_dir, args.lat, args.lon, week, args.min_conf)
     from birdnet_analyzer.analyze.core import analyze  # slow import (TensorFlow); only needed when there's work
 
