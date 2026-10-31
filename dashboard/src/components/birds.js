@@ -1268,6 +1268,8 @@ export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
   const wet = rainColor(dark);
   const strength = (precip) => 0.45 + 0.55 * Math.min(1, Math.sqrt(precip / 0.6));
   const describe = (d) => `${formatDate(d.date)}: ${d.kind[1]}${d.level ? `, ${d3.format(".2f")(d.precip)}"` : ""}${d.forecast ? " (forecast)" : ""}`;
+  // The strip is shorter than its tip, so the tip opens upward, over the chart above it.
+  const tip = Plot.tip(days, Plot.pointerX({x: "day", title: describe, anchor: "bottom"}));
 
   if (slot < 14) {
     return Plot.plot({
@@ -1275,11 +1277,12 @@ export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
       height: 22,
       marginTop: 7,
       marginBottom: 7,
+      style: {overflow: "visible"},
       x: {...frame.x, axis: null},
       y: {axis: null, domain: [0, 1]},
       marks: [
         Plot.rect(days.filter((d) => d.level), {x1: "x1", x2: "x2", y1: 0, y2: 1, fill: wet, fillOpacity: (d) => strength(d.precip)}),
-        Plot.tip(days, Plot.pointerX({x: "day", title: describe}))
+        tip
       ]
     });
   }
@@ -1297,7 +1300,7 @@ export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
       const icon = WEATHER_ICON[shown];
       const color = d.level ? wet : "currentColor";
       const opacity = d.level ? strength(d.precip) : 0.75;
-      g.append(htl.svg`<g transform=${`translate(${x(d.day)},${cy}) scale(${scale})`} fill=${color} color=${color} fill-opacity=${opacity} stroke-opacity=${opacity} style=${`color:${color}`}><title>${describe(d)}</title>${icon(level)}</g>`);
+      g.append(htl.svg`<g transform=${`translate(${x(d.day)},${cy}) scale(${scale})`} fill=${color} color=${color} fill-opacity=${opacity} stroke-opacity=${opacity} style=${`color:${color}`}>${icon(level)}</g>`);
     }
     return g;
   };
@@ -1306,9 +1309,10 @@ export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
     height: 34,
     marginTop: 4,
     marginBottom: 4,
+    style: {overflow: "visible"},
     x: {...frame.x, axis: null},
     y: {axis: null, domain: [0, 1]},
-    marks: [icons]
+    marks: [icons, tip]
   });
 }
 
