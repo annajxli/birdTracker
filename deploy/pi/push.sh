@@ -18,6 +18,13 @@ rsync -az deploy/pi/ "$HOST:$DEST/deploy/pi/"
 rsync -az dashboard/src/data/detections.parquet.py dashboard/src/data/recordings.parquet.py "$HOST:$DEST/dashboard/src/data/"
 rsync -az "$MODELS/BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite" "$MODELS/BirdNET_GLOBAL_6K_V2.4_MData_Model_V2_FP16.tflite" \
   "$MODELS/BirdNET_GLOBAL_6K_V2.4_Labels.txt" "$HOST:$DEST/models/"
+# A built recorder image, for the recorder's over-the-air update (receiver.py serves ota/).
+FIRMWARE=firmware/recorder_test/.pio/build/firebeetle/firmware.bin
+if [ -f "$FIRMWARE" ]; then
+  ssh "$HOST" "mkdir -p $DEST/ota"
+  rsync -az "$FIRMWARE" "$HOST:$DEST/ota/firebeetle.bin"
+  echo "recorder firmware: $(shasum -a 256 "$FIRMWARE" | cut -c1-12), built $(date -r "$FIRMWARE" '+%Y-%m-%d %H:%M')"
+fi
 # Which commit this is, for the Hardware analytics page (pipeline/code_version.py).
 .venv/bin/python pipeline/code_version.py | ssh "$HOST" "cat > $DEST/deployed.json"
 

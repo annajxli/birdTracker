@@ -126,13 +126,39 @@ and `i` work. To use the other commands, stop streaming with `c` first.
 | `i` | Shows Wi-Fi, time, and free flash |
 | `c` | Starts or stops streaming (FireBeetle only) |
 
+### Update the FireBeetle over Wi-Fi
+
+After you flash the FireBeetle once over USB with a firmware that supports
+over-the-air updates, you can update it without a cable. For how updates and
+rollback work, see
+[Recorder firmware updates](architecture.md#recorder-firmware-updates).
+
+1. Make sure that `secrets.h` has the same `RECEIVER_TOKEN` as the indoor
+   computer's `birdtracker.env`.
+2. In PlatformIO, select `env:firebeetle`, and then click **Build**. Don't
+   click **Upload**. The build writes
+   `firmware/recorder_test/.pio/build/firebeetle/firmware.bin`.
+3. To copy the image to the indoor computer, run `deploy/pi/push.sh` from the
+   same checkout. For more information, see
+   [Update the services](deploy.md#update-the-services).
+4. Wait for the recorder's next update check. The recorder stops streaming
+   while it downloads the image and restarts, so the Live page shows a short
+   gap. To check the update, open the Serial Monitor over USB and send `i`,
+   which shows the start of the running firmware's SHA-256. `push.sh` prints
+   the start of the image's SHA-256 when it copies the image.
+
+If the new image doesn't stream, the recorder goes back to the previous image
+on its own. To install a firmware that has no over-the-air updates, or to
+recover a board that doesn't start, flash it over USB.
+
 To build with Arduino IDE 2 instead of PlatformIO, use the esp32 board package
 from Espressif or the Raspberry Pi Pico/RP2040/RP2350 package from Earle
 Philhower. For the Pico 2 W, set **Tools > Flash Size** to **4MB (FS: 2MB)**.
 
 The recorder sets its clock from NTP, and the receiver names each minute file
-from the recorder's timestamps. To keep timestamps correct, the recorder needs
-NTP access.
+from the recorder's timestamps. If the FireBeetle can't reach NTP, it takes the
+time from the receiver. For the conditions, see
+[Receiver](architecture.md#receiver).
 
 ## Placement and weatherproofing
 

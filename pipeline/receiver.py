@@ -52,6 +52,23 @@ written: streamed samples and uploaded files recorded inside the pause, by
 their recording time, not when they arrive. The minute being written closes at the pause, so paused time is
 missing audio. Health frames are still read. A pause always ends on its own.
 
+The recorder also updates its firmware from the receiver, with the same token:
+
+  GET /ota/<board>.sha256   the SHA-256 of <ota-dir>/<board>.bin, in hex (404: none)
+  GET /ota/<board>.bin      the image itself
+
+The recorder compares the hash with its running image's, and downloads the
+image only when they differ. deploy/pi/push.sh copies a built image into
+<ota-dir>; the receiver only serves what's there.
+
+A recorder that can't reach NTP, in an internet outage, can set its clock here:
+
+  GET /time   this computer's UTC time in epoch ms (503: its clock isn't trustworthy)
+
+The clock counts as trustworthy once systemd-timesyncd has synced it since this
+computer started (--clock-synced-file). Until then it may be far off, and misdated
+recordings are worse than a gap.
+
 Meant for the home network only: plain HTTP, one shared token. Run it on the
 indoor computer:
 
@@ -60,6 +77,7 @@ indoor computer:
 """
 
 import argparse
+import hashlib
 import hmac
 import json
 import logging
@@ -78,6 +96,7 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 NAME = re.compile(r"^\d{8}T\d{6}Z\.(wav|flac|ogg|opus)$")
+OTA_PATH = re.compile(r"^/ota/([a-z0-9][a-z0-9_-]*)\.(bin|sha256)$")  # a board's firmware image
 MAX_BYTES = 2 * 1024**3  # 2 GB: far more than a few minutes of audio
 CHUNK = 64 * 1024
 FRAME_HEADER = struct.Struct("<QI")  # sample index, sample count
@@ -190,6 +209,19 @@ class Pause:
                 self.mtime, self.span = mtime, span
             set_at, until = self.span
         return start < until and (start if end is None else end) >= set_at
+
+
+def file_sha256(path: Path, cache: dict = {}) -> str:
+    """The file's SHA-256 in hex, hashed again only when its size or mtime changes."""
+    st = path.stat()
+    stamp = (st.st_size, st.st_mtime_ns)
+    if cache.get(path, (None,))[0] != stamp:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            while chunk := f.read(CHUNK):
+                h.update(chunk)
+        cache[path] = (stamp, h.hexdigest())
+    return cache[path][1]
 
 
 class MinuteFiles:
@@ -325,6 +357,8 @@ class MinuteFiles:
 class Handler(BaseHTTPRequestHandler):
     incoming: Path
     token: str
+    ota_dir: Path | None = None
+    clock_synced: Path | None = None
     pause: Pause | None = None
     live_port: int = 0
     station: str = "backyard"
@@ -341,9 +375,36 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if urlparse(self.path).path == "/health":
+        path = urlparse(self.path).path
+        if path == "/health":
             return self.reply(200, "ok")
+        if ota := OTA_PATH.match(path):
+            return self.firmware(*ota.groups())
+        if path == "/time":
+            if not hmac.compare_digest(self.headers.get("X-Token", ""), self.token):
+                return self.reply(403, "bad token")
+            if not self.clock_synced or not self.clock_synced.exists():
+                return self.reply(503, "clock not synced")
+            return self.reply(200, str(time.time_ns() // 1_000_000))
         self.reply(404, "not found")
+
+    def firmware(self, board: str, kind: str):
+        if not hmac.compare_digest(self.headers.get("X-Token", ""), self.token):
+            return self.reply(403, "bad token")
+        image = self.ota_dir / f"{board}.bin" if self.ota_dir else None
+        if not image or not image.is_file():
+            return self.reply(404, "no firmware")
+        if kind == "sha256":
+            return self.reply(200, file_sha256(image))
+        with open(image, "rb") as f:  # an open file survives push.sh replacing it meanwhile
+            size = os.fstat(f.fileno()).st_size
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(size))
+            self.end_headers()
+            while chunk := f.read(CHUNK):
+                self.wfile.write(chunk)
+        log.info("firmware %s.bin (%d bytes) to %s", board, size, self.client_address[0])
 
     def do_POST(self):
         url = urlparse(self.path)
@@ -456,6 +517,9 @@ if __name__ == "__main__":
     p.add_argument("--data", type=Path, default=ROOT / "data", help="recordings go to <data>/incoming/")
     p.add_argument("--live-port", type=int, default=8766, help="forward streams to live.py on this localhost port (0 = off)")
     p.add_argument("--station", default="backyard", help="station name sent to live.py")
+    p.add_argument("--clock-synced-file", type=Path, default=Path("/run/systemd/timesync/synchronized"),
+                   help="exists once this computer's clock has synced since it started; GET /time needs it")
+    p.add_argument("--ota-dir", type=Path, default=ROOT / "ota", help="firmware images served at /ota/<board>.bin")
     args = p.parse_args()
     if not args.token:
         p.error("set --token or RECEIVER_TOKEN (the same value goes in the firmware's secrets.h)")
@@ -466,6 +530,8 @@ if __name__ == "__main__":
     if stale := remove_stale_parts(Handler.incoming):
         log.info("deleted %d unfinished file(s) left from before this start", stale)
     Handler.token = args.token
+    Handler.ota_dir = args.ota_dir
+    Handler.clock_synced = args.clock_synced_file
     Handler.pause = Pause(args.data / "pause.json")
     Handler.live_port = args.live_port
     Handler.station = args.station

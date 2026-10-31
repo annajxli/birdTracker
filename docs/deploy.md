@@ -216,6 +216,13 @@ Make sure that you have the following:
 To update the Pi after a pipeline change, run `deploy/pi/push.sh` again. The
 Hardware analytics page shows whether the Pi runs the latest code on `main`.
 
+If `firmware/recorder_test/.pio/build/firebeetle/firmware.bin` exists,
+`push.sh` also copies it to `~/birdtracker/ota/firebeetle.bin` on the Pi, and
+the recorder installs it at its next update check. To avoid installing an old
+image, build the firmware in the same checkout before you push, or delete the
+`.pio` folder. For more information, see
+[Update the FireBeetle over Wi-Fi](hardware.md#update-the-firebeetle-over-wi-fi).
+
 **Caution:** `push.sh` restarts all three services, so recording stops for a
 short time. Before you run it, make sure that every change in your checkout is
 meant for the Pi.

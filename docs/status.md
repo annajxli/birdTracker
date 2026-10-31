@@ -104,6 +104,18 @@ only and uploads in bursts. Bench test 2 measures the draw directly.
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 2: recorder power](plans/bench-test-2.md).
 
+### Recorder updates over Wi-Fi
+
+Merged but not deployed or flashed: the receiver's `/ota` and `/time`
+endpoints, and the recorder's over-the-air updates, watchdog, and microphone
+stall restart. The firmware builds, and the receiver's endpoints pass their
+tests, but none of it has run on the board. To turn it on, deploy the receiver
+with `push.sh` and flash the FireBeetle once over USB. Then check the following:
+
+- A real update installs, and a deliberately broken image rolls back.
+- A stopped microphone restarts the board.
+- With the internet down, a restarted recorder takes its time from the receiver.
+
 ### Plans
 
 None of these plans is built or tested:

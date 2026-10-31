@@ -67,6 +67,42 @@ anything, so paused time is missing audio, the same as an outage. It reads the
 pause from `data/pause.json`, and a pause always ends on its own. For how a
 pause is set, see [Pause the recorder](#pause-the-recorder).
 
+The receiver also serves recorder firmware for over-the-air updates, with the
+same token: `GET /ota/BOARD.sha256` returns the SHA-256 of `ota/BOARD.bin`, and
+`GET /ota/BOARD.bin` returns the image. The directory is `--ota-dir` in
+`pipeline/receiver.py`. The recorder pulls from the receiver, so the receiver
+needs no way to reach the recorder, and a future board can use the same
+endpoint under its own `BOARD` name.
+
+The receiver also serves its clock at `GET /time`, with the same token, for a
+recorder that can't reach NTP. It answers only after `systemd-timesyncd` has
+synced the indoor computer's clock since that computer started
+(`--clock-synced-file` in `pipeline/receiver.py`). Otherwise, it returns 503 and
+the recorder doesn't stream, because a gap is better than misdated recordings.
+
+### Recorder firmware updates
+
+The FireBeetle bench firmware checks the receiver for a new image at startup
+and every `OTA_CHECK_SECONDS` in `firmware/recorder_test/recorder_test.ino`.
+When the receiver's hash differs from the running image's, the recorder stops
+streaming, downloads the image into its other app slot, checks the image's
+SHA-256 while it downloads, and restarts into it. The partition table,
+`default.csv`, has two app slots and the LittleFS partition.
+
+A new image starts on trial. It marks itself valid with
+`esp_ota_mark_app_valid_cancel_rollback()` once it has streamed for
+`OTA_CONFIRM_FRAMES` and the receiver has answered an update check. If it
+crashes or restarts first, the bootloader starts the previous image again. If
+it hasn't marked itself valid within `OTA_TRIAL_SECONDS`, it rolls itself back.
+The previous image then skips the rejected image, by its hash, until the
+receiver serves a different one.
+
+The FireBeetle also restarts itself if it hangs: a task watchdog
+(`WATCHDOG_SECONDS`) watches the loop and microphone tasks, and the microphone
+code restarts the board after `MIC_STALL_SECONDS` without samples. The update
+check runs before streaming starts, so a board that restarts for these reasons
+can still install a fix. A restart during a new image's trial rolls it back.
+
 ### Analyzer
 
 `pipeline/analyzer.py` watches `data/incoming/`. A file counts as finished

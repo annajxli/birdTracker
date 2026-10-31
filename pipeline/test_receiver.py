@@ -1,15 +1,20 @@
-"""Receiver checks: minute files around a recorder pause, and frame counts, with no network."""
+"""Receiver checks: minute files around a recorder pause, frame counts, and the firmware and time endpoints on localhost."""
+import hashlib
 import json
 import os
 import tempfile
+import threading
 import time
 import unittest
 import wave
 from datetime import UTC, datetime
+from http.server import ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 import receiver
-from receiver import MinuteFiles, Pause, remove_stale_parts
+from receiver import Handler, MinuteFiles, Pause, remove_stale_parts
 
 RATE = 100  # samples per second, small so a minute is cheap
 T0 = 1_800_000_000 - 1_800_000_000 % 60  # a whole UTC minute
@@ -113,6 +118,66 @@ class FrameCountTest(unittest.TestCase):
         files.health("frames_sent=360000 frames_dropped=3600")
         files.health("frames_sent=8 frames_dropped=141")
         self.assertEqual((files.sent, files.dropped), (8, 141))
+
+
+class ReceiverHttpTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.ota = Path(self.tmp.name)
+        self.synced = self.ota / "synchronized"
+        handler = type("TestHandler", (Handler,), {"token": "secret", "ota_dir": self.ota, "incoming": self.ota,
+                                                   "clock_synced": self.synced})
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.tmp.cleanup()
+
+    def get(self, path, token="secret"):
+        """(status, body) of a GET."""
+        url = f"http://127.0.0.1:{self.server.server_address[1]}{path}"
+        try:
+            with urlopen(Request(url, headers={"X-Token": token}), timeout=5) as r:
+                return r.status, r.read()
+        except HTTPError as e:
+            return e.code, e.read()
+
+    def test_time_only_from_a_synced_clock(self):
+        self.assertEqual(self.get("/time")[0], 503)
+        self.synced.touch()
+        status, body = self.get("/time")
+        self.assertEqual(status, 200)
+        self.assertAlmostEqual(int(body) / 1000, time.time(), delta=5)
+
+    def test_time_needs_the_token(self):
+        self.synced.touch()
+        self.assertEqual(self.get("/time", token="wrong")[0], 403)
+
+    def test_serves_the_image_and_its_hash(self):
+        image = bytes(range(256)) * 1000
+        (self.ota / "firebeetle.bin").write_bytes(image)
+        self.assertEqual(self.get("/ota/firebeetle.sha256"), (200, hashlib.sha256(image).hexdigest().encode() + b"\n"))
+        self.assertEqual(self.get("/ota/firebeetle.bin"), (200, image))
+
+    def test_a_replaced_image_gets_a_new_hash(self):
+        path = self.ota / "firebeetle.bin"
+        path.write_bytes(b"one")
+        self.get("/ota/firebeetle.sha256")
+        path.write_bytes(b"two!")
+        self.assertEqual(self.get("/ota/firebeetle.sha256")[1].strip(), hashlib.sha256(b"two!").hexdigest().encode())
+
+    def test_needs_the_token(self):
+        (self.ota / "firebeetle.bin").write_bytes(b"image")
+        self.assertEqual(self.get("/ota/firebeetle.bin", token="wrong")[0], 403)
+        self.assertEqual(self.get("/ota/firebeetle.sha256", token="")[0], 403)
+
+    def test_no_image_or_a_bad_name_is_not_found(self):
+        (self.ota / "secret.txt").write_text("x")
+        self.assertEqual(self.get("/ota/firebeetle.sha256")[0], 404)
+        self.assertEqual(self.get("/ota/secret.txt")[0], 404)
+        self.assertEqual(self.get("/ota/../secret.bin")[0], 404)
 
 
 if __name__ == "__main__":
