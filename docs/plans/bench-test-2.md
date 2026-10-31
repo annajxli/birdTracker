@@ -179,8 +179,8 @@ night.
 
 ## Tests
 
-Run T1 to T6 on each board. Run T7 on the best configuration that passes T1
-to T6.
+Run T1 to T5 on each board. Run T7 on the best configuration that passes T1
+to T5.
 
 | Test | What it checks | Method | Pass criteria |
 | --- | --- | --- | --- |
@@ -189,7 +189,6 @@ to T6.
 | T3 | Radio efficiency | In M3 and M4, measure the send energy per payload bit that the receiver gets intact, with and without T2's connect energy. Also record the payload bit rate and packets per second. | Figures in microjoules per bit, kbit/s, and packets per second for each board, comparable across BLE and Wi-Fi |
 | T4 | Audio continuity | Run M3 or M4 for 2 hours with the receiver | Every minute file arrives. `samples_dropped` stays 0. Consecutive files' start times differ by the file length, within 10 ms. |
 | T5 | Compression is lossless | In M4, also write each minute as WAV to the microSD card for 10 minutes, and compare the two on the indoor computer | The decoded FLAC samples equal the WAV samples exactly |
-| T6 | BirdNET parity | Play the bench test 1 Merlin clip from a phone at about 1 m, in M1 and then in M3, on the same board | BirdNET finds the same species in the same 3-second windows. Don't compare confidence scores; hand-held playback can't repeat exactly. |
 | T7 | A day on a battery | Run the chosen configuration for 24 hours from a power bank, through the inline USB power meter, on its real day and night schedule | The meter's daily energy agrees with the projection from T1 within 25%. T4's criteria hold for the whole day. |
 
 ## Pass criteria
@@ -201,7 +200,7 @@ to T6.
   Above 2 Wh, the configuration fails the solar budget. Its options are
   recording in slices outside the dawn chorus, as that page describes, or the
   cable from the house.
-- **Audio.** T4 and T5 pass, and T6 finds the same species.
+- **Audio.** T4 and T5 pass.
 - **Board.** Of the boards that pass, choose the one with the lowest
   projected winter day. If two are within 10% of each other, choose the one
   with less firmware risk, such as more RAM, fewer workarounds, or easier
@@ -219,7 +218,7 @@ The steps say who does each one: *Claude* for code and documentation, and
    `.json` sidecar that it writes for streamed minutes.
 3. *Claude:* write `ppk2_measure.py`, and test it with a recorded trace.
 4. *You:* wire the microSD breakout and the PPK2 to the FireBeetle, and run
-   T1 to T6.
+   T1 to T5.
 5. *Claude:* write the FireBeetle results in `docs/bench-test-2.md`. If no
    mode comes close to 2 Wh, stop and revisit the plan before you test the
    other boards.
@@ -231,6 +230,8 @@ The steps say who does each one: *Claude* for code and documentation, and
 
 ## Out of scope
 
+- **Audio quality**, such as whether BirdNET finds the same species in each
+  firmware mode. This test measures power.
 - **Solar charging**, the charger's efficiency, and the battery gauge. A
   later test sizes the panel from this test's winning number.
 - **Microphones.** Every board uses the same INMP441. For microphone
