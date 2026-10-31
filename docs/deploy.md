@@ -196,6 +196,18 @@ Make sure that you have the following:
    `BIRDNET_MODELS`. Later runs don't change that file; to change a setting,
    edit it on the Pi.
 
+   The script takes the model files from the folder that `BIRDNET_MODELS`
+   names on the development computer, or from an installed
+   `birdnet-analyzer` package. If it finds neither, it stops before it copies
+   anything. To name the folder, run the following instead:
+
+   ```bash
+   BIRDNET_MODELS=MODELS_FOLDER deploy/pi/push.sh USER@birdtracker.local
+   ```
+
+   Replace `MODELS_FOLDER` with the folder that holds the BirdNET V2.4 model
+   and label files.
+
 3. In `firmware/recorder_test/secrets.h`, set `RECEIVER_URL` to
    `http://PI_ADDRESS:8765`, where `PI_ADDRESS` is the Pi's reserved IP
    address. Then flash the recorder again.
@@ -213,8 +225,10 @@ Make sure that you have the following:
 
 ### Update the services
 
-To update the Pi after a pipeline change, run `deploy/pi/push.sh` again. The
-Hardware analytics page shows whether the Pi runs the latest code on `main`.
+To update the Pi after a pipeline change, run `deploy/pi/push.sh` again,
+with the same `BIRDNET_MODELS` as in
+[Install the services](#install-the-services). The Hardware analytics page
+shows whether the Pi runs the latest code on `main`.
 
 If `firmware/recorder_test/.pio/build/firebeetle/firmware.bin` exists,
 `push.sh` also copies it to `~/birdtracker/ota/firebeetle.bin` on the Pi, and
