@@ -15,7 +15,7 @@ The following table lists the deployed components:
 | --- | --- | --- |
 | Website | Served by the password Worker at `birds.annajxli.com`. Set up October 23 to 24, 2026. GitHub Pages is off, DNS points to `100::`, **Always Use HTTPS** is on, and the `PASSWORD` and `SESSION_KEY` secrets are set. | [Deploy the website](deploy.md#deploy-the-website) |
 | R2 bucket | `birdtracker-media`. | [Create the R2 bucket](deploy.md#create-the-r2-bucket) |
-| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `1b99c19` (`main`) since October 30, 2026. For its live power and temperature, see the Hardware analytics page. On October 30, 2026, its Power card showed no under-voltage or throttling over the previous 24 hours. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
+| Indoor computer | Raspberry Pi 3B+ (`pio`) running the receiver, analyzer, and publisher, at `95a39eb` (`main`) since October 31, 2026. For its live power and temperature, see the Hardware analytics page. On October 30, 2026, its Power card showed no under-voltage or throttling over the previous 24 hours. | [Set up the indoor computer](deploy.md#set-up-the-indoor-computer) |
 | Recorder | FireBeetle 2 ESP32-E with the bench firmware in `firmware/recorder_test/` at `6c6c8fe`, flashed October 25, 2026. On a power bank, in a screened window rather than outdoors, during rain since the evening of October 25. | [Recorder hardware](hardware.md) |
 
 ## Deployment log
@@ -23,6 +23,7 @@ The following table lists the deployed components:
 Add one dated line per deployment, newest first. Include the commit and the
 host alias. Don't include secrets.
 
+- October 31, 2026: `95a39eb` (`main`) to `pio` with `push.sh pio@192.168.0.113`: the analyzer leaves recordings in `incoming` when the BirdNET model won't load (`d947b52`), the publisher doesn't replace the bucket's data with an empty or damaged database (`e0746ec`), a malformed review doesn't stop the publisher (`74fc94d`), and the receiver's `/ota` and `/time` endpoints (`898c00c`). No recorder image was built, so `push.sh` copied none to `ota/`. Verified the same morning: the three services are active with no restarts, the analyzer stored the first 3 minutes after the restart, the publisher uploaded the tables, a database snapshot, and Live files with no errors, and `/time` answered with the Pi's time. To roll back, run `push.sh` from `1b99c19`.
 - October 30, 2026: `1b99c19` (`main`) to `pio` with `push.sh pio@192.168.0.113`: a new receiver process takes its first frame counts as a baseline, so a restart no longer credits the recorder's whole stream to one minute. Before the deploy, the frame counts of the minute at `2026-10-30T02:09:04Z` (362,732 sent, 3,687 dropped, from the receiver's start on this Pi) were set to `NULL` in `data/recorder.sqlite`. Verified the same morning: the three services are active. To roll back, run `push.sh` from `6ba3d44`.
 - October 28, 2026: `6ba3d44` (branch `claude/receiver-stale-parts`) to `pio` with `push.sh pio@192.168.0.113`: the receiver deletes unfinished `.part` files when it starts. Before the deploy, 28 such files from October 25 to 28 (about 42 MB) were deleted by hand. Verified the same afternoon: the three services are active, and on restart the receiver deleted the 1 file the restart itself left and took the recorder's stream a second later. To roll back, run `push.sh` from `521bd8d`.
 - October 28, 2026: `e95cafe` (`main`) to `pio` with `push.sh pio@192.168.0.113`: the recorder pause, set on the Hardware analytics page with the `CONTROL_PASSWORD` secret (set the same day). Verified the same afternoon: the three services are active, and a test pause set at 3:56:14 PM reached the Pi 12 seconds later; the receiver closed the open minute and stored no audio until Resume now reached it at 3:57:05 PM, when recording restarted. To roll back, run `push.sh` from `1469cf6`.
@@ -104,26 +105,13 @@ only and uploads in bursts. Bench test 2 measures the draw directly.
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 2: recorder power](plans/bench-test-2.md).
 
-### Undeployed pipeline changes
-
-The following changes are merged but not deployed to `pio`:
-
-- `d947b52`: the analyzer leaves recordings in `incoming` when the BirdNET
-  model won't load.
-- `e0746ec`: the publisher doesn't replace the bucket's data with an empty or
-  damaged database, and `publish.py --restore` restores a new card.
-- `74fc94d`: a malformed review doesn't stop the publisher.
-
-The next `push.sh` deploys them, together with the receiver changes in
-[Recorder updates over Wi-Fi](#recorder-updates-over-wi-fi).
-
 ### Recorder updates over Wi-Fi
 
-Merged but not deployed or flashed: the receiver's `/ota` and `/time`
-endpoints, and the recorder's over-the-air updates, watchdog, and microphone
-stall restart. The firmware builds, and the receiver's endpoints pass their
-tests, but none of it has run on the board. To turn it on, deploy the receiver
-with `push.sh` and flash the FireBeetle once over USB. Then check the following:
+The receiver's `/ota` and `/time` endpoints have run on `pio` since
+October 31, 2026. The recorder's over-the-air updates, watchdog, and microphone
+stall restart are merged but not flashed: the FireBeetle still runs `6c6c8fe`,
+and the Pi has no recorder image in `ota/`. To turn them on, flash the
+FireBeetle once over USB. Then check the following:
 
 - A real update installs, and a deliberately broken image rolls back.
 - A stopped microphone restarts the board.
