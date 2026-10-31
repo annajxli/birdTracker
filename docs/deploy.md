@@ -220,6 +220,41 @@ Hardware analytics page shows whether the Pi runs the latest code on `main`.
 short time. Before you run it, make sure that every change in your checkout is
 meant for the Pi.
 
+### Restore after losing the data folder
+
+The publisher refuses to replace the bucket's data with an empty database, so
+the bucket survives a lost SD card. To restore a new card:
+
+1. To install the services, follow [Install the services](#install-the-services).
+2. To stop the services that use the data folder, run the following on the Pi:
+
+   ```
+   sudo systemctl stop birdtracker-analyzer birdtracker-publish
+   ```
+
+3. To fetch the clips, the Live files, and the database snapshot, run the
+   following from `~/birdtracker`:
+
+   ```
+   set -a; . ./birdtracker.env; set +a
+   .venv/bin/python pipeline/publish.py --restore --db data/recorder.sqlite
+   ```
+
+   The command keeps a local database that already has detections.
+
+4. To start the services again, run the following:
+
+   ```
+   sudo systemctl start birdtracker-analyzer birdtracker-publish
+   ```
+
+The snapshot is as old as the last `--snapshot-hours` upload. For an earlier
+copy, download one from `data/snapshots/` in the bucket and put it at
+`data/recorder.sqlite` while the services are stopped.
+
+If the publisher logs `the data folder looks lost` or `the database looks lost`
+after a shrink that you intended, restart it once with `--allow-shrink`.
+
 ### Update the operating system
 
 The Pi installs Debian security updates weekly, at the time in

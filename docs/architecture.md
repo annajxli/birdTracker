@@ -243,9 +243,17 @@ comes from the `R2_BUCKET` environment variable, and the default is
 | `data/detections.parquet` | Detections, as the dashboard reads them |
 | `data/recordings.parquet` | Recorder telemetry |
 | `data/detections.sqlite` | A database snapshot that the site build downloads |
+| `data/snapshots/` | One snapshot per UTC day, for recovery, up to `SNAPSHOT_KEEP_DAYS` in `pipeline/publish.py` |
 
 The Worker writes visitors' review verdicts to `reviews/`, and the recorder
 pause to `control/pause.json`.
+
+The publisher protects the bucket from an empty or damaged data folder. It logs
+an error, and doesn't upload, when a snapshot or Parquet file falls below
+`MIN_SIZE_RATIO` of the file it would replace, or when a snapshot fails SQLite's
+quick check. A mirror also won't delete most of a prefix in one pass
+(`MASS_DELETE_MIN`). The constants are in `pipeline/publish.py`. To recover, see
+[Restore after losing the data folder](deploy.md#restore-after-losing-the-data-folder).
 
 ## Website
 

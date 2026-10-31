@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import db
+import publish
 from publish import Mirror
 from publish_usage import Usage
 
@@ -107,3 +109,113 @@ class FetchPauseTest(unittest.TestCase):
             fetch_pause(PauseStore("not json"), "b", data)
             self.assertEqual(json.loads((data / "pause.json").read_text()), {"set_at": "2026-10-28T22:30:00.000Z", "until": "2026-10-28T23:30:00.000Z"})
             self.assertFalse((data / "pause.json.part").exists())
+
+
+class ClientErrorStore:
+    """Just enough of R2: objects by key, as bytes."""
+
+    def __init__(self, objects=None):
+        self.objects, self.deleted = dict(objects or {}), []
+
+    def head_object(self, Bucket, Key):
+        from botocore.exceptions import ClientError
+        if Key not in self.objects:
+            raise ClientError({"Error": {"Code": "404"}}, "HeadObject")
+        return {"ContentLength": len(self.objects[Key])}
+
+    def list_objects_v2(self, Bucket, Prefix, **kw):
+        return {"Contents": [{"Key": k, "Size": len(v)} for k, v in self.objects.items() if k.startswith(Prefix)]}
+
+    def upload_file(self, path, bucket, key, **kw):
+        self.objects[key] = Path(path).read_bytes()
+
+    def put_object(self, Bucket, Key, Body, **kw):
+        self.objects[Key] = Body
+
+    def download_file(self, bucket, key, path):
+        Path(path).write_bytes(self.objects[key])
+
+    def delete_object(self, Bucket, Key):
+        self.objects.pop(Key)
+
+    def delete_objects(self, Bucket, Delete):
+        for o in Delete["Objects"]:
+            self.deleted.append(o["Key"])
+            self.objects.pop(o["Key"])
+
+
+class LostDataTest(unittest.TestCase):
+    """A new card's empty database and folders must not replace what the bucket holds."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+
+    def database(self, name, rows=0):
+        path = self.tmp / name
+        conn = db.connect(path)
+        conn.executemany("INSERT INTO detections (station_id, detected_at, scientific_name, common_name, confidence) VALUES ('b', ?, 'A b', 'C', 0.9)",
+                         [(f"2026-10-{i:06d}",) for i in range(rows)])
+        conn.commit()
+        conn.close()
+        return path
+
+    def test_an_empty_database_does_not_replace_the_snapshot(self):
+        big = self.database("big.sqlite", 5000).read_bytes()
+        store = ClientErrorStore({publish.SNAPSHOT_KEY: big})
+        with self.assertLogs("publish", "ERROR"):
+            self.assertFalse(publish.snapshot(store, "b", self.database("new.sqlite")))
+        self.assertEqual(store.objects[publish.SNAPSHOT_KEY], big)
+        self.assertEqual(list(store.objects), [publish.SNAPSHOT_KEY])
+
+    def test_allow_shrink_replaces_it(self):
+        store = ClientErrorStore({publish.SNAPSHOT_KEY: self.database("big.sqlite", 5000).read_bytes()})
+        self.assertTrue(publish.snapshot(store, "b", self.database("new.sqlite"), allow_shrink=True))
+
+    def test_a_first_snapshot_uploads_and_old_days_are_dropped(self):
+        old = {f"{publish.SNAPSHOTS_PREFIX}2026-01-{d:02d}.sqlite": b"x" for d in range(1, 21)}
+        store = ClientErrorStore(old)
+        self.assertTrue(publish.snapshot(store, "b", self.database("new.sqlite", 3)))
+        self.assertIn(publish.SNAPSHOT_KEY, store.objects)
+        days = [k for k in store.objects if k.startswith(publish.SNAPSHOTS_PREFIX)]
+        self.assertEqual(len(days), publish.SNAPSHOT_KEEP_DAYS)
+        self.assertNotIn(f"{publish.SNAPSHOTS_PREFIX}2026-01-01.sqlite", days)
+
+    def test_a_folder_with_only_new_files_does_not_empty_the_prefix(self):
+        live = self.tmp / "live"
+        live.mkdir()
+        (live / "status.json").write_text("{}")
+        remote = {f"live/{i}.webp": b"x" for i in range(100)}
+        store = ClientErrorStore(remote)
+        with self.assertLogs("publish", "ERROR"):
+            Mirror(store, "b", live, "live/").sync()
+        self.assertEqual(store.deleted, [])
+        Mirror(store, "b", live, "live/", allow_mass_delete=True).sync()
+        self.assertEqual(len(store.deleted), 100)
+
+    def test_ordinary_pruning_still_deletes(self):
+        live = self.tmp / "live"
+        live.mkdir()
+        for i in range(100):
+            (live / f"{i}.webp").write_bytes(b"x")
+        store = ClientErrorStore({**{f"live/{i}.webp": b"x" for i in range(100)}, "live/old.webp": b"x"})
+        Mirror(store, "b", live, "live/").sync()
+        self.assertEqual(store.deleted, ["live/old.webp"])
+
+    def test_restore_fetches_what_is_missing(self):
+        snap = self.database("snap.sqlite", 3).read_bytes()
+        store = ClientErrorStore({"clips/2026/a.flac": b"clip", "live/live.json": b"{}", publish.SNAPSHOT_KEY: snap})
+        data, target = self.tmp / "data", self.tmp / "data" / "recorder.sqlite"
+        data.mkdir()
+        db.connect(target).close()  # the analyzer has already made an empty one
+        publish.restore(store, "b", data, target)
+        self.assertEqual((data / "clips/2026/a.flac").read_bytes(), b"clip")
+        self.assertEqual((data / "live/live.json").read_bytes(), b"{}")
+        self.assertEqual(target.read_bytes(), snap)
+
+    def test_restore_keeps_a_database_with_detections(self):
+        target = self.database("kept.sqlite", 1)
+        before = target.read_bytes()
+        publish.restore(ClientErrorStore({publish.SNAPSHOT_KEY: b"other"}), "b", self.tmp, target)
+        self.assertEqual(target.read_bytes(), before)

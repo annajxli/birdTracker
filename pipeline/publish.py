@@ -20,7 +20,16 @@ with the data folder:
             for the Hardware analytics page
   data/detections.sqlite
             a snapshot of the database, every --snapshot-hours; the site's
-            build (every 3 hours) downloads it for the copy built into the site
+            build downloads it for the copy built into the site
+  data/snapshots/<UTC date>.sqlite
+            the day's latest snapshot, kept for SNAPSHOT_KEEP_DAYS
+
+An empty or damaged database must not replace what the bucket holds, so a
+snapshot or Parquet file far smaller than the one it would replace isn't uploaded,
+a snapshot that fails SQLite's quick check isn't either, and a mirror won't delete
+most of a prefix in one go. Each logs an error instead; --allow-shrink overrides
+the size and deletion checks after a real shrink. After losing the data folder,
+--restore fetches it back (docs/deploy.md).
 
 It also fetches control/pause.json, the recorder pause set on the Hardware
 analytics page (deploy/password-worker.js), every --pause-seconds, and keeps
@@ -42,6 +51,7 @@ Settings come from the environment (setup in docs/deploy.md):
 Usage:
   python pipeline/publish.py --watch --db data/recorder.sqlite
   python pipeline/publish.py --once                # one pass, snapshot included
+  python pipeline/publish.py --restore --db data/recorder.sqlite  # with the analyzer and publisher stopped
 """
 
 import argparse
@@ -61,6 +71,7 @@ from pathlib import Path
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 import db
 import thresholds
@@ -71,6 +82,10 @@ REPO = "annajxli/birdTracker"
 WORKFLOW = "pages.yml"
 SNAPSHOT_KEY = "data/detections.sqlite"
 EXPORTS = {name: ROOT / "dashboard" / "src" / "data" / f"{name}.parquet.py" for name in ("detections", "recordings")}
+SNAPSHOTS_PREFIX = "data/snapshots/"
+SNAPSHOT_KEEP_DAYS = 14
+MIN_SIZE_RATIO = 0.5  # a new snapshot or Parquet file smaller than this share of the old one looks like lost data
+MASS_DELETE_MIN = 20  # a mirror won't delete this many keys or more when that's over half of the prefix
 PAUSE_KEY = "control/pause.json"
 FULL_SYNC_SECONDS = 3600  # re-list the bucket now and then, in case something changed it behind our back
 
@@ -98,8 +113,9 @@ class Mirror:
     """Keeps R2 keys under `prefix` equal to the files in `folder`. Remembers what it uploaded
     (key -> size, mtime), so a pass only lists the folder, not the bucket."""
 
-    def __init__(self, s3, bucket: str, folder: Path, prefix: str):
+    def __init__(self, s3, bucket: str, folder: Path, prefix: str, allow_mass_delete: bool = False):
         self.s3, self.bucket, self.folder, self.prefix = s3, bucket, folder, prefix
+        self.allow_mass_delete = allow_mass_delete
         self.uploaded: dict[str, tuple[int, float]] = {}
         self.listed_at = None  # list the bucket on the first pass (monotonic time starts near 0 after a boot)
 
@@ -127,13 +143,19 @@ class Mirror:
             remote = self.remote()
             self.uploaded = {k: (size, local[k][2]) for k, size in remote.items() if k in local and local[k][1] == size}
             stale = [k for k in remote if k not in local]
+            known = len(remote)
             self.listed_at = time.monotonic()
         else:
             stale = [k for k in self.uploaded if k not in local]
+            known = len(self.uploaded)
 
         if stale and not local:
             # An empty or missing folder (a fresh install, data not moved over yet) must not wipe the bucket.
             log.warning("%s: no local files; not deleting %d from the bucket", self.prefix, len(stale))
+            stale = []
+        if len(stale) >= MASS_DELETE_MIN and 2 * len(stale) > known and not self.allow_mass_delete:
+            # The other files in a folder (status.json, a first new clip) don't make it the real data.
+            log.error("%s: not deleting %d of %d keys: the data folder looks lost (--allow-shrink overrides)", self.prefix, len(stale), known)
             stale = []
 
         sent = 0
@@ -165,26 +187,90 @@ class Mirror:
         return sent, len(stale)
 
 
-def snapshot(s3, bucket: str, db_path: Path) -> None:
-    """Upload a consistent copy of the database (SQLite's backup API, so writes can go on)."""
+def too_small(s3, bucket: str, key: str, size: int) -> bool:
+    """Whether a new copy of `key` is so much smaller than the bucket's that it looks like lost data."""
+    try:
+        old = s3.head_object(Bucket=bucket, Key=key)["ContentLength"]
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise
+    if size >= old * MIN_SIZE_RATIO:
+        return False
+    log.error("not replacing %s (%d bytes) with %d bytes: the database looks lost (--allow-shrink overrides)", key, old, size)
+    return True
+
+
+def keep_daily(s3, bucket: str, copy: Path) -> None:
+    """Keep the snapshot as today's generation, and drop those past SNAPSHOT_KEEP_DAYS."""
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    s3.upload_file(str(copy), bucket, f"{SNAPSHOTS_PREFIX}{today}.sqlite", ExtraArgs={"ContentType": "application/vnd.sqlite3"})
+    page = s3.list_objects_v2(Bucket=bucket, Prefix=SNAPSHOTS_PREFIX)
+    keys = sorted(o["Key"] for o in page.get("Contents", []))
+    for key in keys[:-SNAPSHOT_KEEP_DAYS]:
+        s3.delete_object(Bucket=bucket, Key=key)
+
+
+def snapshot(s3, bucket: str, db_path: Path, allow_shrink: bool = False) -> bool:
+    """Upload a consistent copy of the database (SQLite's backup API, so writes can go on).
+    Returns whether it was uploaded."""
     with tempfile.TemporaryDirectory() as tmp:
         copy = Path(tmp) / "detections.sqlite"
         src = sqlite3.connect(db_path)
         dst = sqlite3.connect(copy)
         with dst:
             src.backup(dst)
+        check = dst.execute("PRAGMA quick_check").fetchone()[0]
         src.close()
         dst.close()
+        if check != "ok":
+            log.error("not uploading a snapshot of %s: quick check says %s", db_path.name, check)
+            return False
+        if not allow_shrink and too_small(s3, bucket, SNAPSHOT_KEY, copy.stat().st_size):
+            return False
         s3.upload_file(str(copy), bucket, SNAPSHOT_KEY, ExtraArgs={"ContentType": "application/vnd.sqlite3"})
+        keep_daily(s3, bucket, copy)
         log.info("uploaded a snapshot of %s (%.1f MB)", db_path.name, copy.stat().st_size / 1e6)
+        return True
 
 
-def upload_detections(s3, bucket: str, db_path: Path) -> None:
+def restore(s3, bucket: str, data: Path, db_path: Path) -> None:
+    """Fetch what the bucket holds into a new data folder: clips/ and live/ files that are missing
+    here, and the database snapshot unless the local database already has detections."""
+    for prefix, folder in (("clips/", data / "clips"), ("live/", data / "live")):
+        keys = [k for k in Mirror(s3, bucket, folder, prefix).remote() if not (folder / k[len(prefix):]).exists()]
+        for key in keys:
+            dest = folder / key[len(prefix):]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            part = dest.with_name(dest.name + ".part")
+            s3.download_file(bucket, key, str(part))
+            os.replace(part, dest)
+        log.info("%s: restored %d files", prefix, len(keys))
+    if db_path.exists():
+        conn = sqlite3.connect(db_path)
+        try:
+            if conn.execute("SELECT 1 FROM detections LIMIT 1").fetchone():
+                log.warning("%s already has detections; keeping it", db_path)
+                return
+        except sqlite3.OperationalError:  # no detections table: nothing to keep
+            pass
+        finally:
+            conn.close()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    part = db_path.with_name(db_path.name + ".part")
+    s3.download_file(bucket, SNAPSHOT_KEY, str(part))
+    os.replace(part, db_path)
+    log.info("restored %s from the snapshot", db_path)
+
+
+def upload_detections(s3, bucket: str, db_path: Path, allow_shrink: bool = False) -> None:
     """Run the dashboard's exports (detections and recordings) on the database and upload the
     Parquet they write."""
     for name, export in EXPORTS.items():
         out = subprocess.run([sys.executable, str(export)], env={**os.environ, "BIRDTRACKER_DB": str(db_path)},
                              capture_output=True, check=True, timeout=300).stdout
+        if not allow_shrink and too_small(s3, bucket, f"data/{name}.parquet", len(out)):
+            continue
         s3.put_object(Bucket=bucket, Key=f"data/{name}.parquet", Body=out, ContentType="application/vnd.apache.parquet")
         log.info("uploaded %s.parquet (%.1f KB)", name, len(out) / 1024)
 
@@ -381,6 +467,7 @@ if __name__ == "__main__":
     mode = p.add_mutually_exclusive_group(required=True)
     mode.add_argument("--watch", action="store_true", help="keep publishing")
     mode.add_argument("--once", action="store_true", help="publish everything once, snapshot included, then exit")
+    mode.add_argument("--restore", action="store_true", help="fetch clips, live files and the database from the bucket, then exit")
     p.add_argument("--data", type=Path, default=ROOT / "data", help="holds live/ and clips/")
     p.add_argument("--db", type=Path, default=db.DEFAULT_DB)
     p.add_argument("--interval", type=float, default=15, help="seconds between passes over live/ and clips/")
@@ -389,6 +476,7 @@ if __name__ == "__main__":
     p.add_argument("--history-seconds", type=float, default=300, help="seconds between historical Live index updates")
     p.add_argument("--detections-minutes", type=float, default=10, help="minutes between detections.parquet uploads")
     p.add_argument("--snapshot-hours", type=float, default=3, help="hours between database snapshots and rebuilds")
+    p.add_argument("--allow-shrink", action="store_true", help="publish even if the bucket's data would shrink sharply")
     args = p.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -399,7 +487,11 @@ if __name__ == "__main__":
     usage = Usage(args.data / "publish-usage.json")
     usage.attach(s3)
     bucket = os.environ.get("R2_BUCKET", "birdtracker-media")
-    mirrors = [Mirror(s3, bucket, args.data / "live", "live/"), Mirror(s3, bucket, args.data / "clips", "clips/")]
+    if args.restore:
+        restore(s3, bucket, args.data, args.db)
+        usage.save()
+        sys.exit()
+    mirrors = [Mirror(s3, bucket, args.data / "live", "live/", args.allow_shrink), Mirror(s3, bucket, args.data / "clips", "clips/", args.allow_shrink)]
     last_snapshot = 0.0  # wall-clock time of the last snapshot taken
     last_detections = 0.0  # ...and of the last detections.parquet upload
     health = Health(args.data)
@@ -432,14 +524,15 @@ if __name__ == "__main__":
             if args.db.exists() and (args.once or (time.time() - last_detections > args.detections_minutes * 60
                                                    and db_changed_since(args.db, last_detections))):
                 started = time.time()
-                upload_detections(s3, bucket, args.db)
+                upload_detections(s3, bucket, args.db, args.allow_shrink)
                 last_detections = started
             due = time.time() - last_snapshot > args.snapshot_hours * 3600
             if args.db.exists() and (args.once or (due and db_changed_since(args.db, last_snapshot))):
                 started = time.time()
-                snapshot(s3, bucket, args.db)
+                uploaded = snapshot(s3, bucket, args.db, args.allow_shrink)
                 last_snapshot = started
-                rebuild()
+                if uploaded:
+                    rebuild()
         except Exception:  # R2 or GitHub unreachable: try again next pass
             if args.once:
                 raise
