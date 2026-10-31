@@ -236,15 +236,14 @@ const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, 
   const [lo, hi] = d3.extent(medians.values());
   const size = (m) => (hi > lo ? 20 + (80 * (m - lo)) / (hi - lo) : 60); // % of the strip's height
   // Over the bars, the half-hour values as a line, so trends show within a status; broken where
-  // there's no data. Its range is the values' robust spread (quartiles ± 1.5 IQR, so a lone
-  // spike doesn't flatten the rest; spikes clip at the edge), but never narrower than a tenth of
-  // the meter's scale (minSpan, in the reading's units, without one), so a steady reading stays
-  // flat instead of stretched.
+  // there's no data. Its range is the meter's scale, so its height means the same as the meter's
+  // and a small change stays small. Without a meter, it's the values' robust spread (quartiles
+  // ± 1.5 IQR, so a lone spike doesn't flatten the rest; spikes clip at the edge), but never
+  // narrower than minSpan, in the reading's units, so a steady reading stays flat.
   const vals = [...medians.values()].sort(d3.ascending);
   const [q1, q3] = [d3.quantileSorted(vals, 0.25), d3.quantileSorted(vals, 0.75)];
-  let [l0, l1] = [Math.max(lo, q1 - 1.5 * (q3 - q1)), Math.min(hi, q3 + 1.5 * (q3 - q1))];
-  const floor = zones ? (zones.at(-1)[1] - zones[0][0]) / 10 : minSpan;
-  if (l1 - l0 < floor) { const c = (l0 + l1) / 2; [l0, l1] = [c - floor / 2, c + floor / 2]; }
+  let [l0, l1] = zones ? [zones[0][0], zones.at(-1)[1]] : [Math.max(lo, q1 - 1.5 * (q3 - q1)), Math.min(hi, q3 + 1.5 * (q3 - q1))];
+  if (l1 - l0 < minSpan) { const c = (l0 + l1) / 2; [l0, l1] = [c - minSpan / 2, c + minSpan / 2]; }
   const y = (m) => 90 - 80 * Math.max(0, Math.min(1, (m - l0) / (l1 - l0)));
   const path = d3.range(BARS).map((i) => (medians.has(i) ? `${medians.has(i - 1) ? "L" : "M"}${i + 0.5},${y(medians.get(i))}` : "")).join("");
   const trend = line && medians.size > 1 ? html`<svg class="strip-line" viewBox="0 0 ${BARS} 100" preserveAspectRatio="none" aria-hidden="true"><path d="${path}"/></svg>` : "";
