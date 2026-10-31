@@ -204,7 +204,8 @@ to T6.
 - **Audio.** T4 and T5 pass, and T6 finds the same species.
 - **Board.** Of the boards that pass, choose the one with the lowest
   projected winter day. If two are within 10% of each other, choose the one
-  with less firmware risk, such as more RAM or fewer workarounds.
+  with less firmware risk, such as more RAM, fewer workarounds, or easier
+  over-the-air updates.
 
 ## Steps
 
