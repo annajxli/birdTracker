@@ -106,7 +106,8 @@ async function review(request, env, url) {
   }
   const list = Array.isArray(body?.detections) ? body.detections : [];
   const ok = body !== null && typeof body === "object" && VERDICTS.has(body.verdict) && list.length > 0 && list.length <= MAX_REVIEWED &&
-    list.every((d) => /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(d?.at) && /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(d?.scientific));
+    list.every((d) => typeof d?.at === "string" && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(d.at) &&
+      typeof d.scientific === "string" && /^[A-Za-z][A-Za-z .'-]{1,79}$/.test(d.scientific));
   if (!ok) return new Response("bad review", {status: 400});
   const at = new Date().toISOString();
   const record = {at, verdict: body.verdict, detections: list.map((d) => ({at: d.at, scientific: d.scientific}))};

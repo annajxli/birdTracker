@@ -219,3 +219,25 @@ class LostDataTest(unittest.TestCase):
         before = target.read_bytes()
         publish.restore(ClientErrorStore({publish.SNAPSHOT_KEY: b"other"}), "b", self.tmp, target)
         self.assertEqual(target.read_bytes(), before)
+
+
+class ReviewStore(ClientErrorStore):
+    def get_object(self, Bucket, Key):
+        return {"Body": io.BytesIO(self.objects[Key])}
+
+
+class ApplyReviewsTest(unittest.TestCase):
+    def test_a_malformed_review_is_dropped_and_the_rest_apply(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "d.sqlite"
+            conn = db.connect(path)
+            conn.execute("INSERT INTO detections (station_id, detected_at, scientific_name, common_name, confidence) VALUES ('b', '2026-10-01T00:00:00Z', 'A b', 'C', 0.9)")
+            conn.commit()
+            good = {"at": "2026-10-02T00:00:00.000Z", "verdict": "rejected", "detections": [{"at": "2026-10-01T00:00:00Z", "scientific": "A b"}]}
+            bad = {**good, "verdict": "confirmed", "detections": [good["detections"][0], {"at": ["2026-10-01T00:00:00Z"], "scientific": "A b"}]}
+            store = ReviewStore({"reviews/1.json": json.dumps(good).encode(), "reviews/2.json": json.dumps(bad).encode()})
+            with self.assertLogs("publish", "WARNING"):
+                self.assertEqual(publish.apply_reviews(store, "b", path, Path(tmp) / "live"), 2)
+            self.assertEqual(store.objects, {})
+            self.assertEqual(conn.execute("SELECT review FROM detections").fetchone()[0], "rejected")  # none of the bad one
+            conn.close()

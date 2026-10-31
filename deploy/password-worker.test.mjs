@@ -145,6 +145,10 @@ r = await worker.fetch(rev({verdict: "maybe", detections: good.detections}), ren
 check(r.status === 400, "unknown verdict refused");
 r = await worker.fetch(rev({verdict: null, detections: [{at: "yesterday", scientific: "x"}]}), renv);
 check(r.status === 400 && put.length === 1, "malformed detection refused");
+r = await worker.fetch(rev({verdict: "rejected", detections: [{at: ["2026-10-26T14:35:39Z"], scientific: "Falco peregrinus"}]}), renv);
+check(r.status === 400 && put.length === 1, "a time that's an array refused, though it stringifies to a valid one");
+r = await worker.fetch(rev({verdict: "rejected", detections: [{at: "2026-10-26T14:35:39Z", scientific: ["Falco peregrinus"]}]}), renv);
+check(r.status === 400 && put.length === 1, "a name that's an array refused");
 r = await worker.fetch(rev({verdict: null, detections: good.detections}), renv);
 check(r.status === 200 && put.length === 2 && put[1][1].verdict === null, "null verdict clears");
 r = await worker.fetch(new Request(base + "/api/reviews", {headers: {Cookie: value}}), renv);

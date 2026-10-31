@@ -414,7 +414,8 @@ def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = Fals
                 verdict = r["verdict"] if r["verdict"] in ("rejected", "confirmed") else None
                 conn.executemany("UPDATE detections SET review = ?, reviewed_at = ? WHERE detected_at = ? AND scientific_name = ?",
                                  [(verdict, r["at"][:19] + "Z" if verdict else None, d["at"], d["scientific"]) for d in r["detections"]])
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError, sqlite3.ProgrammingError, sqlite3.InterfaceError):
+                conn.rollback()  # none of a malformed review, not the part before the bad entry
                 log.warning("skipping unreadable review %s", key)
             conn.commit()
             s3.delete_object(Bucket=bucket, Key=key)
@@ -510,10 +511,15 @@ if __name__ == "__main__":
                         raise
                     log.exception("pause check failed")
             if args.db.exists() and (args.once or last_reviews is None or now - last_reviews >= args.reviews_seconds):
-                if apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
-                    last_detections = 0.0  # publish corrections on this pass
                 last_reviews = now
-                first = False
+                try:
+                    if apply_reviews(s3, bucket, args.db, args.data / "live", force=first):
+                        last_detections = 0.0  # publish corrections on this pass
+                    first = False
+                except Exception:  # keep publishing; the reviews wait for the next check
+                    if args.once:
+                        raise
+                    log.exception("review check failed")
             history = args.once or last_history is None or now - last_history >= args.history_seconds
             for m in mirrors:
                 sent, deleted = m.sync(history=history)
