@@ -104,6 +104,19 @@ only and uploads in bursts. Bench test 2 measures the draw directly.
 Bench test 2 measures power and decides the board. For its plan, see
 [Bench test 2: recorder power](plans/bench-test-2.md).
 
+### Undeployed pipeline changes
+
+The following changes are merged but not deployed to `pio`:
+
+- `d947b52`: the analyzer leaves recordings in `incoming` when the BirdNET
+  model won't load.
+- `e0746ec`: the publisher doesn't replace the bucket's data with an empty or
+  damaged database, and `publish.py --restore` restores a new card.
+- `74fc94d`: a malformed review doesn't stop the publisher.
+
+The next `push.sh` deploys them, together with the receiver changes in
+[Recorder updates over Wi-Fi](#recorder-updates-over-wi-fi).
+
 ### Recorder updates over Wi-Fi
 
 Merged but not deployed or flashed: the receiver's `/ota` and `/time`
