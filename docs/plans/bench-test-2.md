@@ -1,6 +1,7 @@
 # Bench test 2: recorder power
 
-This page plans the second bench test. Nothing on it is built or run yet: the
+This page plans the second bench test. Only the firmware for the
+[recording check](#recording-check) is built, and nothing has run yet. The
 firmware modes, the measurement script, and the receiver change don't exist.
 When the test runs, its results go in a new record, `docs/bench-test-2.md`,
 and this plan is deleted. For the first test, see
@@ -57,6 +58,43 @@ The test uses the boards and parts in
 
 The XIAO nRF52840 and BLE are out of scope unless no Wi-Fi board passes. For
 the other exclusions, see [Out of scope](#out-of-scope).
+
+## Recording check
+
+To keep the live recording running during the test, make the XIAO ESP32S3 a
+working recorder first. One board can then record while the other is measured.
+The sketch in `firmware/power_test/` streams with the same protocol as the
+bench recorder.
+
+To run the check, do the following:
+
+1. Connect the Wi-Fi antenna to the XIAO's U.FL socket.
+2. Connect the INMP441 as shown in the following table:
+
+   | INMP441 | XIAO ESP32S3 |
+   | --- | --- |
+   | VDD | 3V3 |
+   | GND | GND |
+   | L/R | GND |
+   | SCK | D0 (GPIO 1) |
+   | WS | D1 (GPIO 2) |
+   | SD | D2 (GPIO 3) |
+
+3. Copy `firmware/power_test/secrets.example.h` to `secrets.h` in the same
+   folder, and fill it in. Set `RECEIVER_URL` to the laptop, not the Pi.
+4. On the laptop, start `pipeline/receiver.py` with `--token` set to the
+   `RECEIVER_TOKEN` value.
+5. In PlatformIO, open `firmware/power_test`, select `env:xiao_esp32s3`, and
+   then click **Upload**.
+
+The following table lists the checks:
+
+| Check | Method | Pass criteria |
+| --- | --- | --- |
+| R1 | Read the serial log after a reset | The log shows `wifi up` and `clock set from NTP` |
+| R2 | Stop streaming with `c`, run `l`, stay quiet, and then clap | RMS rises 20 dB or more, with no `CLIPPED` |
+| R3 | Start streaming with `c`, and run for 1 hour | Every minute file arrives, and the log shows 0 dropped frames |
+| R4 | Play the bench test 1 Merlin clip from a phone at about 1 m, and run `analyzer.py --once` | BirdNET finds Black-capped Chickadee |
 
 ## Firmware modes
 
