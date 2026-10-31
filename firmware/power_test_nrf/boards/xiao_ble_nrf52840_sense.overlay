@@ -1,0 +1,33 @@
+/* The same D pins as the XIAO ESP32S3 wiring. The onboard IMU and microphone stay off. */
+
+&{/lsm6ds3tr-c-en} {
+	/delete-property/ regulator-boot-on;
+};
+
+&lsm6ds3tr_c {
+	status = "disabled";
+};
+
+&i2c0 {
+	status = "disabled";
+};
+
+&uart0 {
+	status = "disabled";
+};
+
+&pinctrl {
+	i2s0_default: i2s0_default {
+		group1 {
+			psels = <NRF_PSEL(I2S_SCK_M, 0, 2)>,  /* D0, mic SCK */
+				<NRF_PSEL(I2S_LRCK_M, 0, 3)>, /* D1, mic WS */
+				<NRF_PSEL(I2S_SDIN, 0, 28)>;  /* D2, mic SD */
+		};
+	};
+};
+
+&i2s0 {
+	status = "okay";
+	pinctrl-0 = <&i2s0_default>;
+	pinctrl-names = "default";
+};

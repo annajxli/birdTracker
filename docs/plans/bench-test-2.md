@@ -96,6 +96,28 @@ The following table lists the checks:
 | R3 | Start streaming with `c`, and run for 1 hour | Every minute file arrives, and the log shows 0 dropped frames |
 | R4 | Play the bench test 1 Merlin clip from a phone at about 1 m, and run `analyzer.py --once` | BirdNET finds Black-capped Chickadee |
 
+## Firmware for the XIAO nRF52840 Sense
+
+The Zephyr app in `firmware/power_test_nrf/` uses the same D pins as the XIAO
+ESP32S3. So far it has the sleep and record states, chosen with the commands
+listed at the top of `src/main.c`.
+
+The nRF52840 has no audio clock and no 32-bit I²S frame, so `SAMPLE_RATE` in
+`src/main.c` runs at about 31.7 kHz with 24-bit slots. Check the microphone
+with the level meter first, because the INMP441 is specified for 64 clocks per
+frame, and this frame has 48. If the level is wrong by a constant amount,
+adjust `SAMPLE_SHIFT`.
+
+To build the app, run the following command from a Zephyr workspace:
+
+```bash
+west build -b xiao_ble/nrf52840/sense PATH_TO_REPO/firmware/power_test_nrf
+```
+
+Replace `PATH_TO_REPO` with the path to this repository. To flash the board,
+double-tap its reset button, and then copy `build/zephyr/zephyr.uf2` to the
+drive that appears.
+
 ## Firmware modes
 
 The modes extend the Arduino bench sketch in `firmware/recorder_test/`, with a
