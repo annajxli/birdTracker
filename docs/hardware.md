@@ -66,9 +66,11 @@ Make sure that you have the following:
 The following diagram shows the INMP441 module's pins:
 
 ```text
-GND -o       o- L/R
-VDD -o  []   o- WS
-SD  -o  U1   o- SCK
+       ┌─────────────┐
+ GND ──○             ○── L/R
+ VDD ──○     [ ]     ○── WS
+  SD ──○     U1      ○── SCK
+       └─────────────┘
 ```
 
 Connect the INMP441 as shown in the following table. FireBeetle pins show the
