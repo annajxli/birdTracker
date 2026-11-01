@@ -9,12 +9,14 @@
  *   3  S3: record and discard
  *   l  level meter: peak and RMS for 10 s (S3 only)
  *   i  info
+ *   u  restart into the bootloader, to flash without the reset button
  *
  * The nRF52840 has no audio clock, so I2S can't run at exactly 32 kHz, and it has no 32-bit I2S
  * frame. The driver picks the nearest rate: about 31.7 kHz, with 24-bit slots.
  */
 
 #include <math.h>
+#include <nrf.h>
 #include <stdlib.h>
 #include <zephyr/console/console.h>
 #include <zephyr/device.h>
@@ -121,6 +123,11 @@ static void commands(void *, void *, void *)
 			}
 		} else if (ch == 'i') {
 			printk("mode S%u, %u blocks read, %u read errors\n", mode, blocks_read, read_errors);
+		} else if (ch == 'u') {
+			printk("restarting into the bootloader\n");
+			k_msleep(100);
+			NRF_POWER->GPREGRET = 0x57; /* the Adafruit bootloader's UF2 request */
+			NVIC_SystemReset();
 		}
 	}
 }
