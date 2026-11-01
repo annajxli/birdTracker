@@ -99,6 +99,13 @@ The following table lists the checks:
 | R3 | Start streaming with `c`, and run for 1 hour | Every minute file arrives, and the log shows 0 dropped frames |
 | R4 | Play the bench test 1 Merlin clip from a phone at about 1 m, and run `analyzer.py --once` | BirdNET finds Black-capped Chickadee |
 
+## Power states on the ESP32 boards
+
+To run the states in `firmware/power_test/power_states.ino`, send the `p` command over USB, unplug
+USB, and power the board from the PPK2. The attached parts choose the group, and the marker pins show
+each state's code, as listed at the top of that file. To split a capture into states, run
+`firmware/power_test/analyze_ppk2.py`. To return the board to recording, send the `r` command.
+
 ## Firmware for the XIAO nRF52840 Sense
 
 The Zephyr app in `firmware/power_test_nrf/` uses the same D pins as the XIAO

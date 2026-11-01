@@ -7,6 +7,8 @@
 //   l  level meter: peak and RMS for 10 s (stop streaming first)
 //   c  start or stop streaming
 //   i  info: wifi and time
+//   p  run the power states from the next power-up (power_states.ino)
+//   r  back to recording from the next power-up
 //
 // The board streams as soon as it has wifi and the time. A mic task fills a RAM ring buffer, to
 // ride out wifi hiccups, and loop() sends it to the receiver, which cuts it into 1-minute WAVs.
@@ -15,7 +17,11 @@
 #include <Arduino.h>
 #include <ESPmDNS.h>
 #include <ESP_I2S.h>
+#include <Preferences.h>
+#include <SD.h>
+#include <SPI.h>
 #include <WiFi.h>
+#include <esp_sleep.h>
 #include <esp_timer.h>
 #include <freertos/ringbuf.h>
 #include <sys/time.h>
@@ -37,17 +43,34 @@ const int PIN_WS = 2;         // D1, mic WS
 const int PIN_DIN = 3;        // D2, mic SD
 const int PIN_MARK_REC = 5;   // D4
 const int PIN_MARK_UP = 6;    // D5
+const int PIN_MARK_3 = 44;    // D7
+const int PIN_SD_SCK = 7;     // D8
+const int PIN_SD_MISO = 8;    // D9
+const int PIN_SD_MOSI = 9;    // D10
+const int PIN_SD_CS = 4;      // D3
+const int PIN_LOG_TX = 43;    // D6
 #elif defined(BOARD_FIREBEETLE)
 const int PIN_BCLK = 26;      // D3, mic SCK
 const int PIN_WS = 25;        // D2, mic WS
 const int PIN_DIN = 34;       // A2, mic SD (input-only pin is fine)
 const int PIN_MARK_REC = 14;  // D6
 const int PIN_MARK_UP = 13;   // D7
+const int PIN_MARK_3 = 17;    // D10
+const int PIN_SD_SCK = 18;
+const int PIN_SD_MISO = 19;
+const int PIN_SD_MOSI = 23;
+const int PIN_SD_CS = 16;     // D11
+const int PIN_LOG_TX = 1;     // TX
 #else
 #error "Build with -DBOARD_XIAO_ESP32S3 or -DBOARD_FIREBEETLE (see platformio.ini)"
 #endif
 
 I2SClass i2s;
+bool statesRunning = false;  // the power states use the marker pins for their own codes
+
+void mark(int pin, int level) {
+  if (!statesRunning) digitalWrite(pin, level);
+}
 
 // ---- mic ------------------------------------------------------------------
 
@@ -162,7 +185,7 @@ void micTaskLoop(void *) {
   static int32_t raw[FRAME_SAMPLES];
   static Frame fr;
   uint64_t index = 0;
-  digitalWrite(PIN_MARK_REC, HIGH);
+  mark(PIN_MARK_REC, HIGH);
   while (streaming) {
     micRead(raw, FRAME_SAMPLES);
     for (size_t k = 0; k < FRAME_SAMPLES; k++) fr.pcm[k] = toPcm16(raw[k]);
@@ -177,7 +200,7 @@ void micTaskLoop(void *) {
     }
     if (xRingbufferSend(streamBuf, &fr, FRAME_HEADER_BYTES + FRAME_SAMPLES * 2, 0) != pdTRUE) framesDropped++;
   }
-  digitalWrite(PIN_MARK_REC, LOW);
+  mark(PIN_MARK_REC, LOW);
   micTask = nullptr;
   vTaskDelete(nullptr);
 }
@@ -203,7 +226,7 @@ void streamStop() {
   streaming = false;
   while (micTask) delay(10);
   streamClient.stop();
-  digitalWrite(PIN_MARK_UP, LOW);
+  mark(PIN_MARK_UP, LOW);
   size_t size;  // empty the buffer
   while (void *item = xRingbufferReceive(streamBuf, &size, 0)) vRingbufferReturnItem(streamBuf, item);
   Serial.printf("streaming stopped: %lu frames sent, %lu dropped\n", (unsigned long)framesSent, (unsigned long)framesDropped);
@@ -253,7 +276,7 @@ bool streamConnect() {
   streamConnectedAt = millis();
   streamConnects++;
   healthDue = true;
-  digitalWrite(PIN_MARK_UP, HIGH);
+  mark(PIN_MARK_UP, HIGH);
   Serial.printf("stream connected (#%lu), RSSI %d dBm\n", (unsigned long)streamConnects, (int)WiFi.RSSI());
   return true;
 }
@@ -286,7 +309,7 @@ void streamPump() {
     streamClient.stop();  // the buffer holds the audio while we reconnect
   }
   if (!streamClient.connected()) {
-    digitalWrite(PIN_MARK_UP, LOW);
+    mark(PIN_MARK_UP, LOW);
     if (!streamConnect()) { delay(20); return; }
   }
   // Send whatever is buffered, up to 8 frames per write: one small packet per frame couldn't
@@ -362,9 +385,14 @@ void setup() {
   pinMode(PIN_MARK_REC, OUTPUT);
   pinMode(PIN_MARK_UP, OUTPUT);
   Serial.println("\nbirdTracker bench test 2");
+  Preferences prefs;
+  prefs.begin("power_test", true);
+  bool runStates = prefs.getBool("states", false);
+  prefs.end();
+  if (runStates) statesRun();  // doesn't return
   if (!micBegin()) Serial.println("! mic (I2S) failed to start");
   if (wifiUp()) syncClock();
-  Serial.println("commands: l = level meter (when stopped), c = start or stop streaming, i = info");
+  Serial.println("commands: l = level meter (when stopped), c = start or stop streaming, i = info, p = power states next");
   streamStart();
 }
 
@@ -375,6 +403,7 @@ void loop() {
     char ch = Serial.read();
     if (ch == 'c') streamStop();
     else if (ch == 'i') info();
+    else if (ch == 'p' || ch == 'r') statesChoose(ch == 'p');
     else if (ch > ' ') Serial.println("streaming: only c (stop) and i work until it stops");
     return;
   }
@@ -383,5 +412,7 @@ void loop() {
     case 'l': levelMeter(); break;
     case 'c': streamStart(); break;
     case 'i': info(); break;
+    case 'p': statesChoose(true); break;
+    case 'r': statesChoose(false); break;
   }
 }
