@@ -63,6 +63,14 @@ Make sure that you have the following:
 
 ### Wire the microphone
 
+The following diagram shows the INMP441 module's pins:
+
+```text
+GND -o       o- L/R
+VDD -o  []   o- WS
+SD  -o  U1   o- SCK
+```
+
 Connect the INMP441 as shown in the following table. FireBeetle pins show the
 board's label and, in parentheses, the GPIO number that the sketch's `PIN_`
 constants use.
