@@ -12,6 +12,7 @@ toc: false
      (re-read while the page is open, so it's current without a rebuild). -->
 
 ```js
+import {spreadLabels} from "./components/meter-ticks.js";
 import {loadSun, detectionsTable, recordingsTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
 ```
 
@@ -170,8 +171,25 @@ const meter = (value, zones, format = (v) => v) => {
   return {status: zone[2], node: html`<div class="meter" role="img" aria-label="${format(value)}: ${STATUS[zone[2]][1]}">
     <div class="meter-track">${zones.map((z) => html`<span class="meter-zone status-${z[2]}${z === zone ? " is-current" : ""}" style="width: ${pct(z[1] + lo - z[0])}"></span>`)}</div>
     <span class="meter-mark" style="left: ${pct(at)}"></span>
-    <div class="meter-ticks">${zones.slice(1).map((z) => html`<span style="left: ${pct(z[0])}">${format(z[0])}</span>`)}</div>
+    ${spreadTicks(html`<div class="meter-ticks">${zones.slice(1).map((z) => html`<span style="left: ${pct(z[0])}">${format(z[0])}</span>`)}</div>`)}
   </div>`};
+};
+// On a narrow card, neighboring tick labels would overlap: once laid out, and whenever the card
+// resizes, move colliding labels apart and keep them inside the meter.
+const spreadTicks = (ticks) => {
+  const place = () => {
+    const spans = [...ticks.children];
+    spans.forEach((s) => { s.style.transform = ""; s.style.marginLeft = ""; });
+    const span = ticks.clientWidth;
+    const labels = spans.map((s) => ({center: s.offsetLeft, width: s.offsetWidth}));
+    if (!span) return;
+    // offsetLeft is the mark (the CSS centers the label with a transform, which offsetLeft ignores).
+    spreadLabels(labels, span).forEach((left, i) => { spans[i].style.transform = "none"; spans[i].style.marginLeft = `${left - labels[i].center}px`; });
+  };
+  const observer = new ResizeObserver(place);
+  observer.observe(ticks);
+  invalidation.then(() => observer.disconnect());
+  return ticks;
 };
 // A stat card with a meter: the value, the meter, its status and a note, then its recent history.
 // A card whose status isn't Good gets its top bar in the status color.
