@@ -93,6 +93,7 @@ const upTo = Math.max(dataEnd, Date.now() - 15 * 60e3), upFrom = Math.max(LAUNCH
 const lastDay = recs.filter((d) => +d.time >= upFrom);
 const uptime = upTo > upFrom ? d3.sum(lastDay, (d) => d.seconds) * 1e3 / (upTo - upFrom) : 0;
 const dayDelay = lastDay.length ? d3.median(lastDay, (d) => d.delay) / 60 : null; // minutes
+const dayRssi = d3.median(lastDay, (d) => d.rssi) ?? null;
 const daily = span.filter((d) => byDate.has(d)).map((date) => {
   const v = byDate.get(date);
   return {date: new Date(date), day: date,
@@ -109,14 +110,14 @@ const fmtDay = (d) => formatDate(d.toISOString().slice(0, 10));
 const last = recs.at(-1);
 const detDate = detections.getChild("date"), detConf = detections.getChild("confidence");
 const clock = (iso) => new Date(iso).toLocaleString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric", hour: "numeric", minute: "2-digit"});
-// BirdNET's confidence for each detection in the window, for the distribution card.
+// BirdNET's confidence for each detection in the last 24 hours, for the distribution card.
 const detTime = detections.getChild("time");
 const detReview = detections.schema.fields.some((f) => f.name === "review") ? detections.getChild("review") : null; // rejected ones don't count
-const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= from && detReview?.get(i) !== "rejected").map((i) => ({at: new Date(Number(detTime.get(i))), confidence: detConf.get(i)}));
+const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= from && detReview?.get(i) !== "rejected").map((i) => ({at: new Date(Number(detTime.get(i))), confidence: detConf.get(i)}))
+  .filter((d) => +d.at >= Date.now() - 24 * 3600e3);
 const confidences = confRows.map((d) => d.confidence);
 const THRESHOLD = 0.6;
 const confMedian = d3.median(confidences);
-const confFrom = d3.min(d3.range(detections.numRows).filter((i) => detDate.get(i) >= from && detReview?.get(i) !== "rejected"), (i) => detDate.get(i)); // first day counted
 // Packet success over many minutes, pooled (all frames sent over all frames recorded), so a short
 // minute counts for its frames, not as much as a full one. From the frame counts when exported,
 // else each minute's share weighted by its seconds (close, as frames recorded follow time on).
@@ -393,8 +394,8 @@ const piSection = pi && html`<div class="grid stats">
 <!-- End to end: what both halves together deliver. -->
 <div class="grid stats">
   ${confidences.length
-    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median · IQR ${d3.format(".2f")(d3.quantile(confidences, 0.25))}–${d3.format(".2f")(d3.quantile(confidences, 0.75))} · ${d3.format(",")(confidences.length)} detections since ${formatDate(confFrom)}</div>${confidenceDensity()}</div>`
-    : noData("Detection confidence")}
+    ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median · IQR ${d3.format(".2f")(d3.quantile(confidences, 0.25))}–${d3.format(".2f")(d3.quantile(confidences, 0.75))} · ${d3.format(",")(confidences.length)} detections, last 24 hours</div>${confidenceDensity()}</div>`
+    : html`<div class="card"><h2>Detection confidence</h2><div class="big">–</div>${confidenceDensity()}</div>`}
   ${hasRecs ? [
     meterCard("Uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), "last 24 hours", statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
     dayDelay == null ? noData("Recording → dashboard delay")
@@ -406,22 +407,23 @@ const piSection = pi && html`<div class="grid stats">
 ${hasRecs && !recorderFresh ? unreachable(dataEnd) : ""}
 <div class="grid stats">
   ${hasRecs ? [
-    meterCard("Wifi signal", `${d3.format(".0f")(d3.median(recent, (d) => d.rssi))} dBm`, meter(d3.median(recent, (d) => d.rssi), WIFI_ZONES, (v) => `${v}`.replace("-", "−")), `median since ${formatDate(windowStart)}`, statusStrip(slots, "rssi", WIFI_ZONES, (v) => `${d3.format(".0f")(v)} dBm`)),
+    dayRssi == null ? noData("Wifi signal")
+      : meterCard("Wifi signal", `${d3.format(".0f")(dayRssi)} dBm`, meter(dayRssi, WIFI_ZONES, (v) => `${v}`.replace("-", "−")), "median, last 24 hours", statusStrip(slots, "rssi", WIFI_ZONES, (v) => `${d3.format(".0f")(v)} dBm`)),
     backgroundCard()
   ] : ["Wifi signal", "Background level"].map(noData)}
   ${(() => {
     const last = recs.findLast((d) => d.packet != null);
-    const recent = recs.filter((d) => d.packet != null && +d.time >= dataEnd - HOUR_MS);
+    const recent = lastDay.filter((d) => d.packet != null);
     const value = recent.length ? pooledPacket(recent) : NaN;
     return last && Number.isFinite(value)
-      ? meterCard("Packet success", `${d3.format(".1f")(value)}%`, meter(value, PACKET_ZONES, (v) => `${v}%`), "frames sent over wifi, last hour", statusStrip(slots, "packet", PACKET_ZONES, (v) => `${d3.format(".1f")(v)}%`))
+      ? meterCard("Packet success", `${d3.format(".1f")(value)}%`, meter(value, PACKET_ZONES, (v) => `${v}%`), "frames sent over wifi, last 24 hours", statusStrip(slots, "packet", PACKET_ZONES, (v) => `${d3.format(".1f")(v)}%`))
       : noData("Packet success");
   })()}
   ${(() => {
-    const recent = recs.filter((d) => d.power != null && +d.time >= dataEnd - HOUR_MS);
+    const recent = lastDay.filter((d) => d.power != null);
     if (!recent.length) return noData("Power draw (estimate)");
     const mw = d3.mean(recent, (d) => d.power), tx = d3.mean(recent, (d) => d.tx);
-    return html`<div class="card"><h2>Power draw (estimate)</h2><div class="big">${d3.format(",.0f")(mw)} mW</div><div class="sub">last hour · ${d3.format(".0f")(tx)} mW transmitting · ${d3.format(",.0f")(energyToday() / 5)} mAh / ${d3.format(",.0f")(energyToday())} mWh today</div>${statusStrip(slots, "power", null, (v) => `${d3.format(",.0f")(v)} mW`, d3.median, true, 50)}</div>`;
+    return html`<div class="card"><h2>Power draw (estimate)</h2><div class="big">${d3.format(",.0f")(mw)} mW</div><div class="sub">last 24 hours · ${d3.format(".0f")(tx)} mW transmitting · ${d3.format(",.0f")(energyToday() / 5)} mAh / ${d3.format(",.0f")(energyToday())} mWh today</div>${statusStrip(slots, "power", null, (v) => `${d3.format(",.0f")(v)} mW`, d3.median, true, 50)}</div>`;
   })()}
   ${(() => {
     const board = recs.findLast((d) => d.boardTemp != null);
