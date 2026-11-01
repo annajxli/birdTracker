@@ -83,13 +83,16 @@ const recent = recs.filter((d) => d.date >= from);
 const windowX = {type: "utc", label: null, domain: [new Date(from), d3.utcDay.offset(new Date(latest), 1)]};
 const byDate = d3.group(recent, (d) => d.date);
 const windowStart = d3.min(recent, (d) => d.date) ?? from; // the window's first recorded day
-// Uptime: the share of the time since launch that audio arrived. Up to the newest recording, as
-// the table arrives in 10-minute batches, but no further back than 15 minutes ago, so a recorder
-// that stops shows it.
+// Uptime: the share of the last 24 hours (since launch, if that's sooner) that audio arrived, the
+// same day as its history strip, so an old outage stops counting a day later. Up to the newest
+// recording, as the table arrives in 10-minute batches, but no further back than 15 minutes ago,
+// so a recorder that stops shows it.
 const LAUNCH = Date.parse("2026-10-25T23:11:00Z"); // when the recorder's telemetry began (4:11 PM)
 const dataEnd = d3.max(recs, (d) => +d.time + d.seconds * 1e3) ?? Date.now();
-const upFrom = LAUNCH, upTo = Math.max(dataEnd, Date.now() - 15 * 60e3);
-const uptime = upTo > upFrom ? d3.sum(recent, (d) => (+d.time >= upFrom ? d.seconds : 0)) * 1e3 / (upTo - upFrom) : 0;
+const upTo = Math.max(dataEnd, Date.now() - 15 * 60e3), upFrom = Math.max(LAUNCH, upTo - 24 * 3600e3);
+const lastDay = recs.filter((d) => +d.time >= upFrom);
+const uptime = upTo > upFrom ? d3.sum(lastDay, (d) => d.seconds) * 1e3 / (upTo - upFrom) : 0;
+const dayDelay = lastDay.length ? d3.median(lastDay, (d) => d.delay) / 60 : null; // minutes
 const daily = span.filter((d) => byDate.has(d)).map((date) => {
   const v = byDate.get(date);
   return {date: new Date(date), day: date,
@@ -393,8 +396,9 @@ const piSection = pi && html`<div class="grid stats">
     ? html`<div class="card"><h2>Detection confidence</h2><div class="big">${d3.format(".2f")(confMedian)}</div><div class="sub">median · IQR ${d3.format(".2f")(d3.quantile(confidences, 0.25))}–${d3.format(".2f")(d3.quantile(confidences, 0.75))} · ${d3.format(",")(confidences.length)} detections since ${formatDate(confFrom)}</div>${confidenceDensity()}</div>`
     : noData("Detection confidence")}
   ${hasRecs ? [
-    meterCard("Uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), `since ${clock(new Date(LAUNCH))}`, statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
-    meterCard("Recording → dashboard delay", `${d3.format(".1f")(d3.median(recent, (d) => d.delay) / 60)} min`, meter(d3.median(recent, (d) => d.delay) / 60, DELAY_ZONES, (v) => `${v}m`), `median since ${formatDate(windowStart)}`, statusStrip(slots, "delay", DELAY_ZONES, (v) => `${d3.format(".1f")(v)} min`))
+    meterCard("Uptime", d3.format(".1%")(Math.min(1, uptime)), meter(100 * Math.min(1, uptime), UPTIME_ZONES, pctFormat), "last 24 hours", statusStrip(slots, "received", COVERAGE_ZONES, (v) => `${pctFormat(v)} received`)),
+    dayDelay == null ? noData("Recording → dashboard delay")
+      : meterCard("Recording → dashboard delay", `${d3.format(".1f")(dayDelay)} min`, meter(dayDelay, DELAY_ZONES, (v) => `${v}m`), "median, last 24 hours", statusStrip(slots, "delay", DELAY_ZONES, (v) => `${d3.format(".1f")(v)} min`))
   ] : ["Uptime", "Recording → dashboard delay"].map(noData)}
 </div>
 
