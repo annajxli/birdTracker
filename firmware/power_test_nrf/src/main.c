@@ -29,7 +29,7 @@
 #define SAMPLE_RATE 32000 /* requested; see above */
 #define BLOCK_SAMPLES 512
 #define BLOCK_COUNT 4
-#define SAMPLE_SHIFT 14 /* the gain as in the ESP32 sketch; check it against the level meter */
+#define SAMPLE_SHIFT 6 /* 8 less than the ESP32 sketch: samples arrive 8 bits lower in the word */
 #define HIGHPASS_HZ 200.0f
 #define SETTLE_BLOCKS 16 /* discard the mic's first ~0.25 s after start-up */
 
