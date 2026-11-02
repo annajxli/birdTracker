@@ -13,6 +13,7 @@ toc: false
 
 ```js
 import {spreadLabels} from "./components/meter-ticks.js";
+import {stripSeverity, mixOklab} from "./components/strip-ramp.js";
 import {loadSun, detectionsTable, recordingsTable, seriesColor, sequential, formatDate, addDays, dateSpan, dateRange} from "./components/birds.js";
 ```
 
@@ -247,9 +248,11 @@ const backgroundCard = () => {
 };
 const COVERAGE_ZONES = [[0, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
 // Recent history at the foot of a card: the last 24 hours in half-hour bars, each colored and
-// sized by the status of its median reading (tall green, shorter amber, short red), so a good
-// day is a row of full green bars; a faint stub where there's no data. A reading without status
-// zones (zones null) gets plain bars sized by its value instead. Hover a bar for its value.
+// sized by how close its median reading is to trouble (stripSeverity), on a ramp from tall green
+// through shorter amber to short red, blended in OKLab so a reading near a threshold looks near
+// it; a good day is a row of full green bars, and a faint stub where there's no data. Readings
+// in levels rather than amounts (CATEGORICAL) keep one color per status. A reading without
+// status zones (zones null) gets plain bars sized by its value instead. Hover a bar for its value.
 const HALF_HOUR = 30 * 60e3, BARS = 48;
 const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, minSpan = 6) => {
   const start = Date.now() - BARS * HALF_HOUR;
@@ -273,17 +276,24 @@ const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, 
     const m = medians.get(i), when = clock(new Date(start + i * HALF_HOUR));
     if (m == null) return html`<span class="strip-bar" data-tip="${when}: no data"></span>`;
     if (!zones) return html`<span class="strip-bar is-plain" style="height: ${size(m)}%" data-tip="${when}: ${format(m)}"></span>`;
-    const level = levelOf(m, zones);
-    return html`<span class="strip-bar status-${level}" data-tip="${when}: ${format(m)}, ${STATUS[level][1].toLowerCase()}"></span>`;
+    const level = levelOf(m, zones), tip = `${when}: ${format(m)}, ${STATUS[level][1].toLowerCase()}`;
+    if (CATEGORICAL.has(zones)) return html`<span class="strip-bar status-${level}" data-tip="${tip}"></span>`;
+    const severity = stripSeverity(m, zones);
+    return html`<span class="strip-bar" style="background: ${rampColor(severity)}; height: ${rampHeight(severity)}%" data-tip="${tip}"></span>`;
   })}</div><div class="strip-axis"><span>24 h ago</span><span>now</span></div></div>`;
 };
 const STATUS_COLOR = {good: "#0ca30c", warning: "#fab219", critical: "#a82a2a"};
+// The strips' ramp: severity 0, 1, and 2 at the status colors and the categorical bars' heights
+// (.strip-bar.status-* in birds.css).
+const rampColor = (t) => (t <= 1 ? mixOklab(STATUS_COLOR.good, STATUS_COLOR.warning, t) : mixOklab(STATUS_COLOR.warning, STATUS_COLOR.critical, Math.min(1, t - 1)));
+const rampHeight = d3.scaleLinear([0, 1, 2], [100, 64, 32]);
 const pctOf = (part, whole) => (100 * part) / whole;
 const memPct = pi?.memory_mb && pctOf(pi.memory_mb.used, pi.memory_mb.total);
 const diskPct = pi?.disk_gb && pctOf(pi.disk_gb.free, pi.disk_gb.total);
 // Memory and storage as shares, so they share the meters' zones; power trouble as a level
 // (0 none, 1 throttled, 2 under-voltage), taken at its worst in each half hour.
 const POWER_ZONES = [[0, 0.5, "good"], [0.5, 1.5, "warning"], [1.5, 2, "critical"]];
+const CATEGORICAL = new Set([POWER_ZONES]);
 const powerText = ["normal", "throttled", "under-voltage"];
 for (const h of piHistory) {
   if (h.under_voltage != null) h.power = h.under_voltage ? 2 : h.throttled ? 1 : 0;
