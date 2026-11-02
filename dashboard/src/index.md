@@ -421,10 +421,14 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           marks: [
             hoursPerBin
               ? (() => {
-                  // The bin still being recorded pulses (see .bar-in-progress in birds.css).
+                  // The bin still being recorded pulses (see .bar-in-progress in birds.css). One tip
+                  // for both marks: a tip on each would give each its own pointer, so two could show.
                   const now = new Date(), today = now.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
                   const bin = Math.floor(+now.toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"}) / hoursPerBin);
-                  return [false, true].map((open) => Plot.rectY(hourBins.filter((d) => (d.date === today && d.bin === bin) === open), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: 0.5, insetRight: 0.5, className: open ? "bar-in-progress" : undefined, channels: {When: "when"}, tip: {format: {When: true, x1: false, x2: false, y: ","}}}));
+                  return [
+                    ...[false, true].map((open) => Plot.rectY(hourBins.filter((d) => (d.date === today && d.bin === bin) === open), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: 0.5, insetRight: 0.5, className: open ? "bar-in-progress" : undefined})),
+                    Plot.tip(hourBins, Plot.pointer({x1: "x1", x2: "x2", y: "count", channels: {When: "when"}, format: {When: true, x1: false, x2: false, y: ","}}))
+                  ];
                 })()
               : Plot.rectY(daily.filter((d) => !d.offline), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: inset, insetRight: inset, ry2: gap ? 2 : 0, channels: {Day: (d) => formatDate(d.date)}, tip: {format: {Day: true, x1: false, x2: false, y: ","}}}),
             // Midnight lines between days in the hourly view.
