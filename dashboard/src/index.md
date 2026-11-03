@@ -413,12 +413,16 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           t: new Date(+new Date(date) - 12 * 36e5 + wallHours(sun[date][key]) * 36e5), kind: key === "sunrise" ? "Sunrise" : "Sunset", at: new Date(sun[date][key])
         })));
         const yLabel = hoursPerBin ? `Minutes of birdsong per ${hoursPerBin === 1 ? "hour" : "3 hours"}` : "Minutes of birdsong per day";
+        // The week view leaves room under the axis for the sunrise and sunset ticks.
+        const plotHeight = (strips.length ? 200 : 230) + (hoursPerBin ? 28 : 0), marginTop = 10, marginBottom = (strips.length ? 6 : 30) + (hoursPerBin ? 28 : 0);
+        // The ticks' icons sit 20 px under the axis (sunTicks), in the y scale's units, so the tip
+        // aims there and a short bar's own tip wins over a nearby tick's.
+        const iconY = hoursPerBin ? (-20 * 60 * hoursPerBin) / (plotHeight - marginTop - marginBottom) : 0;
         const detections = Plot.plot({
           ...frame,
-          // The week view leaves room under the axis for the sunrise and sunset ticks.
-          height: (strips.length ? 200 : 230) + (hoursPerBin ? 28 : 0),
-          marginTop: 10,
-          marginBottom: (strips.length ? 6 : 30) + (hoursPerBin ? 28 : 0),
+          height: plotHeight,
+          marginTop,
+          marginBottom,
           x: {...frame.x, ...(strips.length ? {axis: null} : {ticks, tickFormat})},
           y: {label: yLabel, labelAnchor: "center", labelArrow: "none", grid: true, tickFormat: "s",
             // Week: the most a bin can hold, so a bar's height compares across weeks.
@@ -428,14 +432,14 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
               ? (() => {
                   // The bin still being recorded pulses (see .bar-in-progress in birds.css). One tip for
                   // the bars and the sunrise and sunset ticks: a tip on each mark would give each its
-                  // own pointer, so two could show. It aims at each bar's middle and at each tick.
+                  // own pointer, so two could show. It aims at each bar's middle and at each tick's icon.
                   const now = new Date(), today = now.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
                   const bin = Math.floor(+now.toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"}) / hoursPerBin);
                   return [
                     ...[false, true].map((open) => Plot.rectY(hourBins.filter((d) => (d.date === today && d.bin === bin) === open), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: 0.5, insetRight: 0.5, className: open ? "bar-in-progress" : undefined})),
                     Plot.tip([
                       ...hourBins.map((d) => ({x: new Date((+d.x1 + +d.x2) / 2), y: d.count, py: d.count / 2, title: `**When** ${d.when}\n**${yLabel}** ${d3.format(",")(d.count)}`})),
-                      ...suns.map((d) => ({x: d.t, y: 0, py: 0, title: sunTitle(d)}))
+                      ...suns.map((d) => ({x: d.t, y: 0, py: iconY, title: sunTitle(d)}))
                     ], Plot.pointer({x: "x", y: "y", py: "py", title: "title", render: boldMarkup}))
                   ];
                 })()
