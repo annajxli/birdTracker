@@ -4,18 +4,20 @@ import {stripSeverity, mixOklab} from '../src/components/strip-ramp.js';
 
 const CPU = [[0, 75, 'good'], [75, 90, 'warning'], [90, 100, 'critical']];
 const STORAGE = [[0, 5, 'critical'], [5, 15, 'warning'], [15, 100, 'good']];
+const UPTIME = [[0, 80, 'critical'], [80, 95, 'warning'], [95, 100, 'good']];
 const BACKGROUND = [[-95, -85, 'critical'], [-85, -62, 'good'], [-62, -56, 'warning'], [-56, -25, 'critical']];
 
 test('a good reading far from trouble is 0', () => {
   assert.equal(stripSeverity(20, CPU), 0);
   assert.equal(stripSeverity(60, CPU), 0); // one Okay width (15) before 75
   assert.equal(stripSeverity(80, STORAGE), 0);
+  assert.equal(stripSeverity(98, UPTIME), 0); // past the last quarter of a narrow Good zone
 });
 
 test('a good reading warms over one neighboring zone width', () => {
   assert.equal(stripSeverity(67.5, CPU), 0.5);
   assert.equal(stripSeverity(20, STORAGE), 0.5);
-  assert.equal(stripSeverity(-65, BACKGROUND), 0.5);
+  assert.equal(stripSeverity(95.625, UPTIME), 0.5); // over a quarter of the Good zone (1.25)
 });
 
 test('it is continuous at each threshold and reaches 2 where Bad starts', () => {
@@ -28,7 +30,7 @@ test('it is continuous at each threshold and reaches 2 where Bad starts', () => 
 });
 
 test('a Good zone next to a Bad zone warms toward 2', () => {
-  assert.equal(stripSeverity(-80, BACKGROUND), 1);
+  assert.equal(stripSeverity(-82.125, BACKGROUND), 1);
   assert.equal(stripSeverity(-90, BACKGROUND), 2);
 });
 
