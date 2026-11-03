@@ -10,7 +10,7 @@ toc: false
 import {overviewVersions, overviewLimits, startOverviewRefresh, preserveOverviewScroll} from "./components/overview-refresh.js";
 import {includedDetection} from "./components/detection-policy.js";
 import {log2Axis, LOG2_FLOOR} from "./components/log2-axis.js";
-import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, loadWeatherNow, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTip, splitAt} from "./components/birds.js";
+import {loadDetections, loadPhotos, loadSun, loadCategories, loadWeather, loadWeatherHourly, loadForecastHourly, loadWeatherNow, hourlyTemperatureStrip, dayFrame, dayInset, changeChart, temperatureStrip, conditionsStrip, dayAxis, sortInput, SORTS, dayTimeline, loadRecordedUntil, loadThresholds, recordingsTable, dayTicks, dayTickFormat, recentSpecies, minutesHeard, birdsongMinutes, birdCard, untabbable, HEADER, categoryLabel, wireCategoryToggles, categoryToggleAll, confidenceInput, nameMargin, nameAxis, addDays, dateSpan, dateRange, seriesColor, sequential, formatDate, formatHour, speciesCards, speciesInfoFrom, weatherKind, boldMarkup, sunTicks, sunTitle, splitAt} from "./components/birds.js";
 import {periodInput, spanInput, bindPeriodSwipe} from "./components/period-input.js";
 import {periodBounds, overviewBounds} from "./components/period.js";
 import {biggestMonthlyChanges, dayChanges, windowChanges} from "./components/changes.js";
@@ -408,6 +408,11 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             return {date, bin, count, x1: new Date(dayStart + bin * hoursPerBin * 36e5), x2: new Date(dayStart + (bin + 1) * hoursPerBin * 36e5),
               when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(bin * hoursPerBin)}–${formatHour((bin + 1) * hoursPerBin % 24)}`};
           })) : [];
+        // Each day's sunrise and sunset, on the same local clock as the hourly bars.
+        const suns = !hoursPerBin ? [] : availableDates.filter((date) => sun[date]).flatMap((date) => ["sunrise", "sunset"].map((key) => ({
+          t: new Date(+new Date(date) - 12 * 36e5 + wallHours(sun[date][key]) * 36e5), kind: key === "sunrise" ? "Sunrise" : "Sunset", at: new Date(sun[date][key])
+        })));
+        const yLabel = hoursPerBin ? `Minutes of birdsong per ${hoursPerBin === 1 ? "hour" : "3 hours"}` : "Minutes of birdsong per day";
         const detections = Plot.plot({
           ...frame,
           // The week view leaves room under the axis for the sunrise and sunset ticks.
@@ -415,28 +420,29 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           marginTop: 10,
           marginBottom: (strips.length ? 6 : 30) + (hoursPerBin ? 28 : 0),
           x: {...frame.x, ...(strips.length ? {axis: null} : {ticks, tickFormat})},
-          y: {label: hoursPerBin ? `Minutes of birdsong per ${hoursPerBin === 1 ? "hour" : "3 hours"}` : "Minutes of birdsong per day", labelAnchor: "center", labelArrow: "none", grid: true, tickFormat: "s",
+          y: {label: yLabel, labelAnchor: "center", labelArrow: "none", grid: true, tickFormat: "s",
             // Week: the most a bin can hold, so a bar's height compares across weeks.
             ...(hoursPerBin ? {domain: [0, 60 * hoursPerBin], ticks: d3.range(0, 60 * hoursPerBin + 1, 15 * hoursPerBin)} : {})},
           marks: [
             hoursPerBin
               ? (() => {
-                  // The bin still being recorded pulses (see .bar-in-progress in birds.css). One tip
-                  // for both marks: a tip on each would give each its own pointer, so two could show.
+                  // The bin still being recorded pulses (see .bar-in-progress in birds.css). One tip for
+                  // the bars and the sunrise and sunset ticks: a tip on each mark would give each its
+                  // own pointer, so two could show. It aims at each bar's middle and at each tick.
                   const now = new Date(), today = now.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
                   const bin = Math.floor(+now.toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"}) / hoursPerBin);
                   return [
                     ...[false, true].map((open) => Plot.rectY(hourBins.filter((d) => (d.date === today && d.bin === bin) === open), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: 0.5, insetRight: 0.5, className: open ? "bar-in-progress" : undefined})),
-                    Plot.tip(hourBins, Plot.pointer({x1: "x1", x2: "x2", y: "count", channels: {When: "when"}, format: {When: true, x1: false, x2: false, y: ","}}))
+                    Plot.tip([
+                      ...hourBins.map((d) => ({x: new Date((+d.x1 + +d.x2) / 2), y: d.count, py: d.count / 2, title: `**When** ${d.when}\n**${yLabel}** ${d3.format(",")(d.count)}`})),
+                      ...suns.map((d) => ({x: d.t, y: 0, py: 0, title: sunTitle(d)}))
+                    ], Plot.pointer({x: "x", y: "y", py: "py", title: "title", render: boldMarkup}))
                   ];
                 })()
               : Plot.rectY(daily.filter((d) => !d.offline), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: inset, insetRight: inset, ry2: gap ? 2 : 0, channels: {Day: (d) => formatDate(d.date)}, tip: {format: {Day: true, x1: false, x2: false, y: ","}}}),
             // Midnight lines between days in the hourly view.
             hoursPerBin ? Plot.ruleX(period.slice(1), {x: (d) => new Date(+new Date(d) - 12 * 36e5), strokeOpacity: 0.15}) : null,
-            // Each day's sunrise and sunset, on the same local clock as the hourly bars.
-            ...(hoursPerBin ? (() => { const suns = availableDates.filter((date) => sun[date]).flatMap((date) => ["sunrise", "sunset"].map((key) => ({
-              t: new Date(+new Date(date) - 12 * 36e5 + wallHours(sun[date][key]) * 36e5), kind: key === "sunrise" ? "Sunrise" : "Sunset", at: new Date(sun[date][key])
-            }))); return [sunTicks(suns), sunTip(suns)]; })() : []),
+            hoursPerBin ? sunTicks(suns) : null,
             Plot.ruleY([0], {strokeOpacity: 0.3})
           ]
         });
