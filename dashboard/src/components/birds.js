@@ -548,10 +548,12 @@ export function sunTicks(points) {
   };
 }
 
+/** A sunTicks point's hover text, such as "Sunrise 7:44 AM". */
+export const sunTitle = ({kind, at}) => `${kind} ${clock(at)}`;
+
 /** The chart's own tip for sunTicks: "Sunrise 7:44 AM" when the pointer is near a tick's icon. */
 export function sunTip(points) {
-  return Plot.tip(points, Plot.pointer({x: "t", y: () => 0, frameAnchor: "bottom", dy: 20, maxRadius: 20, anchor: "bottom",
-    title: ({kind, at}) => `${kind} ${clock(at)}`}));
+  return Plot.tip(points, Plot.pointer({x: "t", y: () => 0, frameAnchor: "bottom", dy: 20, maxRadius: 20, anchor: "bottom", title: sunTitle}));
 }
 
 export const SPANS = new Map([["1 day", 1], ["3 days", 3], ["7 days", 7], ["30 days", 30], ["90 days", 90], ["All time", Infinity]]);
