@@ -124,6 +124,18 @@ const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 // Favicon (src/favicon.svg): a perched songbird with song waves, in the dashboard's olive and cream.
 const icon = `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
 
+// Reload a page left open past the recorder's midnight, so "today" moves to the new day. A
+// hidden tab waits until it's showing again.
+const midnightScript = `<script>
+(() => {
+  const day = () => new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+  const loaded = day();
+  const check = () => { if (!document.hidden && day() !== loaded) location.reload(); };
+  setInterval(check, 60000);
+  document.addEventListener("visibilitychange", check);
+})();
+</script>`;
+
 // Page links: one icon button per page in the header; mark the current one.
 const menuScript = `<script>
 addEventListener("DOMContentLoaded", () => {
@@ -186,7 +198,7 @@ export default {
   ],
   sidebar: false,
   pager: false, // no "Next page" link at the bottom of each page
-  head: `${fonts}\n${icon}\n${themeScript}\n${layoutScript}\n${dev ? phoneScript : ""}\n${menuScript}`,
+  head: `${fonts}\n${icon}\n${themeScript}\n${layoutScript}\n${dev ? phoneScript : ""}\n${menuScript}\n${midnightScript}`,
   header,
   interpreters: {".py": [python]},
   search: false,
