@@ -48,13 +48,13 @@ export default {
       // Too many attempts from one address: refuse before even looking at the password.
       const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
       if (env.SIGN_IN_LIMIT && !(await env.SIGN_IN_LIMIT.limit({key: ip})).success) {
-        return signInPage("/", false, "Too many attempts. Wait a minute and try again.", 429);
+        return signInPage(env, url, "/", false, "Too many attempts. Wait a minute and try again.", 429);
       }
       let form;
       try {
         form = await request.formData();
       } catch {
-        return signInPage("/", false);
+        return signInPage(env, url, "/", false);
       }
       const next = safeNext(form.get("next"));
       if (await sameSecret(String(form.get("password") ?? ""), env.PASSWORD)) {
@@ -62,13 +62,13 @@ export default {
         return redirect(next, `${COOKIE}=${await sessionToken(env, expires)}; Max-Age=${SESSION_DAYS * 86400}; Path=/; HttpOnly; Secure; SameSite=Lax`);
       }
       await new Promise((r) => setTimeout(r, 600)); // slow down guessing a little
-      return signInPage(next, true);
+      return signInPage(env, url, next, true);
     }
 
     if (url.pathname === SIGN_OUT) return redirect("/", `${COOKIE}=; Max-Age=0; Path=/; HttpOnly; Secure; SameSite=Lax`);
 
     if (!(await validSession(env, readCookie(request, COOKIE)))) {
-      return signInPage(url.pathname + url.search, false);
+      return signInPage(env, url, url.pathname + url.search, false);
     }
 
     if (url.pathname === "/api/pause") return request.method === "POST" ? setPause(request, env, url) : request.method === "GET" ? getPause(env) : new Response("GET or POST only", {status: 405});
@@ -256,15 +256,36 @@ function redirect(location, cookie) {
 
 const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 
-function signInPage(next, failed, message = "That password didn't work.", status = 401) {
-  return new Response(SIGN_IN_HTML.replace("{{next}}", escapeHtml(safeNext(next))).replace("{{error}}", failed || status !== 401 ? message : ""), {
+// The chart beside the password (pipeline/signin_chart.py, written into the built site), kept for
+// a few minutes per Worker instance. Without it, the page shows the password card alone.
+const CHART_PATH = "/signin-chart.svg";
+const CHART_SECONDS = 600;
+const chartCache = new WeakMap(); // env.ASSETS -> {svg, at}
+async function signInChart(env, url) {
+  const cached = chartCache.get(env.ASSETS);
+  if (cached && Date.now() - cached.at < CHART_SECONDS * 1000) return cached.svg;
+  let svg = "";
+  try {
+    const r = await env.ASSETS.fetch(new Request(new URL(CHART_PATH, url)));
+    const text = r.ok && (r.headers.get("Content-Type") ?? "").includes("svg") ? await r.text() : "";
+    svg = text.startsWith("<svg") ? text : "";
+  } catch {}
+  chartCache.set(env.ASSETS, {svg, at: Date.now()});
+  return svg;
+}
+
+async function signInPage(env, url, next, failed, message = "That password didn't work.", status = 401) {
+  const chart = await signInChart(env, url);
+  const html = SIGN_IN_HTML.replace("{{next}}", escapeHtml(safeNext(next))).replace("{{error}}", failed || status !== 401 ? message : "")
+    .replace("{{layout}}", chart ? "signin with-chart" : "signin").replace("{{chart}}", chart ? `<aside class="chart-card">${chart}</aside>` : "");
+  return new Response(html, {
     status,
     headers: {"Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...SECURITY_HEADERS}
   });
 }
 
-// Cedar & Olive, like the dashboard (colors, font, light/dark), but deliberately
-// anonymous: no site name or location until someone signs in.
+// Cedar & Olive, like the dashboard (colors, font, light/dark). No site name or location until
+// someone signs in; the chart beside the password shows birdsong and weather without dates.
 const SIGN_IN_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -277,12 +298,12 @@ const SIGN_IN_HTML = `<!doctype html>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400..700&display=swap">
 <script>try { const t = localStorage.getItem("birdtracker-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}</script>
 <style>
-  :root { --bg: #f3ede2; --card: #faf6ee; --ink: #2a221b; --muted: #7a7064; --rule: #d4c8b2; --accent: #5a6b1f; --on-accent: #faf6ee; --error: #a3402c; color-scheme: light; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #17130f; --card: #201b16; --ink: #ece3d3; --muted: #a39a8a; --rule: #3d352b; --accent: #c2cf7a; --on-accent: #17130f; --error: #e8907c; color-scheme: dark; } }
-  :root[data-theme="dark"] { --bg: #17130f; --card: #201b16; --ink: #ece3d3; --muted: #a39a8a; --rule: #3d352b; --accent: #c2cf7a; --on-accent: #17130f; --error: #e8907c; color-scheme: dark; }
+  :root { --bg: #f3ede2; --card: #faf6ee; --ink: #2a221b; --muted: #7a7064; --rule: #d4c8b2; --accent: #5a6b1f; --on-accent: #faf6ee; --error: #a3402c; --series: #6f8a2a; --grid: #e4dccb; --sun: #d9a53b; --wet: #5b8fd6; color-scheme: light; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #17130f; --card: #201b16; --ink: #ece3d3; --muted: #a39a8a; --rule: #3d352b; --accent: #c2cf7a; --on-accent: #17130f; --error: #e8907c; --series: #829c35; --grid: #2e2821; color-scheme: dark; } }
+  :root[data-theme="dark"] { --bg: #17130f; --card: #201b16; --ink: #ece3d3; --muted: #a39a8a; --rule: #3d352b; --accent: #c2cf7a; --on-accent: #17130f; --error: #e8907c; --series: #829c35; --grid: #2e2821; color-scheme: dark; }
   * { box-sizing: border-box; }
   body { margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); color: var(--ink); font: 16px/1.5 "Public Sans", system-ui, sans-serif; }
-  main { width: 100%; max-width: 360px; background: var(--card); border: 1px solid var(--rule); border-top: 2px solid var(--ink); padding: 28px 28px 24px; }
+  main { width: 100%; background: var(--card); border: 1px solid var(--rule); border-top: 2px solid var(--ink); padding: 28px 28px 24px; }
   label { display: block; margin-bottom: 6px; font-size: 0.85rem; color: var(--muted); }
   input[type="password"] { width: 100%; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 8px; background: var(--bg); color: var(--ink); font: inherit; }
   input[type="password"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -290,9 +311,25 @@ const SIGN_IN_HTML = `<!doctype html>
   button:hover { filter: brightness(1.06); }
   .error { min-height: 1.4em; margin: 10px 0 0; font-size: 0.85rem; color: var(--error); }
   .hidden { display: none; }
+  /* The password card alone, or beside the chart at the same height; stacked at the same width on a phone. */
+  .signin { width: 100%; max-width: 360px; display: grid; gap: 16px; }
+  .signin.with-chart { max-width: 1000px; grid-template-columns: 360px minmax(0, 1fr); }
+  .signin main, .chart-card { display: flex; flex-direction: column; justify-content: center; }
+  .chart-card { min-width: 0; background: var(--card); border: 1px solid var(--rule); border-top: 2px solid var(--ink); padding: 16px 18px 14px; }
+  @media (max-width: 760px) { .signin.with-chart { max-width: 560px; grid-template-columns: minmax(0, 1fr); } }
+  .chart-card svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart-card text { fill: var(--muted); font: 11px "Public Sans", system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  .chart-card .axis { font-size: 10.5px; }
+  .chart-card .grid { stroke: var(--grid); }
+  .chart-card .bar { fill: var(--series); }
+  .chart-card .icon .stroke { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+  .chart-card .icon-sun { fill: var(--sun); color: var(--sun); }
+  .chart-card .icon-dry { fill: var(--muted); color: var(--muted); }
+  .chart-card .icon-wet { fill: var(--wet); color: var(--wet); }
 </style>
 </head>
 <body>
+<div class="{{layout}}">
 <main>
   <form method="post" action="${SIGN_IN}">
     <input class="hidden" type="text" name="username" value="site" autocomplete="username" tabindex="-1" aria-hidden="true">
@@ -303,5 +340,7 @@ const SIGN_IN_HTML = `<!doctype html>
     <p class="error" role="alert">{{error}}</p>
   </form>
 </main>
+{{chart}}
+</div>
 </body>
 </html>`;

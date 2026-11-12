@@ -325,6 +325,17 @@ the site exists. It also serves the following routes to signed-in visitors:
 In these routes, `NAME` is a file in `live/`, and `KEY` is a clip's key, which
 starts with `clips/`.
 
+The sign-in page shows the password card and, beside it, a chart of minutes of
+birdsong per day with each day's weather. The deploy workflow writes the chart
+after the site build with `pipeline/signin_chart.py`, as `signin-chart.svg` in
+the built site, and the Worker places it in the page. The chart is the only
+data that visitors see before they sign in, so it shows the last `--days`
+recorded days back to back, with no dates, no times of day, and nothing about
+the recorder. Without the recorder's detections, such as in a build from
+simulated data, no chart is written, and the page shows the password card
+alone. For how the chart counts birdsong, see the module docstring of
+`pipeline/signin_chart.py`.
+
 For setup steps, see [Deploy](deploy.md).
 
 ### Pause the recorder
@@ -428,6 +439,11 @@ repository documents for them.
   public whatever the repository's visibility, so anyone who knows the address
   can bypass a password Worker placed in front of Pages. The Worker serves the
   site from its own static assets instead.
+- **Show visitors only a coarse chart before sign-in.** The site's address
+  includes the owner's name, so a public page would tie that name to the
+  yard's activity and neighborhood. The sign-in page shows birdsong and weather
+  without dates or place names instead, and everything else stays behind the
+  password.
 - **Run BirdNET without TensorFlow by default.** `birdnet-analyzer` imports
   TensorFlow on every start, which a 1 GB Raspberry Pi 3B+ can't afford. The
   `lite` engine runs the same model. In a comparison on five test recordings,

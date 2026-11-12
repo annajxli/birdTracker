@@ -13,6 +13,19 @@ let r = await worker.fetch(new Request(base + "/species?name=Pacific%20Wren"), e
 let body = await r.text();
 check(r.status === 401 && body.includes('name="password"') && body.includes('value="/species?name=Pacific%20Wren"'), "no cookie -> sign-in page, remembers where you were going");
 check(r.headers.get("Cache-Control") === "no-store", "sign-in page not cached");
+check(!body.includes("<aside") && body.includes('class="signin"'), "no chart file -> the password card alone");
+
+// With the chart the build writes (pipeline/signin_chart.py), the page shows it beside the password.
+const CHART = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path class="bar" d="M0,0H1V1Z"/></svg>';
+const chartAssets = {fetch: async (req) => new URL(req.url).pathname === "/signin-chart.svg"
+  ? new Response(CHART, {headers: {"Content-Type": "image/svg+xml"}}) : new Response("missing", {status: 404})};
+r = await worker.fetch(new Request(base + "/"), {...env, ASSETS: chartAssets});
+body = await r.text();
+check(r.status === 401 && body.includes('class="signin with-chart"') && body.includes(`<aside class="chart-card">${CHART}</aside>`), "chart beside the password");
+const htmlAssets = {fetch: async () => new Response("<!doctype html><p>not a chart</p>", {headers: {"Content-Type": "text/html"}})};
+r = await worker.fetch(new Request(base + "/"), {...env, ASSETS: htmlAssets});
+body = await r.text();
+check(!body.includes("not a chart") && !body.includes("<aside"), "a non-SVG answer is never inlined");
 
 r = await worker.fetch(post("wrong", "/year"), env);
 body = await r.text();

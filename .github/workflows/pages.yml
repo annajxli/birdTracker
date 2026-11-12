@@ -11,8 +11,8 @@
 #
 # Detections come from the recorder: pipeline/publish.py uploads a database
 # snapshot to the R2 bucket (and starts this workflow). Until a snapshot
-# exists, the build simulates a year instead. The API token needs R2 read
-# access as well as Workers (docs/deploy.md).
+# exists, the build simulates a year instead, and writes no sign-in chart.
+# The API token needs R2 read access as well as Workers (docs/deploy.md).
 
 name: Deploy dashboard
 
@@ -93,6 +93,12 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      # The chart beside the password, written into the built site. Without it, the sign-in page
+      # shows the password alone, so a failure here doesn't stop the deploy.
+      - name: Sign-in chart
+        continue-on-error: true
+        run: .venv/bin/python pipeline/signin_chart.py
 
       - name: Deploy to Cloudflare
         working-directory: deploy
