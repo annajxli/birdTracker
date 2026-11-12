@@ -1,5 +1,5 @@
 import {dailyTemperatureSeries} from "./weather-series.js";
-import {NWS_GRID, NWS_STATION, nwsDay, nwsNow} from "./nws.js";
+import {NWS_GRID, NWS_STATION, NWS_TEMP_STATION, fetchJSON, nwsDay, nwsNow} from "./nws.js";
 import {FileAttachment} from "observablehq:stdlib";
 import * as d3 from "npm:d3";
 import * as Inputs from "npm:@observablehq/inputs";
@@ -1015,21 +1015,25 @@ export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
  */
 let recentWeather = null;
 async function nwsToday(today) {
-  const get = (url) => fetch(url, {headers: {Accept: "application/geo+json"}}).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+  const get = (url) => fetchJSON(url, {headers: {Accept: "application/geo+json"}});
   // Observations since midnight Pacific (8 AM UTC covers both PST and PDT; nwsDay drops the rest).
-  const [hourly, grid, observed] = await Promise.all([get(`${NWS_GRID}/forecast/hourly`), get(NWS_GRID),
-    get(`${NWS_STATION}/observations?start=${today}T07:00:00Z`).catch(() => ({features: []}))]);
-  return {...nwsDay(today, hourly.properties.periods, grid.properties.quantitativePrecipitation, observed.features), now: nwsNow(observed.features)};
+  const since = `observations?start=${today}T07:00:00Z`;
+  const [hourly, grid, observed, observedTemp] = await Promise.all([get(`${NWS_GRID}/forecast/hourly`), get(NWS_GRID),
+    get(`${NWS_STATION}/${since}`).catch(() => ({features: []})), get(`${NWS_TEMP_STATION}/${since}`).catch(() => ({features: []}))]);
+  return {...nwsDay(today, hourly.properties.periods, grid.properties.quantitativePrecipitation, observed.features),
+    now: nwsNow(observed.features, observedTemp.features)};
 }
 function fetchRecentWeather() {
   recentWeather ??= (async () => {
     const params = new URLSearchParams({
-      latitude: 47.61, longitude: -122.33, timezone: "America/Los_Angeles", past_days: 31, forecast_days: 1,
+      latitude: 47.68, longitude: -122.26, timezone: "America/Los_Angeles", past_days: 31, forecast_days: 1,
       daily: "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code", hourly: "temperature_2m",
       temperature_unit: "fahrenheit", precipitation_unit: "inch"
     });
-    const body = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
     const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
+    // Both services at once, each with fetchJSON's time limit, so a stalled one can't hold up the page.
+    const nwsPending = nwsToday(today).catch((error) => { console.warn("NWS forecast unavailable; using Open-Meteo's.", error); return null; });
+    const body = await fetchJSON(`https://api.open-meteo.com/v1/forecast?${params}`);
     const hourNow = +new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
     // Past days in full; today, the forecast for the day and the hourly temperature so far, with
     // the rest of today's hours kept apart as a forecast (from the current hour on, so it joins up).
@@ -1047,7 +1051,7 @@ function fetchRecentWeather() {
       if (d === today && hour >= hourNow) (forecastHourly[d] ??= Array(24).fill(null))[hour] = Math.round(temp * 10) / 10;
     });
     let now = null;
-    const nws = await nwsToday(today).catch((error) => { console.warn("NWS forecast unavailable; using Open-Meteo's.", error); return null; });
+    const nws = await nwsPending;
     if (nws?.code != null) {
       now = nws.now;
       const temps = [...(hourly[today] ?? []), ...nws.hourly].filter((t) => t != null);
@@ -1072,7 +1076,7 @@ export async function loadForecastHourly() {
   return (await fetchRecentWeather()).forecastHourly;
 }
 
-/** Boeing Field's latest observation (nws.js's nwsNow), or null. */
+/** The latest observed conditions and temperature (nws.js's nwsNow), or null. */
 export async function loadWeatherNow() {
   return (await fetchRecentWeather()).now;
 }

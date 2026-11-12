@@ -17,8 +17,13 @@ import {biggestMonthlyChanges, dayChanges, windowChanges} from "./components/cha
 ```
 
 ```js
-const [photos, sun, categories, weather, weatherHourly, forecastHourly, weatherNow] = await Promise.all([
-  loadPhotos(), loadSun(), loadCategories(), loadWeather(), loadWeatherHourly(), loadForecastHourly(), loadWeatherNow()
+const [photos, sun, categories] = await Promise.all([loadPhotos(), loadSun(), loadCategories()]);
+```
+
+```js
+// Apart from the files above, so charts without weather don't wait on the weather services.
+const [weather, weatherHourly, forecastHourly, weatherNow] = await Promise.all([
+  loadWeather(), loadWeatherHourly(), loadForecastHourly(), loadWeatherNow()
 ]);
 ```
 
@@ -372,7 +377,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             // Solid up to now, then dashed: the forecast. A past day is all solid.
             const [points, ahead] = forecast.length ? splitAt(line, new Date(), (t) => at(t).when) : [line, []];
             return line.length ? hourlyTemperatureStrip(points, {width, domain: daylightWindow, inset: 8, forecast: ahead, ...margins}) : "";
-          })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div>${w?.forecast && weatherNow ? html`<div class="period-weather">Now: ${weatherNow.text}${weatherNow.tempF == null ? "" : ` · ${Math.round(weatherNow.tempF)}°F`} (Boeing Field, ${weatherNow.time.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})})</div>` : ""}</div>`;
+          })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div>${w?.forecast && weatherNow ? html`<div class="period-weather">Now: ${weatherNow.text}${weatherNow.tempF == null ? "" : ` · ${Math.round(weatherNow.tempF)}°F`} (${(weatherNow.tempF == null ? weatherNow.time : weatherNow.tempTime).toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})})</div>` : ""}</div>`;
         }
         const ticks = dayTicks(period, width - margins.marginLeft - margins.marginRight);
         const tickFormat = dayTickFormat(period, {short: period.length <= 14 && (width - margins.marginLeft - margins.marginRight) / period.length < 45});

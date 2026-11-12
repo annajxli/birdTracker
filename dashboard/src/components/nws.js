@@ -1,9 +1,21 @@
 // Today's forecast from the National Weather Service (api.weather.gov), whose Seattle forecasters
 // adjust the models by hand, so it doesn't show model artifacts such as snow at 44 °F. The grid
-// cell is fixed for the station: /points/47.61,-122.33 gives SEW 125,68.
-export const NWS_GRID = "https://api.weather.gov/gridpoints/SEW/125,68";
-// Observations from the nearest airport weather station, Boeing Field, a few miles from the yard.
+// cell is fixed: /points/47.68,-122.26 gives SEW 128,71.
+export const NWS_GRID = "https://api.weather.gov/gridpoints/SEW/128,71";
+// Weather conditions ("Light Rain", "Cloudy") come from the nearest airport station.
 export const NWS_STATION = "https://api.weather.gov/stations/KBFI";
+// The current temperature comes from the nearest station with hourly temperatures. It reports no
+// conditions and sometimes skips an hour, so the airport's temperature stands in when it's stale.
+export const NWS_TEMP_STATION = "https://api.weather.gov/stations/SEAW1";
+export const TEMP_MAX_AGE_MS = 2 * 36e5;
+// How long a weather request may take before the page falls back to the weather built into the
+// site. Without a limit, a stalled request leaves every chart that waits on the weather blank.
+export const WEATHER_TIMEOUT_MS = 8000;
+
+/** JSON from url, rejecting on an HTTP error or after timeoutMs. */
+export function fetchJSON(url, {headers, timeoutMs = WEATHER_TIMEOUT_MS, fetcher = fetch} = {}) {
+  return fetcher(url, {headers, signal: AbortSignal.timeout(timeoutMs)}).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
+}
 
 // NWS short forecasts ("Light Rain Likely", "Partly Sunny") as the WMO weather codes the
 // dashboard's icons use. "Slight Chance" and "Chance" of precipitation count as cloudy: the
@@ -58,11 +70,21 @@ export function nwsDay(day, hourlyPeriods, quantitativePrecipitation, observatio
   return {hourly, code, precip: Math.round(mm / 25.4 * 100) / 100};
 }
 
-/** The newest observation with a description: {text, tempF (or null), time}. Null if none. */
-export function nwsNow(observations) {
-  const newest = [...observations].map((f) => f.properties).filter((o) => o.textDescription)
+const celsiusToF = (c) => (c == null ? null : c * 9 / 5 + 32);
+
+/**
+ * The airport station's newest observation with a description: {text, time, tempF, tempTime,
+ * nearTemp}. The temperature is the newest of tempObservations if it's under TEMP_MAX_AGE_MS old
+ * at `now` (nearTemp true), else the airport's. Null if no observation has a description.
+ */
+export function nwsNow(observations, tempObservations = [], now = Date.now()) {
+  const newest = (list, keep) => [...list].map((f) => f.properties).filter(keep)
     .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp))[0];
-  if (!newest) return null;
-  const c = newest.temperature?.value;
-  return {text: newest.textDescription, tempF: c == null ? null : c * 9 / 5 + 32, time: new Date(newest.timestamp)};
+  const sky = newest(observations, (o) => o.textDescription);
+  if (!sky) return null;
+  const near = newest(tempObservations, (o) => o.temperature?.value != null);
+  const fresh = near && now - Date.parse(near.timestamp) < TEMP_MAX_AGE_MS;
+  const temp = fresh ? near : sky;
+  return {text: sky.textDescription, time: new Date(sky.timestamp), tempF: celsiusToF(temp.temperature?.value),
+    tempTime: new Date(temp.timestamp), nearTemp: Boolean(fresh)};
 }

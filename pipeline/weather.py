@@ -26,7 +26,7 @@ import db
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "weather.csv"
 OUT_HOURLY = ROOT / "data" / "weather_hourly.csv"
-LAT, LON = 47.61, -122.33
+LAT, LON = 47.68, -122.26  # the same point as fetchRecentWeather in birds.js
 DAILY = "temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code"
 COMMON = {
     "latitude": LAT, "longitude": LON, "daily": DAILY, "hourly": "temperature_2m", "timezone": "America/Los_Angeles",

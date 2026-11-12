@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {nwsCode, nwsDay, nwsNow} from "../src/components/nws.js";
+import {fetchJSON, nwsCode, nwsDay, nwsNow} from "../src/components/nws.js";
 
 test("maps NWS short forecasts to weather codes", () => {
   assert.equal(nwsCode("Light Rain Likely"), 63);
@@ -43,6 +43,33 @@ test("keeps rain observed earlier in the day when the rest is forecast dry", () 
 
 test("reports the newest described observation", () => {
   const now = nwsNow([obs("2026-10-30T18:45:00Z", "Light Rain", 8), obs("2026-10-30T18:53:00Z", "", 9), obs("2026-10-30T18:50:00Z", "Cloudy", 10)]);
-  assert.deepEqual([now.text, now.tempF, +now.time], ["Cloudy", 50, Date.parse("2026-10-30T18:50:00Z")]);
+  assert.deepEqual([now.text, now.tempF, +now.time, now.nearTemp], ["Cloudy", 50, Date.parse("2026-10-30T18:50:00Z"), false]);
   assert.equal(nwsNow([]), null);
+});
+
+test("takes the nearer station's temperature while it's fresh, else the airport's", () => {
+  const sky = [obs("2026-10-30T18:50:00Z", "Cloudy", 10)];
+  const near = [obs("2026-10-30T17:30:00Z", "", 5), obs("2026-10-30T18:30:00Z", "", 7), obs("2026-10-30T18:45:00Z", "", null)];
+  const fresh = nwsNow(sky, near, Date.parse("2026-10-30T19:00:00Z"));
+  assert.deepEqual([fresh.text, +fresh.time, fresh.nearTemp, +fresh.tempTime], ["Cloudy", Date.parse("2026-10-30T18:50:00Z"), true, Date.parse("2026-10-30T18:30:00Z")]);
+  assert.ok(Math.abs(fresh.tempF - 44.6) < 1e-9);
+  const stale = nwsNow(sky, near, Date.parse("2026-10-30T20:31:00Z"));
+  assert.deepEqual([stale.tempF, stale.nearTemp, +stale.tempTime], [50, false, Date.parse("2026-10-30T18:50:00Z")]);
+  assert.equal(nwsNow([], near), null); // no conditions, no reading
+});
+
+test("rejects a weather request that doesn't answer in time", async () => {
+  let aborted = false;
+  const stalled = (url, {signal}) => new Promise((resolve, reject) => signal.addEventListener("abort", () => { aborted = true; reject(signal.reason); }));
+  const started = Date.now();
+  const hold = setTimeout(() => {}, 5000); // AbortSignal.timeout's timer doesn't keep Node running
+  await assert.rejects(fetchJSON("https://example.test/slow", {timeoutMs: 50, fetcher: stalled}), {name: "TimeoutError"});
+  clearTimeout(hold);
+  assert.ok(aborted && Date.now() - started < 2000);
+});
+
+test("rejects an HTTP error and returns JSON otherwise", async () => {
+  const answer = (status, body) => async () => ({ok: status < 400, status, json: async () => body});
+  await assert.rejects(fetchJSON("u", {fetcher: answer(503)}), (e) => e === 503);
+  assert.deepEqual(await fetchJSON("u", {fetcher: answer(200, {a: 1})}), {a: 1});
 });
