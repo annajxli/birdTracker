@@ -54,8 +54,9 @@ def birdsong_days(conn: sqlite3.Connection, min_confidence: float, days: int, to
         df = df[df["source_file"].fillna("") != SIMULATED]
     if df.empty:
         return []
-    t = pd.to_datetime(df["detected_at"], utc=True).dt.tz_convert(TZ)
-    df = df.assign(date=t.dt.strftime("%Y-%m-%d"), minute=t.dt.floor("min"))
+    utc = pd.to_datetime(df["detected_at"], utc=True)
+    # Minutes are taken in UTC: in Pacific time, the hour repeated when daylight time ends is ambiguous.
+    df = df.assign(date=utc.dt.tz_convert(TZ).dt.strftime("%Y-%m-%d"), minute=utc.dt.floor("min"))
     review = df["review"].fillna("")
     kept = df[(review == "confirmed") | ((df["confidence"] >= min_confidence) & (review != "rejected"))]
     # A date counts as recorded if anything was detected that day, even below the threshold.

@@ -42,6 +42,11 @@ class BirdsongDaysTest(unittest.TestCase):
         self.add(detection("2026-11-11T03:00:00Z"), detection("2026-11-12T18:00:00Z"))
         self.assertEqual(birdsong_days(self.conn, 0.6, 14, date(2026, 11, 12)), [("2026-11-10", 1)])
 
+    def test_counts_both_passes_through_the_repeated_hour(self):
+        # Daylight time ended at 2 AM on November 1, 2026: 08:58 and 09:58 UTC are both 1:58 AM in Seattle.
+        self.add(detection("2026-11-01T08:58:00Z"), detection("2026-11-01T09:58:00Z"))
+        self.assertEqual(birdsong_days(self.conn, 0.6, 14, date(2026, 11, 12)), [("2026-11-01", 2)])
+
     def test_keeps_the_last_recorded_days_back_to_back(self):
         # Recorded on the 1st, 2nd, and 9th; nothing between. A day with only weak detections still counts as recorded.
         self.add(detection("2026-11-01T18:00:00Z"), detection("2026-11-02T18:00:00Z"),
