@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "species_categories.csv"
 TAXONOMY = "https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=csv&species={}"
 
-# Display order of categories; charts list groups in this order.
+# Display order of categories in charts.
 CATEGORIES = [
     "Songbirds", "Crows & jays", "Woodpeckers", "Hummingbirds & swifts", "Pigeons & doves",
     "Raptors", "Owls & nightjars", "Waterbirds", "Other",

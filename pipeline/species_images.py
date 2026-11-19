@@ -59,7 +59,7 @@ def lead_images(scientific_names: list[str]) -> dict[str, dict]:
     found = {}
     for batch in chunks(scientific_names):
         data = api(WIKIPEDIA, action="query", titles="|".join(batch), prop="pageimages", piprop="name", redirects=1)["query"]
-        # Map each requested name through normalization and redirects to its final title.
+        # Follow normalization and redirects from each requested name to its final title.
         alias = {n["from"]: n["to"] for n in data.get("normalized", [])}
         redirect = {r["from"]: r["to"] for r in data.get("redirects", [])}
         pages = {p["title"]: p for p in data.get("pages", [])}

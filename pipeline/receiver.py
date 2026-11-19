@@ -464,7 +464,7 @@ class Handler(BaseHTTPRequestHandler):
         if not 8000 <= rate <= 96000:
             return self.reply(400, "unsupported sample rate")
         source = self.client_address[0]
-        rssi, ap = self.headers.get("X-RSSI"), self.headers.get("X-AP")  # the recorder's wifi when it connected
+        rssi, ap = self.headers.get("X-RSSI"), self.headers.get("X-AP")  # the recorder's Wi-Fi when it connected
         log.info("stream from %s started: %d Hz%s%s", source, rate, f", RSSI {rssi} dBm" if rssi else "", f" via {ap}" if ap else "")
         self.connection.settimeout(STREAM_TIMEOUT)
         live = LiveFeed(self.live_port, rate, self.station) if self.live_port else None

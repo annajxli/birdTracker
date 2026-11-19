@@ -148,7 +148,7 @@ class Mirror:
             log.warning("%s: no local files; not deleting %d from the bucket", self.prefix, len(stale))
             stale = []
         if len(stale) >= MASS_DELETE_MIN and 2 * len(stale) > known and not self.allow_mass_delete:
-            # The other files in a folder (status.json, a first new clip) don't make it the real data.
+            # A few stray files (status.json, a first new clip) don't make it the real data.
             log.error("%s: not deleting %d of %d keys: the data folder looks lost (--allow-shrink overrides)", self.prefix, len(stale), known)
             stale = []
 

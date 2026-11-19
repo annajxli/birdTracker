@@ -69,9 +69,8 @@ MAX_ATTEMPTS = 3  # analysis failures before a recording is moved to failed/
 MAX_BACKOFF_SECONDS = 15 * 60
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # the station's time zone, for BirdNET's week
 LIVE_AUDIO_RATE = 24000  # keeps the spectrogram's 0-12 kHz
-LIVE_AUDIO_LEVEL = 0.2  # libsndfile's MP3 compression level, ~53 kbit/s (0.5 leaves holes at 8-11 kHz
-                        # that warble when playback boosts quiet audio). MP3, not Opus: much faster to
-                        # encode on a Pi, and every browser plays it
+LIVE_AUDIO_LEVEL = 0.2  # libsndfile MP3 level, ~53 kbit/s; 0.5 leaves 8-11 kHz holes that warble when
+                        # boosted. MP3, not Opus: faster to encode on a Pi, and every browser plays it
 
 log = logging.getLogger("analyzer")
 
@@ -191,7 +190,7 @@ def process(audio: Path, args, conn) -> int:
         unidentified = read_unidentified(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"), start, species)
 
     for r in rows:
-        r["source_file"] = audio.name  # BirdNET reports the full path; keep just the name
+        r["source_file"] = audio.name
 
     # One clip per species per hour, across files: only cut one if it beats the clip already kept.
     clips_dir = args.data / "clips"
@@ -251,10 +250,9 @@ def read_sounds(path: Path, start: datetime) -> list[dict]:
 
 
 def queue_live(audio: Path, rows: list[dict], sounds: list[dict], args, unidentified: list[dict] = ()) -> None:
-    """Hand the near-live view's work (spectrogram, cleaned copy, two MP3s) to a background thread,
-    so BirdNET can start on the next minute on the other cores; done in turn, a minute takes longer
-    than a minute on a Pi. The thread gets its own hard link to the recording, since run_once
-    deletes the original right after this returns."""
+    """Run the near-live work (spectrogram, cleaned copy, two MP3s) on a background thread, since
+    done in turn a minute of audio takes over a minute on a Pi. The thread gets its own hard link
+    because run_once deletes the original right after this returns."""
     global _live_worker
     pending = args.data / "live-pending"
     pending.mkdir(exist_ok=True)

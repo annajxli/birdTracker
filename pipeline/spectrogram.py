@@ -27,9 +27,8 @@ def spectrogram(data: np.ndarray, rate: int) -> np.ndarray:
         data = data.mean(axis=1)
     n_fft = 1024 if rate > 24000 else 512
     hop = max(1, rate // PX_PER_SECOND)
-    # Each image pixel represents an equal slice of the entire recording. Center
-    # its FFT window on that slice, including the edges, instead of stretching
-    # only the unpadded windows across the full duration (which shifts features).
+    # Center each column's FFT window on its equal slice of the recording, edges included;
+    # stretching only unpadded windows across the duration shifts features.
     if not len(data):
         raise ValueError("cannot render an empty recording")
     columns = max(1, int(np.ceil(len(data) / hop)))

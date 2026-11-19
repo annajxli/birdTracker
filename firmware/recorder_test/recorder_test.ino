@@ -1,5 +1,5 @@
 // Bench test 1: record from an INMP441 / ICS-43434 I2S mic into flash, then
-// upload the WAV to pipeline/receiver.py over wifi. One sketch for both bench
+// upload the WAV to pipeline/receiver.py over Wi-Fi. One sketch for both bench
 // boards: FireBeetle 2 ESP32-E (Arduino-ESP32 core 3.x) and Raspberry Pi Pico 2 W
 // (arduino-pico core). Wiring and setup: docs/hardware.md ("Build the bench recorder").
 // Bench test 1 plan and results: docs/bench-test-1.md.
@@ -8,10 +8,10 @@
 //   l  level meter: peak and RMS for 10 s (is the mic alive? how loud?)
 //   r  record RECORD_SECONDS and upload
 //   u  upload the last recording again
-//   i  info: wifi, time, free flash
+//   i  info: Wi-Fi, time, free flash
 //   c  stream continuously to the receiver (FireBeetle only); c again stops
 //
-// The FireBeetle updates itself from the receiver over wifi: see "over-the-air updates" below.
+// The FireBeetle updates itself from the receiver over Wi-Fi: see "over-the-air updates" below.
 //
 // With STREAM_ON_BOOT the FireBeetle streams unattended once it has Wi-Fi and the time: a mic
 // task fills a RAM ring buffer (to ride out Wi-Fi hiccups) and loop() sends it to the receiver.
@@ -183,7 +183,7 @@ void printRecorded(uint32_t done, float secs, uint32_t seconds, uint32_t peak, d
 #if defined(ARDUINO_ARCH_RP2040)
 // On the Pico, a flash write while I2S is streaming freezes the board (bench test 1), so record
 // into RAM, stop the mic, then save.
-// 5 s at 32 kHz is 320 KB of the Pico 2's 520 KB, leaving room for wifi and HTTP buffers.
+// 5 s at 32 kHz is 320 KB of the Pico 2's 520 KB, leaving room for Wi-Fi and HTTP buffers.
 const uint32_t PICO_SECONDS = 5;
 static int16_t ramPcm[SAMPLE_RATE * PICO_SECONDS];
 
@@ -417,7 +417,7 @@ uint64_t epochMs() {
   return (uint64_t)tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-// Runs at a higher priority than loop(), so the mic keeps being read while loop() waits on wifi.
+// Runs at a higher priority than loop(), so the mic keeps being read while loop() waits on Wi-Fi.
 // When the buffer is full, frames are dropped (their indexes still count, so the receiver sees the gap).
 void micTaskLoop(void *) {
   static int32_t raw[FRAME_SAMPLES];
