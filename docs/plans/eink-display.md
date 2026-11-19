@@ -10,15 +10,15 @@ The indoor computer draws the screen, and the screen only shows it:
 
 1. A new `display.py` on the indoor computer renders an 800 × 480 image from
    data it already has: detections, weather, and recorder health.
-2. The receiver's HTTP server serves the image on the home network, for
-   example at `http://pio.local:8765/display.png`.
+2. The receiver's HTTP server serves the image on the local network, for
+   example at `http://PI_HOSTNAME:8765/display.png`, where `PI_HOSTNAME` is the indoor computer's hostname.
 3. The display wakes on a timer, downloads the image over Wi-Fi, draws it,
    and goes back to deep sleep.
 
-This design keeps layout changes on the indoor computer, so the display's
-firmware never changes. The image doesn't leave the home network, so the
-display doesn't need the website's password. Because the display is awake
-only for a few seconds per refresh, a battery lasts for months.
+Layout changes stay on the indoor computer, so the display's firmware never
+changes. The image stays on the local network, so the display needs no
+sign-in. Awake for a few seconds per refresh, the display runs for months on a
+battery.
 
 ## Hardware
 

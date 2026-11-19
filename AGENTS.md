@@ -6,9 +6,8 @@ the project is, see the [README](README.md).
 
 ## Work alongside other agents
 
-Several agents work in this repository at the same time, each in its own
-branch, and sometimes in the same checkout. To avoid overwriting each other's
-work, follow these rules:
+Several agents can work in this repository at the same time, sometimes in the
+same checkout. To avoid overwriting each other's work, follow these rules:
 
 - Work on your own branch, created from an up-to-date `main`. Name it
   `AGENT/TOPIC`, where `AGENT` is your agent's name and `TOPIC` describes the
@@ -16,34 +15,31 @@ work, follow these rules:
 - Use a separate Git worktree or clone for your branch. Don't switch the
   branch of a checkout that you didn't create.
 - Before you start, run `git fetch` and `git status`, and read the
-  [Status](docs/status.md) page, which lists work on other branches.
+  [Status](docs/status.md) page.
 - Leave uncommitted changes that you didn't make as they are. Don't stash,
   reset, clean, or reformat them.
-- Don't run `git worktree prune`. Worktrees can live on another computer or in
-  a sandbox with different paths, so they can look missing when they aren't.
-- Deploy to the indoor computer only from a session on the home network, and
-  record the deployment on the [Status](docs/status.md) page.
+- Don't run `git worktree prune`. Worktrees in a sandbox or on another
+  computer can look missing when they aren't.
+- Deploy to the indoor computer only from the local network, and update the
+  [Status](docs/status.md) page.
 
 ## Wording
 
-Get the owner's explicit approval for any new user-facing wording before you
-merge it, such as headings, labels, buttons, messages, and help text. Propose
-the exact text, and don't invent wording to fill a gap.
+Get the owner's approval for new user-facing wording, such as headings,
+labels, buttons, messages, and help text, before you merge it. Propose the
+exact text.
 
 ## Commits and merges
 
-- Keep each change in a few logical commits, usually one commit per update.
-  Write a title that describes the resulting behavior.
-- Keep unrelated work in separate commits.
-- Each push to `main` deploys the website and uses GitHub Actions minutes.
-  Collect a session's changes on one branch and merge them as one pull request
-  at the end of the session, unless the owner asks for a change sooner. Keep
-  separate topics in separate commits on that branch.
-- Squash-merge pull requests, so that `main` has one commit per update. You
-  don't need to rewrite a branch that others already use.
-- After your pull request merges, delete your local branch and remove the
-  worktree that you made for it. GitHub deletes the branch on GitHub when the
-  pull request merges. Leave branches and worktrees that you didn't create.
+- Keep each change in a few logical commits, usually one per update, with a
+  title that describes the resulting behavior. Keep unrelated work in separate
+  commits.
+- Each push to `main` deploys the website. Collect a session's changes on one
+  branch and merge them as one pull request at the end of the session, unless
+  the owner asks for a change sooner.
+- Squash-merge pull requests, so that `main` has one commit per update.
+- After your pull request merges, delete your local branch and the worktree
+  that you made for it. Leave branches and worktrees that you didn't create.
 - Never commit secrets. `publish.env`, `firmware/**/secrets.h`, and
   `birdtracker.env` hold credentials, and Git ignores the first two.
 
@@ -52,7 +48,7 @@ the exact text, and don't invent wording to fill a gap.
 Before you commit, run the checks that apply to your change:
 
 - Dashboard components: `node --test dashboard/test/*.test.mjs`
-- Password Worker: `node deploy/password-worker.test.mjs`
+- Worker: `node deploy/password-worker.test.mjs`
 - Pipeline: `.venv/bin/python -m unittest discover -s pipeline -p 'test_*.py'`
 - Site build: `npm --prefix dashboard run build`
 - Whitespace: `git diff --check`
@@ -91,17 +87,15 @@ behavior and flags.
   `pipeline/publish.py`", not "every 3 hours".
 - **Record status only in `docs/status.md`.** Other pages describe how things
   work, without words such as *currently*, *not yet*, *for now*, or *planned*.
-- **Keep plans separate.** Describe unimplemented work in `docs/plans/`, with
-  its state in the first paragraph. When the work merges, move the behavior
-  into `architecture.md` or `deploy.md`, and delete what the plan no longer
-  needs.
+- **Keep plans separate.** Describe unimplemented work in `docs/plans/`. When
+  the work merges, move the behavior into `architecture.md` or `deploy.md`, and
+  delete the plan.
 - **Don't change records.** Test records keep the results and conditions of
   their date. To correct one, add a dated note.
 - **Update documentation with the code.** If a change affects documented
   behavior, update the documentation in the same commit.
-- **Check references when you move a page.** Code comments refer to some
-  documentation paths, such as `docs/deploy.md`. Search the repository for the
-  old path, and update every reference.
+- **Check references when you move a page.** Search the whole repository,
+  including code comments, for the old path, and update every reference.
 
 ### Style
 

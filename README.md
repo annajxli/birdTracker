@@ -1,9 +1,8 @@
 # Bird Tracker
 
-Bird Tracker identifies the birds in a backyard by sound. An outdoor recorder
-streams audio to an indoor computer, [BirdNET](https://github.com/birdnet-team/BirdNET-Analyzer)
-identifies the birds, and a password-protected dashboard shows what was heard
-and when.
+Bird Tracker identifies birds by sound. An outdoor recorder streams audio to
+an indoor computer, [BirdNET](https://github.com/birdnet-team/BirdNET-Analyzer)
+identifies the birds, and a dashboard shows what was heard and when.
 
 ## Quickstart
 
@@ -30,7 +29,7 @@ The following table describes the top-level folders:
 | --- | --- |
 | `pipeline/` | Python services for the indoor computer, and scripts that build reference data |
 | `dashboard/` | The Observable Framework site and its data loaders |
-| `deploy/` | The password Worker, its Wrangler configuration, and the Raspberry Pi services |
+| `deploy/` | The Cloudflare Worker, its Wrangler configuration, and the Raspberry Pi services |
 | `firmware/` | Bench recorder firmware |
 | `data/` | Checked-in reference data, and generated data that Git ignores |
 | `docs/` | Documentation |

@@ -1,6 +1,6 @@
 # Bench test 2: recorder power
 
-This page plans the second bench test. Nothing on it is built or run yet: the
+This page plans the second bench test. Nothing on it is built or run: the
 firmware modes, the measurement script, and the receiver change don't exist.
 When the test runs, its results go in a new record, `docs/bench-test-2.md`,
 and this plan is deleted. For the first test, see
@@ -11,166 +11,97 @@ and this plan is deleted. For the first test, see
 Find a recorder configuration that fits a Seattle winter solar budget without
 losing audio, and choose the board.
 
-The test answers the following questions:
-
-- How much energy does each firmware mode use per winter day, measured at the
-  battery input?
-- Which mode, on which board, fits the budget in
-  [Pass criteria](#pass-criteria)?
-- Does that mode keep every sample, with correct timestamps, and give BirdNET
-  the same audio as streaming?
-
 ## Baseline
 
-The bench recorder streams audio to the receiver continuously, with Wi-Fi
-power saving off (`WiFi.setSleep(false)` in
-`firmware/recorder_test/recorder_test.ino`). On a 10,000 mAh power bank it ran
-for about 33 hours, an average of about 0.95 W, or about 23 Wh a day. For how
-that was measured, see [Status](../status.md#recorder-hardware).
+The bench recorder streams continuously with Wi-Fi power saving off
+(`WiFi.setSleep(false)` in `firmware/recorder_test/recorder_test.ino`). On a
+10,000 mAh power bank it ran about 33 hours, an average of about 0.95 W, or
+about 23 Wh a day. That's about 16 times the build A estimate in
+[Recorder hardware options](../design/hardware-design.html), about 1.4 Wh a
+day, which assumes the radio is mostly off, the CPU idles while I²S fills its
+buffers, and the board sleeps deeply at night.
 
-That's about 16 times the estimate for build A in
-[Recorder hardware options](../design/hardware-design.html), which records
-from before sunrise to after sunset, sleeps at night, and sizes its solar
-panel for about 1.4 Wh a day. The estimate's main assumptions are untested:
-the radio is off most of the time, the CPU idles while I²S fills its buffers,
-and the board sleeps deeply at night.
+Mono 16-bit audio at 32 kHz is 3.84 MB a minute. At the FireBeetle's bench
+upload rate of 2,187 kbit/s, a minute of WAV takes about 14 seconds to upload,
+so burst uploads turn the radio off only about three-quarters of the time.
+Compression shortens each burst in proportion.
 
-The following arithmetic shows why the upload format matters. Mono 16-bit
-audio at 32 kHz is 64,000 bytes a second, or 3.84 MB a minute. At the
-FireBeetle's measured bench upload rate of 2,187 kbit/s, a minute of WAV takes
-about 14 seconds to upload. Uploading in bursts therefore turns the radio off
-only about three-quarters of the time. A compressed file shortens each burst
-in proportion to its size.
+## Boards
 
-## Boards and parts
+Using the parts from [Bench test 1](../bench-test-1.md#parts), test in this
+order:
 
-The test uses the boards and parts in
-[Bench test 1](../bench-test-1.md#parts). Run the boards in this order:
-
-1. **FireBeetle 2 ESP32-E.** It has the streaming baseline, so each mode
-   compares with a known number.
-2. **Seeed XIAO ESP32S3.** Its PSRAM can hold a minute of audio, so it can
-   upload without the microSD card. Measure both.
-3. **Raspberry Pi Pico 2 W.** A retest that records to microSD instead of its
-   own flash. Check whether the isolated full-scale samples from bench test 1
-   recur.
-
-The XIAO nRF52840 and BLE are out of scope unless no Wi-Fi board passes. For
-the other exclusions, see [Out of scope](#out-of-scope).
+1. **FireBeetle 2 ESP32-E**, which has the streaming baseline.
+2. **Seeed XIAO ESP32S3**, whose PSRAM can hold a minute of audio. Measure
+   with and without the microSD card.
+3. **Raspberry Pi Pico 2 W**, recording to microSD instead of its own flash.
+   Check whether the isolated full-scale samples from bench test 1 recur.
 
 ## Firmware modes
 
-The modes extend the Arduino bench sketch in `firmware/recorder_test/`, with a
-constant that selects the mode. The sketch stays a bench tool. A production
-recorder uses ESP-IDF on an ESP32 or the Pico SDK on a Pico, as
-[Recorder hardware](../hardware.md#build-the-bench-recorder) describes.
+A constant in the bench sketch selects the mode.
 
 | Mode | What the board does | What it isolates |
 | --- | --- | --- |
-| M1 Stream | Streams continuously, as deployed, with Wi-Fi power saving off | The baseline, measured at the battery input instead of the power bank |
-| M1s Stream, modem sleep | M1 with Wi-Fi power saving on, and a larger send buffer to absorb the delays | Whether streaming alone can get close to the budget |
-| M2 Record only | Reads the microphone and discards the audio, with the radio off | The floor: microphone, I²S, and CPU |
-| M3 SD and bursts | Records 1-minute WAV files to microSD, and uploads the waiting files every N minutes, with N set to 1 and 5. Between bursts, the radio is either off or connected with modem sleep; measure both. | The main candidate |
-| M4 Compressed bursts | M3 with FLAC files | Whether encoding costs less than the radio time it saves |
-| M5 Night | Deep sleep, with the microphone's clock stopped and the microSD card unpowered if the board allows it, and a timer wake | The 14-hour winter night |
+| M1 Stream | Streams with Wi-Fi power saving off | The baseline, at the battery input |
+| M1s Stream, modem sleep | M1 with power saving on and a larger send buffer | Whether streaming alone can approach the budget |
+| M2 Record only | Reads the microphone and discards audio, radio off | The floor |
+| M3 SD and bursts | Records 1-minute WAVs to microSD and uploads every N minutes (N = 1 and 5), with the radio off or in modem sleep between bursts | The main candidate |
+| M4 Compressed bursts | M3 with FLAC | Whether encoding costs less than the radio time it saves |
+| M5 Night | Deep sleep with a timer wake, microphone clock stopped | The 14-hour winter night |
 
-For M2 to M4, also measure the CPU at its lowest clock that keeps up, such as
-80 MHz on the ESP32 boards.
-
-Burst uploads use the receiver's existing `POST /upload` endpoint. Each
-upload carries the board's health in an `X-Health` header, in the same
-`key=value` format as the stream's health frames. The health adds
-`samples_recorded` and `samples_dropped`, so the receiver can check
-continuity.
-
-A third marker pin goes high during microSD writes, beside the existing
-recording and uploading markers. The sketch's `PIN_MARK_` constants name the
-pins, and `docs/hardware.md` lists the wiring with the microSD breakout.
+For M2 to M4, also measure the lowest CPU clock that keeps up. Bursts use the
+receiver's `POST /upload`, with health, including `samples_recorded` and
+`samples_dropped`, in an `X-Health` header in the stream's `key=value` format.
+A third marker pin marks microSD writes.
 
 ## Measurement setup
 
-- The PPK2 runs as a source meter at 3.7 V into each board's battery input,
-  so the measurement includes the board's regulator: the FireBeetle's JST-PH
-  connector, the XIAO's battery pads, and the Pico's `VSYS` pin.
-- The board's USB cable is unplugged. Serial logs go through the 3.3 V
-  serial adapter, connected only by TX, RX, and ground.
-- The marker pins connect to the PPK2's logic inputs, so the trace labels
-  each state.
-- A new script, `firmware/recorder_test/ppk2_measure.py`, drives the PPK2
-  with the `ppk2-api` Python package. It records for a set time, averages
-  the current to 1 ms, splits the trace by marker state, and prints the
-  average current and power per state, and per full upload cycle. If the
-  package can't read the logic inputs, export the trace from the Power
-  Profiler app in nRF Connect for Desktop, and point the script at the
-  CSV file instead.
-- Each run lasts at least 10 minutes, or at least three full upload cycles,
-  whichever is longer. Raw traces stay out of Git. The record keeps the
-  script's summaries.
+- The PPK2 sources 3.7 V into each board's battery input, so the measurement
+  includes the board's regulator. USB is unplugged, and serial logs go through
+  a 3.3 V adapter (TX, RX, and ground only).
+- The marker pins connect to the PPK2's logic inputs.
+- A new script, `firmware/recorder_test/ppk2_measure.py`, uses `ppk2-api` to
+  record, split the trace by marker state, and print average power per state
+  and per upload cycle. If it can't read the logic inputs, it reads a CSV
+  exported from the Power Profiler app.
+- Each run lasts at least 10 minutes or three upload cycles. Raw traces stay
+  out of Git.
 
-To project a winter day, the script adds each mode's power over the sizing
-case in [Recorder hardware options](../design/hardware-design.html): about 10
-hours of recording and 14 hours of night. The projection for build A is the
-recording mode's average power for the recording hours, plus M5 for the
-night.
+A winter day projection is about 10 hours in the recording mode plus 14 hours
+in M5.
 
 ## Tests
 
-Run T1 to T6 on each board. Run T7 on the best configuration that passes T1
-to T6.
+Run T1 to T6 on each board, and T7 on the best passing configuration.
 
-| Test | What it checks | Method | Pass criteria |
-| --- | --- | --- | --- |
-| T1 | Power per mode | Measure M1, M1s, M2, M3 with each N and between-burst setting, M4, and M5 | A summary for each mode, with average power and the current in each marked state |
-| T2 | Wi-Fi connect cost | In M3 with the radio off between bursts, measure the energy from wake to the first upload byte | A figure in millijoules per connect, used to choose N |
-| T3 | Upload energy | In M3 and M4, measure the energy per uploaded MB | A figure in millijoules per MB for each board |
-| T4 | Audio continuity | Run M3 or M4 for 2 hours with the receiver | Every minute file arrives. `samples_dropped` stays 0. Consecutive files' start times differ by the file length, within 10 ms. |
-| T5 | Compression is lossless | In M4, also write each minute as WAV to the microSD card for 10 minutes, and compare the two on the indoor computer | The decoded FLAC samples equal the WAV samples exactly |
-| T6 | BirdNET parity | Play the bench test 1 Merlin clip from a phone at about 1 m, in M1 and then in M3, on the same board | BirdNET finds the same species in the same 3-second windows. Don't compare confidence scores; hand-held playback can't repeat exactly. |
-| T7 | A day on a battery | Run the chosen configuration for 24 hours from a power bank, through the inline USB power meter, on its real day and night schedule | The meter's daily energy agrees with the projection from T1 within 25%. T4's criteria hold for the whole day. |
+| Test | Method | Pass criteria |
+| --- | --- | --- |
+| T1 Power per mode | Measure every mode and setting | Average power and current per marked state |
+| T2 Wi-Fi connect cost | In M3 with the radio off, measure wake to first upload byte | Millijoules per connect |
+| T3 Upload energy | In M3 and M4 | Millijoules per uploaded MB |
+| T4 Continuity | M3 or M4 for 2 hours | Every minute arrives, `samples_dropped` stays 0, and start times differ by the file length within 10 ms |
+| T5 Lossless compression | In M4, also write WAV for 10 minutes and compare | Decoded FLAC equals WAV exactly |
+| T6 BirdNET parity | Play the bench test 1 clip at about 1 m in M1 and M3 | Same species in the same 3-second windows |
+| T7 A day on a battery | 24 hours from a power bank through the USB power meter, on the real schedule | Daily energy within 25% of the T1 projection, and T4 holds |
 
 ## Pass criteria
 
-- **Energy.** The projected winter day is at most 1.4 Wh at the battery
-  input, the build A estimate that the solar sizing in
-  [Recorder hardware options](../design/hardware-design.html) assumes. A day
-  of up to 2 Wh is acceptable with a panel at the top of that page's range.
-  Above 2 Wh, the configuration fails the solar budget. Its options are
-  recording in slices outside the dawn chorus, as that page describes, or the
-  cable from the house.
-- **Audio.** T4 and T5 pass, and T6 finds the same species.
-- **Board.** Of the boards that pass, choose the one with the lowest
-  projected winter day. If two are within 10% of each other, choose the one
-  with less firmware risk, such as more RAM or fewer workarounds.
+- **Energy.** A projected winter day of at most 1.4 Wh at the battery input.
+  Up to 2 Wh is acceptable with a panel at the top of the design page's
+  range. Above that, the options are recording in slices outside the dawn
+  chorus, or the cable from the house.
+- **Audio.** T4, T5, and T6 pass.
+- **Board.** The lowest projected winter day. Within 10%, choose less firmware
+  risk.
 
-## Steps
-
-The steps say who does each one: *Claude* for code and documentation, and
-*you* for the hardware at the bench.
-
-1. *Claude:* add the modes, the microSD recording, the burst uploads, FLAC,
-   deep sleep, the third marker pin, and the `X-Health` header to the bench
-   sketch. Document the microSD wiring in `docs/hardware.md`.
-2. *Claude:* make the receiver read `X-Health` on uploads and write the same
-   `.json` sidecar that it writes for streamed minutes.
-3. *Claude:* write `ppk2_measure.py`, and test it with a recorded trace.
-4. *You:* wire the microSD breakout and the PPK2 to the FireBeetle, and run
-   T1 to T6.
-5. *Claude:* write the FireBeetle results in `docs/bench-test-2.md`. If no
-   mode comes close to 2 Wh, stop and revisit the plan before you test the
-   other boards.
-6. *You:* repeat step 4 on the XIAO ESP32S3 and the Pico 2 W.
-7. *You and Claude:* run T7 on the best configuration, then choose the board.
-8. *Claude:* replace the estimates in
-   [Recorder hardware options](../design/hardware-design.html) with the
-   measurements, and delete this plan.
+If no FireBeetle mode comes close to 2 Wh, revisit the plan before you test
+the other boards. Afterward, replace the estimates in
+[Recorder hardware options](../design/hardware-design.html) with the
+measurements.
 
 ## Out of scope
 
-- **BLE**, unless no Wi-Fi board passes. Then add the XIAO nRF52840 and the
-  nRF52840 dongle as a third section.
-- **Solar charging**, the charger's efficiency, and the battery gauge. A
-  later test sizes the panel from this test's winning number.
-- **Microphones.** Every board uses the same INMP441. For microphone
-  changes, see [Microphone options](microphone-options.md).
-- **Production firmware.** The modes show what's possible. The production
-  firmware is written after the board is chosen.
+BLE (unless no Wi-Fi board passes), solar charging and the battery gauge,
+microphone changes ([Microphone options](microphone-options.md)), and
+production firmware.

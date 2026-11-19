@@ -1,49 +1,29 @@
 # Development
 
-This page explains how to run Bird Tracker on a development computer: set up
-the environment, run the dashboard on simulated data, run the pipeline without
-a recorder, and run the tests. For how the parts fit together, see
-[Architecture](architecture.md).
-
-## Before you begin
-
-Install the following:
-
-- Python 3.12 or later
-- Node.js 18 or later
-
-To get both from conda instead, create the `birdtracker` environment from
-`environment.yml`, and activate it before you set up the environment below:
-
-```bash
-conda env create -f environment.yml
-conda activate birdtracker
-```
-
-From the repository root, run all commands on this page.
+This page explains how to run Bird Tracker on a development computer. For how
+the parts fit together, see [Architecture](architecture.md). Run all commands
+from the repository root.
 
 ## Set up the environment
 
-1. Create a Python virtual environment:
+Install Python 3.12 or later and Node.js 18 or later. To get both from conda
+instead, run `conda env create -f environment.yml` and
+`conda activate birdtracker`.
+
+1. Create a Python virtual environment and install the dependencies, including
+   BirdNET:
 
    ```bash
    python3 -m venv .venv
-   ```
-
-2. Install the Python dependencies, including BirdNET:
-
-   ```bash
    .venv/bin/pip install -r requirements.txt
    ```
 
-   The dashboard's data loaders run with `.venv/bin/python`, or
-   `.venv\Scripts\python.exe` on Windows, so the virtual environment must be
-   at `.venv/`. On Windows, use `.venv\Scripts\` wherever this page says
-   `.venv/bin/`. To build only the dashboard, without
-   BirdNET, install `requirements-dashboard.txt` instead. The deploy workflow
-   uses that file.
+   The dashboard's data loaders run `.venv/bin/python`, or
+   `.venv\Scripts\python.exe` on Windows, so the environment must be at
+   `.venv/`. To build only the dashboard, without BirdNET, install
+   `requirements-dashboard.txt` instead, as the deploy workflow does.
 
-3. Install the dashboard dependencies:
+2. Install the dashboard dependencies:
 
    ```bash
    npm --prefix dashboard install
@@ -51,83 +31,70 @@ From the repository root, run all commands on this page.
 
 ## Run the dashboard on simulated data
 
-1. Generate a year of simulated detections in `data/detections.sqlite`:
+1. Generate a year of simulated detections in `data/detections.sqlite`, from
+   the species in `data/occurrence.csv` and the rain in `data/weather.csv`:
 
    ```bash
    .venv/bin/python pipeline/simulate.py
    ```
 
-   The simulator uses the species in `data/occurrence.csv` and the rain in
-   `data/weather.csv`.
-
-2. Optional: Generate simulated recorder telemetry for the **Hardware
-   analytics** page:
+2. Optional: For the **Hardware analytics** page, generate simulated recorder
+   telemetry:
 
    ```bash
    .venv/bin/python pipeline/simulate_recordings.py
    ```
 
-3. Start the development server:
+3. Start the development server, and open `http://localhost:3000`:
 
    ```bash
    npm --prefix dashboard run dev
    ```
 
-4. Open `http://localhost:3000`.
-
-To read a different database, set the `BIRDTRACKER_DB` environment variable
-before you start the server. For example, to view real data copied from the
-indoor computer, set it to the path of that `recorder.sqlite` file.
+To read a different database, such as a copy of the indoor computer's
+`recorder.sqlite`, set the `BIRDTRACKER_DB` environment variable before you
+start the server.
 
 ## Run the pipeline without a recorder
 
-The pipeline scripts write to `data/detections.sqlite` by default, which is
-also where `simulate.py` writes. To keep real detections apart from simulated
-ones, pass `--db data/recorder.sqlite` to each script, as the indoor computer
-does. If a database already has real detections, `simulate.py` refuses to add
-simulated ones unless you pass `--force`.
+The pipeline scripts write to `data/detections.sqlite` by default, where
+`simulate.py` also writes. To keep real detections apart, pass
+`--db data/recorder.sqlite`, as the indoor computer does. `simulate.py`
+refuses to add to a database with real detections unless you pass `--force`.
 
-To process recordings on a development computer, put audio files named by
-their UTC start time, such as `20260512T131500Z.wav`, in `data/incoming/`.
-Then run the analyzer once:
+To process recordings, put audio files named by their UTC start time, such as
+`20260512T131500Z.wav`, in `data/incoming/`, and run the analyzer. To keep
+watching for new files, use `--watch` instead of `--once`.
 
 ```bash
 .venv/bin/python pipeline/analyzer.py --once --db data/recorder.sqlite
 ```
 
-To keep watching for new recordings, use `--watch` instead of `--once`.
-
-To receive recordings from a bench recorder, start the receiver with the same
-token as the recorder's `secrets.h`:
+To receive recordings from a bench recorder, start the receiver with the token
+from the recorder's `secrets.h`, or set `RECEIVER_TOKEN` instead. On macOS,
+allow Python to accept incoming connections. For the recorder, see
+[Recorder hardware](hardware.md#build-the-bench-recorder).
 
 ```bash
 .venv/bin/python pipeline/receiver.py --token TOKEN
 ```
 
-Replace `TOKEN` with the shared token. You can set the `RECEIVER_TOKEN`
-environment variable instead of passing `--token`. On macOS, if the system asks
-whether Python can accept incoming connections, allow it. For the bench recorder setup, see
-[Recorder hardware](hardware.md#build-the-bench-recorder).
-
-To try the local live view without a recorder, start `live.py`, then replay a
-recording into it:
+To try the local live view without a recorder, start `live.py`, replay a WAV
+file into it, and open `http://localhost:8000`:
 
 ```bash
 .venv/bin/python pipeline/live.py
-```
-
-```bash
 .venv/bin/python pipeline/live_fake_stream.py PATH_TO_AUDIO
 ```
 
-Replace `PATH_TO_AUDIO` with the path to a WAV file. Then open
-`http://localhost:8000`.
+Run each command in its own terminal. Replace `PATH_TO_AUDIO` with the path to
+a WAV file.
 
 ### Publish from a development computer
 
-To publish a development computer's data to R2 instead of the Pi's, load the
-R2 keys from `publish.env` and run the publisher. Don't run two publishers for
-the same bucket. For how to create `publish.env`, see
+To publish this computer's data to R2, load the keys from `publish.env` and
+run the publisher. Don't run two publishers for the same bucket. To create
+`publish.env`, see
 [Create an R2 token for the publisher](deploy.md#create-an-r2-token-for-the-publisher).
 
 ```bash
@@ -137,54 +104,32 @@ set -a; . ./publish.env; set +a
 
 ### Load results from BirdNET-Analyzer
 
-To analyze recordings with BirdNET-Analyzer directly and load the results,
-do the following:
+To analyze a folder of recordings with BirdNET-Analyzer directly and load the
+results, run the following commands:
 
-1. Analyze a folder of recordings:
+```bash
+.venv/bin/birdnet-analyze recordings/ -o results/ --lat LAT --lon LON --rtype csv
+.venv/bin/python pipeline/ingest.py results/*.BirdNET.results.csv --db data/recorder.sqlite
+```
 
-   ```bash
-   .venv/bin/birdnet-analyze recordings/ -o results/ --lat 47.61 --lon -122.33 --rtype csv
-   ```
-
-2. Load the results into the database:
-
-   ```bash
-   .venv/bin/python pipeline/ingest.py results/*.BirdNET.results.csv --station backyard --db data/recorder.sqlite
-   ```
-
-   `ingest.py` reads each recording's start time from its filename. For a
-   file without a timestamp in its name, pass `--start`.
+Replace `LAT` and `LON` with the station's coordinates. `ingest.py` reads each
+recording's start time from its filename. For a file without one, pass
+`--start`.
 
 ## Run the tests
 
-To run the tests, run the following commands:
-
-- Dashboard component tests:
-
-  ```bash
-  node --test dashboard/test/*.test.mjs
-  ```
-
-- Password Worker tests:
-
-  ```bash
-  node deploy/password-worker.test.mjs
-  ```
-
-- Pipeline tests, which use no network or credentials:
-
-  ```bash
-  .venv/bin/python -m unittest discover -s pipeline -p 'test_*.py'
-  ```
-
-To check the site build, run `npm --prefix dashboard run build`.
+- Dashboard components: `node --test dashboard/test/*.test.mjs`
+- Worker: `node deploy/password-worker.test.mjs`
+- Pipeline, with no network or credentials:
+  `.venv/bin/python -m unittest discover -s pipeline -p 'test_*.py'`
+- Site build: `npm --prefix dashboard run build`
 
 ## Regenerate reference data
 
-The repository includes the files in the following table. When a file's input
-changes, regenerate the file and commit the result.
+When a file's input changes, regenerate the file and commit the result. Run
+each script with `.venv/bin/python`, and use `--help` for options.
 
-| File | Command | When to run it |
+| File | Script | When to run it |
 | --- | --- | --- |
 | `data/occurrence.csv` | `pipeline/occurrence.py` | The station location changes. Pass `--lat` and `--lon`. The first run downloads the BirdNET model, about 220 MB. |
 | `data/species_images.json` | `pipeline/species_images.py` | The species list changes. |
@@ -193,9 +138,6 @@ changes, regenerate the file and commit the result.
 | `data/species_traits.json` | `pipeline/species_traits.py` | The species list or `data/species_length_fixes.csv` changes. Check each new length against its source sentence. |
 | `data/avonet_mass.csv` | `pipeline/species_traits.py --avonet XLSX` | AVONET publishes a new release. See the script's docstring. |
 | `data/weather.csv`, `data/weather_hourly.csv` | `pipeline/weather.py` | New detections arrive. The deploy workflow also runs it. |
-
-Run each command with `.venv/bin/python`. For options, run the script with
-`--help`.
 
 The station location is set in several places: the `--lat` and `--lon`
 defaults in `analyzer.py`, `live.py`, and `occurrence.py`, and the `LAT` and

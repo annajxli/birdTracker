@@ -1,7 +1,8 @@
-# Contribution workflow
+# Contributing
 
-Keep changes in a few logical commits: normally one commit per update, with a
-clear title describing the resulting behavior. Keep unrelated work separate.
+Keep changes in a few logical commits, usually one commit per update, with a
+title that describes the resulting behavior. Keep unrelated work separate.
+Pull requests are squash-merged.
 
-Squash merge pull requests so the main branch has one commit per update and is
-easy to scan. This does not require rewriting an already-published shared branch.
+For branches, checks, and documentation rules, see the
+[agent and contributor guide](AGENTS.md).
