@@ -1,18 +1,11 @@
-# Build the dashboard and deploy it to Cloudflare as the password Worker's
-# static assets (deploy/wrangler.toml), so the site is only reachable through
-# the password. Runs on pushes to main that change what the site is built
-# from (the paths below), weekly, and on demand from the Actions tab. The pages load the latest detections from the recorder's R2
-# bucket and the last month of weather from Open-Meteo when they open, so new
-# data never waits for a build; the weekly run only refreshes the copies built
-# into the site (the fallbacks, and weather older than a month).
+# Build the dashboard and deploy it as the sign-in Worker's static assets
+# (deploy/wrangler.toml). Runs on pushes to main that change the paths below,
+# weekly, and on demand. The pages fetch fresh data when they open, so the
+# weekly run only refreshes the fallback copies built into the site.
 #
-# Needs two repository secrets: CLOUDFLARE_API_TOKEN (a token with the
-# "Edit Cloudflare Workers" template) and CLOUDFLARE_ACCOUNT_ID.
-#
-# Detections come from the recorder: pipeline/publish.py uploads a database
-# snapshot to the R2 bucket (and starts this workflow). Until a snapshot
-# exists, the build simulates a year instead, and writes no sign-in chart.
-# The API token needs R2 read access as well as Workers (docs/deploy.md).
+# Needs repository secrets CLOUDFLARE_API_TOKEN (Workers edit and R2 read) and
+# CLOUDFLARE_ACCOUNT_ID; see docs/deploy.md. Without a database snapshot in R2
+# (from pipeline/publish.py), the build simulates a year and skips the sign-in chart.
 
 name: Deploy dashboard
 

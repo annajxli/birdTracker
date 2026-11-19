@@ -11,7 +11,7 @@ FILE_MINUTES files from an hour before sunrise to an hour after sunset, with:
   - pipeline delay: upload, the analyzer's settle check, and analysis, with a backlog after
     an outage clears
 
-Usage: python pipeline/simulate_recordings.py [--station backyard] [--seed 3]
+Usage: python pipeline/simulate_recordings.py [--station STATION] [--seed 3]
 """
 
 import argparse

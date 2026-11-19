@@ -2,7 +2,7 @@
 
 Uses BirdNET's bundled eBird species codes to look up each species' order and
 family in the public eBird taxonomy, then maps those to a short list of
-categories a backyard listener would recognize.
+categories a casual listener would recognize.
 
 Output: data/species_categories.csv. Re-run when the species list changes.
 

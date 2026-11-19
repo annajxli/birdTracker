@@ -13,12 +13,10 @@
 //
 // The FireBeetle updates itself from the receiver over wifi: see "over-the-air updates" below.
 //
-// With STREAM_ON_BOOT the FireBeetle streams as soon as it has wifi and the time, so it
-// records unattended: a mic task fills a RAM ring buffer (a couple of seconds, to ride out
-// wifi hiccups) and loop() sends it to the receiver, which cuts it into 1-minute WAVs.
+// With STREAM_ON_BOOT the FireBeetle streams unattended once it has Wi-Fi and the time: a mic
+// task fills a RAM ring buffer (to ride out Wi-Fi hiccups) and loop() sends it to the receiver.
 //
-// Two "marker" pins go high while recording / uploading, for the scope now and
-// the PPK2's logic inputs later.
+// Two "marker" pins go high while recording / uploading, for a scope or the PPK2's logic inputs.
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -183,8 +181,8 @@ void printRecorded(uint32_t done, float secs, uint32_t seconds, uint32_t peak, d
 }
 
 #if defined(ARDUINO_ARCH_RP2040)
-// On the Pico, a flash write while I2S is streaming freezes the board (bench test 1: fine with
-// the mic stopped, hangs with it running). So record into RAM, stop the mic, then save.
+// On the Pico, a flash write while I2S is streaming freezes the board (bench test 1), so record
+// into RAM, stop the mic, then save.
 // 5 s at 32 kHz is 320 KB of the Pico 2's 520 KB, leaving room for wifi and HTTP buffers.
 const uint32_t PICO_SECONDS = 5;
 static int16_t ramPcm[SAMPLE_RATE * PICO_SECONDS];
@@ -322,8 +320,8 @@ void receiverHost(String &host, uint16_t &port, String &hostPort) {
 }
 
 #if defined(ARDUINO_ARCH_RP2040)
-// arduino-pico's HTTPClient gave up a few KB into the file (HTTP -3) whenever the TCP send
-// buffer filled, so on the Pico write the request by hand and wait out short writes.
+// arduino-pico's HTTPClient fails (HTTP -3) when the TCP send buffer fills, so on the Pico
+// write the request by hand and wait out short writes.
 int postFile(File &f, size_t bytes) {
   String host, hostPort;
   uint16_t port;
@@ -602,8 +600,7 @@ void streamPump() {
     digitalWrite(PIN_MARK_UP, LOW);
     if (!streamConnect()) { delay(20); return; }
   }
-  // Send whatever is buffered, up to 8 frames per write: one small packet per frame couldn't
-  // drain the buffer after a hiccup (it sat 80-90% full and dropped audio).
+  // Send up to 8 frames per write: one packet per frame can't drain the buffer after a hiccup.
   static uint8_t batch[8 * (FRAME_HEADER_BYTES + FRAME_SAMPLES * 2)];
   size_t used = 0, size;
   int frames = 0;

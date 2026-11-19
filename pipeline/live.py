@@ -1,17 +1,15 @@
 """Live view: hear the recorder in real time, with a scrolling spectrogram and BirdNET's
 identifications as they happen (like Merlin's Sound ID).
 
-The recorder streams continuously to receiver.py, which cuts the stream into minute files for
-the analyzer and also forwards it here over local TCP (port 8766), so the live view and the
-record share one stream from the board:
+receiver.py forwards the recorder's stream here over local TCP, so the live view and the record
+share one stream from the board:
 
-  first line   BIRDSTREAM 1 rate=32000 format=s16le channels=1 station=backyard\\n
-  then         raw little-endian 16-bit mono PCM, as it arrives, for as long as it's connected
+  first line   BIRDSTREAM 1 rate=32000 format=s16le channels=1 station=STATION\\n
+  then         raw little-endian 16-bit mono PCM, for as long as it's connected
 
-This keeps the last few seconds of audio, draws a spectrogram column every 10 ms, and runs
-BirdNET on the latest 3 seconds every STRIDE seconds (about 15 ms of work each time). Both go to
-the browser as Server-Sent Events, so a call shows on screen within about half a second of
-reaching the microphone. Nothing here is stored: receiver.py's minute files stay the record.
+This keeps the last few seconds of audio, draws spectrogram columns, and runs BirdNET on the
+latest 3 seconds every STRIDE seconds. Both go to the browser as Server-Sent Events. Nothing here
+is stored: receiver.py's minute files are the record.
 
   http://<this computer>:8000/        the live page (pipeline/live.html)
   http://<this computer>:8000/events  the event stream it reads

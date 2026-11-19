@@ -1,28 +1,25 @@
 """BirdNET without TensorFlow: the same model files, run with the small TFLite runtime.
 
-birdnet-analyzer imports TensorFlow and Keras every time it starts, which a 1 GB Raspberry Pi
-3B+ can't afford, though the model itself is a TFLite file. This runs that model (and the
-location filter) with ai-edge-litert instead, mirroring birdnet-analyzer 2.4's defaults:
+birdnet-analyzer imports TensorFlow and Keras, which a 1 GB Raspberry Pi can't afford, though
+the model is a TFLite file. This runs that model and the location filter with ai-edge-litert,
+mirroring birdnet-analyzer 2.4's defaults:
 48 kHz mono, 3 s chunks with no overlap (a final chunk of at least 1 s is zero-padded), a
 sigmoid on the scores, and only the species the location model expects at the station that
 week (score >= 0.03). It writes the same CSV columns, so ingest.read_results reads it unchanged.
 
-One addition: BirdNET also knows some sounds that aren't birds (a dog, a voice, an engine), but
-the location filter hides them (they have no range), so a bark could only come out as the
-nearest bird (a Canada Goose). Here they always count: a bird scoring below one of them in the
-same 3 s is dropped, and the confident ones go in <stem>.BirdNET.sounds.csv for the Live page.
+Differences from birdnet-analyzer:
 
-And one more: <stem>.BirdNET.activity.csv has, for every 3 s window, an "any bird" score (the
-chance that at least one of the expected species is there, 1 - prod(1 - score)) and the best
-single species' score and scientific name, so birdsong that BirdNET can't pin to a species still
-counts as birdsong.
-It's 0 where a confident non-bird sound (SOUND_MIN_CONF or more) outscores every bird; a faint one,
-such as distant traffic or rain, doesn't erase faint birdsong.
-
-Last: BirdNET sometimes spends a call's score on a sibling species that the location filter
-excludes, such as Woodhouse's Scrub-Jay for a California Scrub-Jay in Seattle. When the excluded
-species' genus has exactly one expected species, that species gets the higher of the two scores
-(rollup), before anything above is decided.
+- Non-bird sounds (a dog, a voice, an engine) always count. The location filter hides them
+  (they have no range), so a bark would otherwise come out as the nearest bird. A bird scoring
+  below one of them in the same 3 s is dropped, and the confident ones go in
+  <stem>.BirdNET.sounds.csv for the Live page.
+- <stem>.BirdNET.activity.csv has, for every 3 s window, an "any bird" score (1 - prod(1 - score)
+  over the expected species) and the best species' score and scientific name, so birdsong
+  BirdNET can't pin to a species still counts. It's 0 where a non-bird sound of at least
+  SOUND_MIN_CONF outscores every bird; a faint one, such as rain, doesn't erase faint birdsong.
+- Rollup: when BirdNET scores a sibling species the location filter excludes (Woodhouse's
+  Scrub-Jay for a California Scrub-Jay in Seattle) and that genus has exactly one expected
+  species, the expected one gets the higher of the two scores, before anything above.
 
 The model files ship inside the birdnet-analyzer package; on the Pi they're copied to
 models/ by deploy/pi/push.sh, and BIRDNET_MODELS points at that folder.

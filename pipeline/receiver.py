@@ -1,6 +1,6 @@
-"""Receive recordings uploaded by the recorder and drop them into data/incoming/.
+"""Receive recordings from the recorder and drop them into data/incoming/.
 
-The recorder sends each finished file as an HTTP POST:
+Finished files arrive as an HTTP POST:
 
   POST /upload?name=20260512T131500Z.wav
   X-Token: <shared token>
@@ -8,71 +8,65 @@ The recorder sends each finished file as an HTTP POST:
   <file bytes>
 
 The file is written as incoming/<name>.part and renamed when complete, so
-analyzer.py never sees a half-written file (it ignores names that don't end in
-an audio extension). Only names that look like a UTC start time plus an audio
-extension are accepted, so a request can't write anywhere else.
+analyzer.py never sees a half-written file. Only names that look like a UTC
+start time plus an audio extension are accepted, so a request can't write
+anywhere else.
 
-A recorder can instead stream continuously, on one long connection:
+A recorder can instead stream on one long connection:
 
   POST /stream
   X-Token: <shared token>
   X-Sample-Rate: 32000
   X-Index: <sample index>   the sample being recorded at X-Epoch-Ms
   X-Epoch-Ms: <UTC ms>
-  X-RSSI: <dBm>             optional: the recorder's wifi signal when it connected
-  X-AP: <BSSID>             optional: which access point it joined, logged
+  X-RSSI: <dBm>             optional: Wi-Fi signal at connect
+  X-AP: <BSSID>             optional: access point joined, logged
   <frames until the connection closes>
 
 Each frame is a little-endian uint64 sample index, a uint32 sample count, then
-that many 16-bit mono samples. A frame with index 2^64-1 is the recorder's
-health instead: `count` 16-bit words of text like "temp_c=41.2 uptime_s=5321
-rssi_dbm=-61 frames_sent=3750 frames_dropped=2" (sent after connecting, then once
-a minute; the frame counts run since the recorder started streaming). The index counts every sample since the
-recorder started streaming, including ones it had to drop, so a gap in the
-indexes is a gap in the audio. The stream is cut into one WAV per UTC minute,
-named by its first sample's time; short gaps are filled with silence so the
-timing stays right, and a longer gap or a disconnect ends the file. The
-recorder reconnects now and then, which re-anchors the index to the clock.
-Next to each minute's WAV goes <name>.json, written just before the WAV appears:
-the wifi signal, the board's temperature and uptime, how many audio frames it
-sent and had to drop meanwhile (from its health frames; a new receiver process
-takes the first counts it gets as a baseline), when the minute was
-finished, and how much of it was silence filling gaps. analyzer.py stores it as that minute's row in the recordings table.
+that many 16-bit mono samples. The index counts every sample since streaming
+started, dropped ones included, so a gap in the indexes is a gap in the audio.
+A frame with index 2^64-1 is the recorder's health instead: `count` 16-bit words
+of text like "temp_c=41.2 uptime_s=5321 rssi_dbm=-61 frames_sent=3750
+frames_dropped=2".
+
+The stream is cut into one WAV per UTC minute, named by its first sample's
+time; short gaps are filled with silence so the timing stays right, and a longer
+gap or a disconnect ends the file. Just before each WAV appears, <name>.json is
+written beside it with the recorder's health over that minute (a new receiver
+process takes the first frame counts as a baseline), when the minute was
+finished, and how much of it was gap-filling silence. analyzer.py stores it as
+that minute's row in the recordings table.
 
 With --live-port, the stream is also forwarded to pipeline/live.py on
 localhost: a `BIRDSTREAM 1 rate=... format=s16le channels=1 station=...` line,
-then raw PCM, with the same silence filling short gaps; a long gap or a
-recorder disconnect closes that connection, and the next audio reopens it.
-It's best effort: when live.py isn't running or falls behind, live audio is
-dropped, and the minute files never wait on it.
+then raw PCM with the same gap filling. It's best effort: live audio is dropped
+when live.py isn't running or falls behind, and the minute files never wait on it.
 
-While the recorder is paused (<data>/pause.json, which publish.py keeps from the
-Hardware analytics page's pause), audio is thrown away before anything is
-written: streamed samples and uploaded files recorded inside the pause, by
-their recording time, not when they arrive. The minute being written closes at the pause, so paused time is
-missing audio. Health frames are still read. A pause always ends on its own.
+While the recorder is paused (<data>/pause.json, kept by publish.py), audio
+recorded inside the pause, by recording time rather than arrival time, is
+discarded before anything is written. The minute being written closes at the
+pause. Health frames are still read. A pause always ends on its own.
 
-The recorder also updates its firmware from the receiver, with the same token:
+Firmware updates, with the same token:
 
-  GET /ota/<board>.sha256   the SHA-256 of <ota-dir>/<board>.bin, in hex (404: none)
-  GET /ota/<board>.bin      the image itself
+  GET /ota/<board>.sha256   SHA-256 of <ota-dir>/<board>.bin, in hex (404: none)
+  GET /ota/<board>.bin      the image
 
-The recorder compares the hash with its running image's, and downloads the
-image only when they differ. deploy/pi/push.sh copies a built image into
-<ota-dir>; the receiver only serves what's there.
+The recorder downloads the image only when the hash differs from its running
+image's. deploy/pi/push.sh copies a built image into <ota-dir>.
 
-A recorder that can't reach NTP, in an internet outage, can set its clock here:
+A recorder that can't reach NTP can set its clock here:
 
-  GET /time   this computer's UTC time in epoch ms (503: its clock isn't trustworthy)
+  GET /time   UTC time in epoch ms (503: clock not trustworthy)
 
-The clock counts as trustworthy once systemd-timesyncd has synced it since this
-computer started (--clock-synced-file). Until then it may be far off, and misdated
-recordings are worse than a gap.
+The clock counts as trustworthy once systemd-timesyncd has synced it since boot
+(--clock-synced-file); misdated recordings are worse than a gap.
 
-Meant for the home network only: plain HTTP, one shared token. Run it on the
-indoor computer:
+For the home network only: plain HTTP, one shared token. Run it on the indoor
+computer:
 
-  python pipeline/receiver.py --token <token>            # port 8765
+  python pipeline/receiver.py --token <token>
   python pipeline/analyzer.py --watch                    # in another terminal
 """
 

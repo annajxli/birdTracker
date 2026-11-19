@@ -6,7 +6,7 @@ which the recorder should name like `20260512T131500Z.wav` (UTC). For one-off
 files, pass --start instead.
 
 Usage:
-  python pipeline/ingest.py results/*.BirdNET.results.csv --station backyard
+  python pipeline/ingest.py results/*.BirdNET.results.csv --station STATION
   python pipeline/ingest.py out/soundscape.BirdNET.results.csv --start 2026-05-12T06:15:00-07:00
 """
 

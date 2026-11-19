@@ -1,21 +1,19 @@
 """The sign-in page's chart: minutes of birdsong per day, with each day's weather, as plain SVG.
 
-The password Worker (deploy/password-worker.js) shows this chart beside the password field to
-visitors who aren't signed in, so it is deliberately coarse: the last --days recorded days back
-to back, with no dates, no times of day, and nothing about the recorder. Days without any
-detections are left out rather than shown as gaps. Weather is the daily copy from
-pipeline/weather.py.
+The sign-in Worker (deploy/password-worker.js) shows it to visitors who aren't signed in, so it
+is deliberately coarse: the last --days recorded days back to back, with no dates, no times of
+day, and nothing about the recorder. Days without detections are left out. Weather is the daily
+copy from pipeline/weather.py.
 
-Simulated detections (pipeline/simulate.py) are left out unless --allow-simulated is given, so
-a build without the recorder's data shows no chart rather than made-up numbers. Without data, no
-chart is written and the page shows the password alone.
+Simulated detections are left out unless --allow-simulated is given; without data, no chart is
+written and the page shows the password alone.
 
-Minutes of birdsong are clock minutes with at least one detection that someone confirmed, or
-that scored at least --min-confidence and no one rejected. This approximates the dashboard's count, which also applies learned
-per-species thresholds.
+Minutes of birdsong are clock minutes with a detection that someone confirmed, or that scored at
+least --min-confidence and no one rejected. This approximates the dashboard's count, which also
+applies learned per-species thresholds.
 
-The SVG carries no colors of its own: the sign-in page's stylesheet colors its classes for light
-and dark themes. Run it after the site build, so that the file lands in the built site:
+The SVG has no colors of its own; the sign-in page's stylesheet colors its classes. Run it after
+the site build, so that the file lands in the built site:
 
 Usage: python pipeline/signin_chart.py [--out dashboard/dist/signin-chart.svg]
 """

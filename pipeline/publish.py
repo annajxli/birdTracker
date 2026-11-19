@@ -4,41 +4,35 @@ Runs beside analyzer.py on the indoor computer and keeps one R2 bucket in step
 with the data folder:
 
   live/     the near-live view's spectrogram strips and live.json, every
-            --interval seconds (the analyzer writes one strip per minute), and
-            status.json: the indoor computer's health (temperature, CPU,
-            memory, storage, uptime, and a day of it every 5 minutes), the
-            deployed code version and the weekly OS update check, written
-            here once a minute for the Hardware analytics page
+            --interval seconds, and status.json: the indoor computer's health,
+            deployed code version, and OS update check, for the Hardware
+            analytics page
   clips/    detection clips and their spectrograms, every --interval seconds
   data/detections.parquet
-            the detections as the dashboard reads them (the site's own export,
-            dashboard/src/data/detections.parquet.py), every --detections-minutes
-            when the database has changed; pages load it when they open, so the
-            Overview is that fresh without a rebuild
+            the detections as the dashboard reads them
+            (dashboard/src/data/detections.parquet.py), every
+            --detections-minutes when the database has changed, so pages are
+            fresh without a rebuild
   data/recordings.parquet
-            the recorder's telemetry (a row per minute of audio), the same way,
-            for the Hardware analytics page
+            the recorder's telemetry (a row per minute of audio), the same way
   data/detections.sqlite
-            a snapshot of the database, every --snapshot-hours; the site's
-            build downloads it for the copy built into the site
+            a database snapshot every --snapshot-hours, for the site's build
   data/snapshots/<UTC date>.sqlite
             the day's latest snapshot, kept for SNAPSHOT_KEEP_DAYS
 
-An empty or damaged database must not replace what the bucket holds, so a
-snapshot or Parquet file far smaller than the one it would replace isn't uploaded,
-a snapshot that fails SQLite's quick check isn't either, and a mirror won't delete
-most of a prefix in one go. Each logs an error instead; --allow-shrink overrides
-the size and deletion checks after a real shrink. After losing the data folder,
+An empty or damaged database must not replace what the bucket holds: a snapshot
+or Parquet file far smaller than the one it would replace, or a snapshot that
+fails SQLite's quick check, isn't uploaded, and a mirror won't delete most of a
+prefix in one go. Each logs an error instead; --allow-shrink overrides the size
+and deletion checks after a real shrink. After losing the data folder,
 --restore fetches it back (docs/deploy.md).
 
-It also fetches control/pause.json, the recorder pause set on the Hardware
-analytics page (deploy/password-worker.js), every --pause-seconds, and keeps
-it in <data>/pause.json for receiver.py.
+Every --pause-seconds it also copies control/pause.json, the recorder pause set
+on the Hardware analytics page, to <data>/pause.json for receiver.py.
 
 Files are mirrored: new or changed ones are uploaded, and ones the analyzer
-deleted (old strips, replaced clips) are deleted from R2 too. The password
-Worker serves live/ and clips/ to signed-in visitors under /api/live/ and
-/api/clips/ (deploy/password-worker.js).
+deleted are deleted from R2 too. The sign-in Worker serves live/ and clips/ to
+signed-in visitors (deploy/password-worker.js).
 
 Settings come from the environment (setup in docs/deploy.md):
 
@@ -390,13 +384,13 @@ REVIEWED_DAYS = 8  # live/reviews.json covers the Live page's week, and a day to
 
 
 def apply_reviews(s3, bucket: str, db_path: Path, live: Path, force: bool = False) -> int:
-    """Apply the verdicts visitors left on the site (the password Worker saves each one as
-    reviews/<time>-<id>.json): set review and reviewed_at on those detections, oldest first so a
-    later verdict wins, then delete the files. A rejected detection stays in the database (it's
-    what thresholds learn from) but leaves the exports. live/reviews.json, keyed
-    "<UTC time>|<scientific name>", tells the Live page about the last week's verdicts, since its
-    strips were written before them, and live/thresholds.json has each species' threshold learned
-    from all reviews (thresholds.py). Returns how many review files were applied."""
+    """Apply visitors' verdicts (reviews/<time>-<id>.json, saved by the sign-in Worker).
+
+    Sets review and reviewed_at on those detections, oldest first so a later verdict wins, then
+    deletes the files. A rejected detection stays in the database (thresholds learn from it) but
+    leaves the exports. Also writes live/reviews.json, keyed "<UTC time>|<scientific name>", so the
+    Live page sees the last week's verdicts on strips written before them, and live/thresholds.json
+    (thresholds.py). Returns how many review files were applied."""
     keys, token = [], None
     while True:
         page = s3.list_objects_v2(Bucket=bucket, Prefix="reviews/", **({"ContinuationToken": token} if token else {}))
