@@ -1,7 +1,6 @@
 /**
- * A species' confidence threshold: its learned one from thresholds.json's `species` map (keyed by
- * scientific name), null when it's blocked (only confirmed detections count), or `fallback` for a
- * species without enough reviews. The rule matches threshold() in pipeline/thresholds.py.
+ * A species' threshold from thresholds.json's `species` (by scientific name): learned, null when
+ * blocked (only confirmed count), or `fallback`. Matches threshold() in pipeline/thresholds.py.
  */
 export function speciesThreshold(scientific, fallback, thresholds = null) {
   const entry = thresholds?.[scientific ?? ""];
@@ -9,10 +8,7 @@ export function speciesThreshold(scientific, fallback, thresholds = null) {
   return entry.blocked ? null : entry.threshold ?? fallback;
 }
 
-/**
- * Human verdicts override the model threshold without changing its original score. The detection's
- * species (`scientific`, or Live's `scientific_name`) picks its learned threshold, if it has one.
- */
+/** Human verdicts override the threshold; `scientific` (or Live's `scientific_name`) picks it. */
 export function includedDetection(detection, threshold, thresholds = null) {
   if (detection.review === "rejected") return false;
   if (detection.review === "confirmed") return true;

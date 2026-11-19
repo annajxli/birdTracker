@@ -1,9 +1,7 @@
 @import url("observablehq:default.css");
 
-/* Cedar & Olive field-guide theme: sand and cedar-bark ink, olive greens, hairline rules.
-   Newsreader (serif) for headings and bird names; Public Sans for data, labels and details.
-   Light is the default; dark applies from the OS setting unless the toggle
-   (data-theme on <html>) says otherwise. */
+/* Cedar & Olive field-guide theme. Newsreader (serif) for headings and bird names, Public Sans
+   for data. Dark follows the OS unless data-theme on <html> says otherwise. */
 
 :root {
   --serif: "Newsreader", "Iowan Old Style", Georgia, serif;
@@ -122,7 +120,6 @@ figure[class^="plot"] {
   font-size: 11px;
 }
 
-/* Inputs */
 input[type="radio"],
 input[type="checkbox"],
 input[type="range"] {
@@ -243,8 +240,7 @@ table {
   font-style: italic;
 }
 
-/* Live ends after the Gantt; the framework's article-sized footer gap adds
-   unnecessary scrolling on otherwise short pages. */
+/* Drop the framework's article-sized footer gap on Live, which ends after the Gantt. */
 body:has(#live-track) #observablehq-main {
   min-height: 0;
 }
@@ -271,7 +267,6 @@ body:has(#live-track) #observablehq-footer {
   }
 }
 
-/* Slim fixed header. */
 :root {
   --observablehq-header-height: 1.9rem;
 }

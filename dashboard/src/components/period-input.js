@@ -2,8 +2,7 @@ import {readPeriodSelection, writePeriodSelection} from "./period-state.js";
 import * as htl from "npm:htl";
 import {PERIODS, shiftPeriod, periodLabel, calendarDays} from "./period.js";
 
-// With a fixed scale, the picker chooses only a date (one day at a time), and each chart picks
-// its own span with spanInput.
+// With a fixed scale, the picker chooses only a date; each chart picks its span with spanInput.
 export function periodInput({first, last}, {scale: fixedScale} = {}) {
   const root = htl.html`<div class="period-picker">
     ${fixedScale ? "" : segments(PERIODS)}
@@ -45,8 +44,7 @@ export function periodInput({first, last}, {scale: fixedScale} = {}) {
     </div>`, htl.html`<div class="calendar-weekdays" aria-hidden="true">${["S", "M", "T", "W", "T", "F", "S"].map((d) => htl.html`<span>${d}</span>`)}</div>`,
       htl.html`<div class="calendar-grid" role="grid" aria-label=${monthLabel}>${Array.from({length: 6}, (_, row) => htl.html`<div class="calendar-week" role="row">${cells.slice(row * 7, row * 7 + 7).map((d) => htl.html`<button type="button" role="gridcell" data-date=${d.date} class=${[d.inMonth ? "" : "outside-month", d.selected ? "in-range" : "", d.rangeStart ? "range-start" : "", d.rangeEnd ? "range-end" : "", d.date === root.value.date ? "selected-date" : ""].filter(Boolean).join(" ")} aria-label=${fullDate(d.date)} aria-selected=${String(d.selected)} tabindex=${d.date === focusDate ? 0 : -1} disabled=${d.date < first || d.date > last}>${Number(d.date.slice(-2))}</button>`)}</div>`)}</div>`);
   };
-  // Reserve the longest label for each span, measured in the label's own font, so the
-  // arrows hold still within a scale while a day isn't padded out to a month's width.
+    // Reserve each span's longest label (in its font), so arrows hold still within a scale.
   const widths = new Map();
   const labelWidth = (scale) => {
     if (widths.has(scale)) return widths.get(scale);

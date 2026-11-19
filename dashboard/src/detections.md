@@ -16,7 +16,7 @@ const [everything, thresholdsFile] = await Promise.all([loadDetections({includeR
 const thresholds = thresholdsFile?.species ?? null; // learned per-species thresholds; the control covers the rest
 const all = everything.filter((d) => d.review !== "rejected");
 if (!all.length) {
-  // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
+    // Nothing recorded yet: leave the rest of the page waiting instead of erroring.
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
   await new Promise(() => {});
 }
@@ -60,9 +60,8 @@ invalidation.then(stopSpeciesCards);
 
 ```js
 const narrow = width < 520;
-// Review: Confirm or Reject a detection you've listened to; the verdict shows at once (the Pi
-// applies it at its next review check). A rejected row is struck through, with Undo; it no longer
-// counts anywhere on the site.
+// Review: the verdict shows at once; the Pi applies it at its next review check. Rejected rows are
+// struck through with Undo and count nowhere.
 const reviewCell = (d) => {
   const cell = htl.html`<span class="review-cell"></span>`;
   const set = (verdict) => {

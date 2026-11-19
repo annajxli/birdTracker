@@ -15,7 +15,7 @@ import {loadDetections, loadSun, loadPhotos, loadTraits, loadCategories, loadThr
 const [all, photos, categories, thresholdsFile, sun, traits] = await Promise.all([loadDetections(), loadPhotos(), loadCategories(), loadThresholds(), loadSun(), loadTraits()]);
 const thresholds = thresholdsFile?.species ?? null; // learned per-species thresholds; the control covers the rest
 if (!all.length) {
-  // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
+    // Nothing recorded yet: leave the rest of the page waiting instead of erroring.
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
   await new Promise(() => {});
 }
@@ -35,9 +35,8 @@ const pool = confidentSpecies.length ? confidentSpecies : byCount;
 const speciesIn = speciesPicker(byCount.includes(requested) ? requested : pool[Math.floor(Math.random() * pool.length)]);
 const species = Generators.input(speciesIn);
 
-// Species picker: a button reading "Category › Species" that opens category tabs over a tray of
-// the open category's species, most heard first, with minutes heard at the default threshold.
-// Picking one closes it. Works as an input: .value and "input" events, like Inputs.select.
+// Species picker: "Category › Species" opening category tabs over the open category's species
+// (most heard first). Works as an input (.value and "input" events), like Inputs.select.
 function speciesPicker(value) {
   const minutes = d3.rollup(minutesHeard(all.filter((d) => includedDetection(d, 0.6, thresholds))), (v) => v.length, (d) => d.species);
   const categoryOf = (s) => categories?.species?.[s] ?? "Other";
@@ -48,8 +47,7 @@ function speciesPicker(value) {
   const [button, panel] = [root.querySelector(".picker-button"), root.querySelector(".picker-panel")];
   let tab = categoryOf(value);
   const render = () => {
-    // Every option's label sits invisibly in the same grid cell, so the button keeps the width of
-    // the longest and the controls beside it don't shift when the species changes.
+        // All labels share one hidden grid cell, so the button keeps the longest's width.
     const label = (sp, current) => html`<span class="picker-text" aria-hidden=${current ? null : "true"}><span class="picker-cat">${categoryOf(sp)}</span><span class="picker-sep">›</span><b>${sp}</b><span class="picker-sep">${panel.hidden ? "▾" : "▴"}</span></span>`;
     button.replaceChildren(label(root.value, true), ...byCount.map((sp) => Object.assign(label(sp, false), {className: "picker-text picker-sizer"})));
     root.querySelector(".picker-tabs").replaceChildren(...groups.map(([c, list]) => {
@@ -80,7 +78,6 @@ const minConf = Generators.input(confIn);
 ```
 
 ```js
-// Keep the URL in sync so a species page can be bookmarked or shared.
 history.replaceState(null, "", `?name=${encodeURIComponent(species)}`);
 ```
 
@@ -91,7 +88,7 @@ const sp = all.filter((d) => d.species === species);
 const heard = sp.filter((d) => includedDetection(d, minConf, thresholds));
 // This species' threshold: learned from reviews, null when blocked, else the control's.
 const speciesMin = speciesThreshold(sp[0]?.scientific, minConf, thresholds);
-// Counted in minutes heard: minutes with at least one detection, not raw 3-second detections.
+// Counted in minutes heard, not 3-second detections.
 const heardMinutes = minutesHeard(heard);
 const daysHeard = new Set(heard.map((d) => d.date)).size;
 const hours = d3.rollup(heardMinutes, (v) => v.length, (d) => d.hour);
@@ -158,8 +155,7 @@ const trait = traits[sp[0]?.scientific] ?? {};
 ${heard.length ? "" : html`<p class="sub">${speciesMin === null ? "No confirmed detections; this species counts only when confirmed." : `No detections at or above ${d3.format(".0%")(speciesMin)} confidence.${speciesMin === minConf ? " Try lowering the threshold." : ""}`}</p>`}
 
 ```js
-// The shortest of 1, 3, 6 or 12 months that holds all the recordings (a year at most), so early on
-// a few days aren't stretched across the whole chart; days without recordings are gray.
+// The shortest of 1, 3, 6, or 12 months holding all recordings, so early days aren't stretched.
 const spanMonths = [1, 3, 6, 12].find((m) => d3.utcMonth.offset(new Date(latest), -m) < new Date(dataStart)) ?? 12;
 const calendarStart = d3.utcDay.offset(d3.utcMonth.offset(new Date(latest), -spanMonths), 1).toISOString().slice(0, 10);
 const calendarDays = dateSpan(calendarStart, latest);
@@ -198,9 +194,8 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
       <div class="chart-slot species-calendar" style="--chart-height: 330px" tabindex="0" role="region" aria-label="Daily and hourly activity calendar; scroll horizontally to explore dates">
       ${resize((width) => {
         const plotWidth = Math.max(width, calendarDays.length * 3 + 16);
-        // Ticks: the newest day ("Today" when it is), the 1st of each month, and between them each
-        // Monday for a month's span or the 15th for three months. A tick too close to a more
-        // important one is dropped so the labels don't collide.
+                // Ticks: the newest day ("Today"), each month's 1st, and Mondays (one month) or the 15th
+                // (three months), dropping any too close to a more important one.
         const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
         const iso = (d) => d.toISOString().slice(0, 10);
         const stop = d3.utcDay.offset(new Date(latest), 1);
@@ -230,8 +225,7 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
               channels: {Day: (d) => formatDate(d.date, {month: "short", day: "numeric", year: "numeric"}), Hour: (d) => `${formatHour(d.hour)}–${formatHour((d.hour + 1) % 24)}`, "Minutes heard": "minutes"},
               tip: {format: {x: false, y: false, fill: false, Day: true, Hour: true, "Minutes heard": true}}
             }),
-            // Sunrise and sunset, dashed, through the middle of each day's column. The hour rows
-            // are bands, so a time is placed by hand within its hour's band.
+                        // Sunrise and sunset, dashed; hour rows are bands, so times are placed by hand within them.
             (index, {x, y}) => {
               const at = (h) => y(Math.floor(h)) + (h % 1) * y.bandwidth();
               const line = (key) => d3.line()(sunHours.map((d) => [x(d.date) + x.bandwidth() / 2, at(d[key])]));
@@ -240,7 +234,6 @@ const calendar = calendarDays.flatMap((date) => d3.range(24).map((hour) => ({
             }
           ]
         });
-        // Start scrolled to the newest days, at the right end.
         requestAnimationFrame(() => { const slot = plot.closest(".species-calendar"); if (slot) slot.scrollLeft = slot.scrollWidth; });
         return plot;
       })}

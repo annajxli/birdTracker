@@ -1,26 +1,19 @@
 # Recorder hardware
 
-This page describes the outdoor recorder: the decisions that are fixed, the
-candidate builds, how to build the bench recorder, and candidate parts for
-the outdoor build. For how the recorder's audio reaches the dashboard, see
-[Architecture](architecture.md).
+This page describes the outdoor recorder: its requirements, the candidate
+builds, and how to build the bench recorder. For how its audio reaches the
+dashboard, see [Architecture](architecture.md).
 
-## Fixed decisions
+## Requirements
 
-The following decisions apply to every candidate build:
-
-- The recorder only records audio and sends it indoors. BirdNET runs on the
-  indoor computer.
-- Seattle winters set the power budget.
-- The recorder runs on solar power. A cable from the house is the fallback.
-- The recorder records continuously through daylight by default, so solar
-  sizing assumes continuous recording.
+- The recorder only records audio and sends it indoors, where BirdNET runs.
+- It runs on solar power through a Seattle winter, recording continuously
+  through daylight. A cable from the house is the fallback.
 
 ## Candidate builds
 
 [Recorder hardware options](design/hardware-design.html) compares three
-builds, with block diagrams, energy estimates, recording schedules, and the
-options for each component:
+builds, with energy estimates and component options:
 
 - **A. Low-power microcontroller, one microphone.** For example, an ESP32-S3
   or nRF5340 with a digital MEMS microphone.
@@ -31,28 +24,22 @@ options for each component:
   times the energy of build A.
 
 If a cable from the house (about 5 to 10 m) can reach the microphone, the
-setup with the fewest parts is a microphone on the cable and a computer
-indoors on wall power, with no solar power or Wi-Fi link.
+simplest setup is a microphone on the cable and an indoor computer, with no
+solar power or Wi-Fi link.
 
-The energy figures on that page are estimates. Bench tests replace them with
-measurements. For bench results, see [Bench test 1](bench-test-1.md). For
-microphone changes, such as a quieter capsule or better wind protection, see
+The energy figures are estimates until bench tests measure them. See
+[Bench test 1](bench-test-1.md) and
 [Microphone options](plans/microphone-options.md).
 
 ## Build the bench recorder
 
-The bench recorder is an Arduino sketch in `firmware/recorder_test/` for two
-boards: the FireBeetle 2 ESP32-E and the Raspberry Pi Pico 2 W. It's for bench
-testing only. A production recorder uses ESP-IDF on an ESP32 or the Pico SDK
-on a Pico.
-
-On the FireBeetle, the sketch streams audio to the receiver as soon as it has
-Wi-Fi and the time, so it records unattended. The receiver cuts the stream into
-1-minute files. The Pico 2 W records short files and uploads them on command.
+The bench recorder is an Arduino sketch in `firmware/recorder_test/` for the
+FireBeetle 2 ESP32-E and the Raspberry Pi Pico 2 W, for bench testing only. A
+production recorder uses ESP-IDF on an ESP32 or the Pico SDK on a Pico. The
+FireBeetle streams to the receiver as soon as it has Wi-Fi and the time. The
+Pico 2 W records short files and uploads them on command.
 
 ### Before you begin
-
-Make sure that you have the following:
 
 - A FireBeetle 2 ESP32-E or a Raspberry Pi Pico 2 W.
 - An INMP441 I²S microphone module, a breadboard, and jumper wires.
@@ -93,9 +80,8 @@ connected to GND and that WS is on the right pin. To check power, measure
 
 ### Install the tools
 
-1. Install VS Code with the PlatformIO IDE extension. On first launch, the
-   extension installs its toolchain. The first build for each board downloads
-   that board's compiler and libraries, as listed in
+1. Install VS Code with the PlatformIO IDE extension. The first build for each
+   board downloads the toolchain and libraries in
    `firmware/recorder_test/platformio.ini`.
 2. If the FireBeetle doesn't appear as a serial port on macOS, install WCH's
    CH34x driver.
@@ -162,8 +148,6 @@ time from the receiver. For the conditions, see
 
 ## Placement and weatherproofing
 
-Follow these guidelines when you mount a recorder outdoors:
-
 - Mount the microphone 2 to 4 m above the ground, away from the house wall,
   HVAC units, and the street. Point it toward shrubs or trees that birds use.
 - Point the microphone down, under a small rain hood. Rain that hits the
@@ -173,8 +157,8 @@ Follow these guidelines when you mount a recorder outdoors:
 
 ## Outdoor build candidates
 
-Choose outdoor parts after bench tests measure power. The candidate parts for
-a low-power build are the following:
+Choose outdoor parts after bench tests measure power. Candidate parts for a
+low-power build:
 
 - 5 to 6 W, 6 V solar panel and mount
 - BQ24074 solar charger board and a 10 kΩ NTC thermistor
@@ -184,43 +168,23 @@ a low-power build are the following:
 - IP65 enclosure, cable glands, an acoustic vent membrane, a fur windscreen, a
   rain hood, desiccant, and M8 or M12 connectors for microphone pods
 
-## Indoor computer
-
-Any always-on computer on wall power can run the pipeline. On the development
-Mac, BirdNET analyzed 2 minutes of audio in about 3 seconds. The pipeline also
-runs on a Raspberry Pi 3B+ with the `lite` engine. For setup steps, see
-[Set up the indoor computer](deploy.md#set-up-the-indoor-computer).
-
 ## Possible extensions
 
 ### Counting individual birds
 
-BirdNET reports whether a species is present in each 3-second segment, not how
-many birds are singing. Two wrens singing at once look the same as one. A
-stereo recorder can set a lower bound on the count:
+BirdNET reports whether a species is present, not how many birds sing. Two
+microphones 20 to 30 cm apart can set a lower bound: the delay between them
+(*time difference of arrival*, up to about 1 ms) gives a sound's direction,
+and the same species from two clearly different directions within a few
+seconds means at least two birds. The board then needs two microphone inputs,
+such as two I²S or PDM MEMS microphones on one bus, so decide before you
+build. The method gives direction only, in one plane, and reflections add
+false directions, so treat the result as a minimum.
 
-- **Method.** Two microphones 20 to 30 cm apart record one stereo file. A
-  sound reaches one microphone up to about 1 ms before the other, and the
-  delay gives its direction. This technique is called *time difference of
-  arrival* (TDOA). If BirdNET detects the same species from two clearly
-  different directions within a few seconds, at least two birds are present.
-- **Result.** A minimum bird count per bout, and a marker on the daily
-  timeline when two or more birds sing.
-- **Hardware impact.** A second microphone costs little, but decide before you
-  build: the board needs two microphone inputs. On an ESP32 or nRF5340, two
-  I²S or PDM MEMS microphones share one bus. On a Pi, use a stereo USB
-  interface. Both microphones need the same rain hood and windscreen.
-- **Limits.** The method gives direction only, not distance, and only in the
-  plane of the two microphones. Two birds in the same direction look like one.
-  Reflections from the house and fences add false directions. Treat the result
-  as a minimum, not a count.
-
-Without stereo, a second song that starts before the first one ends also
-shows two or more birds, if the species' song length is known. This approach
-works with one microphone but is less reliable. Try it in the analysis first.
+With one microphone, overlapping songs of a species with a known song length
+also show two or more birds, less reliably.
 
 ### More than one station
 
-A second microphone in a different habitat, such as the front yard, picks up
-birds that the first one misses. Two microphones that hear the same bird also
-confirm each other's detections. Every detection has a `station_id`.
+See [Multi-station expansion](plans/multi-station.md). Every detection has a
+`station_id`.

@@ -5,11 +5,8 @@ toc: false
 
 <link rel="stylesheet" href="./components/birds.css">
 
-<!-- How well the recorder is doing its job: whether audio arrived (coverage), what it sounded
-     like (background level), how it got here (wifi), and how fast it became detections
-     (pipeline delay). One row per uploaded recording, from the recordings table. Above them, the
-     indoor computer's health, from the status.json pipeline/publish.py writes there each minute
-     (re-read while the page is open, so it's current without a rebuild). -->
+<!-- Recorder health from the recordings table (one row per upload), and the indoor computer's
+     health from status.json (re-read while the page is open). -->
 
 ```js
 import {spreadLabels} from "./components/meter-ticks.js";
@@ -18,11 +15,9 @@ import {loadSun, detectionsTable, recordingsTable, seriesColor, sequential, form
 ```
 
 ```js
-// Re-fetched while the page is open: the Pi reports each minute, and uploads the recorder's
-// tables every 10 minutes. Timers sleep in a background tab or on a sleeping laptop, so nothing is
-// fetched while the page is hidden, and everything is fetched again the moment it's visible: the
-// Unreachable cards never judge data from before the page was hidden. A failed fetch (the network
-// still waking up) keeps the last good value instead of an older one.
+// Re-fetched while visible (the Pi reports each minute; recorder tables upload in batches). Hidden
+// tabs fetch nothing and refetch on return, so Unreachable never judges pre-hide data. A failed
+// fetch keeps the last good value.
 const visible = () => new Promise((resolve) => {
   if (!document.hidden) return resolve();
   const shown = () => { if (!document.hidden) { document.removeEventListener("visibilitychange", shown); resolve(); } };
@@ -46,7 +41,6 @@ const every = (ms, load) => (async function* () {
 // After the first load, a table that can't be fetched fresh keeps the last one, not the site's built copy.
 const table = every(10 * 60e3, (first) => recordingsTable({fallback: first}).catch(() => null));
 const detections = every(10 * 60e3, (first) => detectionsTable({fallback: first}).catch(() => null));
-// The indoor computer's health, as of its last report (null if it hasn't reported).
 const pi = every(60e3, () => fetch("/api/live/status.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).catch(() => null));
 const sun = await loadSun();
 // main's recent commits that changed the Pi's deployed files, newest first, from the site build.
@@ -55,13 +49,12 @@ const piCode = await FileAttachment("data/pi-code.json").json().catch(() => ({co
 
 ```js
 const col = (k) => table.getChild(k);
-// The recorder's own rows only (the table may still hold simulated ones from before it ran).
-// board_temp (°C, the ESP32's own sensor) and board_uptime (s since the board started) arrive once
-// the firmware sends them; until then they're absent.
+// The recorder's own rows only (the table may hold earlier simulated ones). board_temp (°C) and
+// board_uptime (s) are absent until the firmware sends them.
 const optional = (k) => (table.schema.fields.some((f) => f.name === k) ? col(k) : null);
 const boardTempCol = optional("board_temp"), boardUptimeCol = optional("board_uptime");
-// packet_success (0–1, frames that made it onto wifi; after a reflash), and power_mw / tx_mw: an
-// estimate of the draw from the power bank and its transmitting share (a model, from RSSI).
+// packet_success (0–1, frames that made it onto Wi-Fi); power_mw / tx_mw: modeled draw from the
+// power bank and its transmitting share (from RSSI).
 const packetCol = optional("packet_success"), powerCol = optional("power_mw"), txCol = optional("tx_mw");
 const sentCol = optional("frames_sent"), droppedCol = optional("frames_dropped");
 const recs = d3.range(table.numRows).filter((i) => !col("simulated").get(i)).map((i) => ({
@@ -84,10 +77,9 @@ const recent = recs.filter((d) => d.date >= from);
 const windowX = {type: "utc", label: null, domain: [new Date(from), d3.utcDay.offset(new Date(latest), 1)]};
 const byDate = d3.group(recent, (d) => d.date);
 const windowStart = d3.min(recent, (d) => d.date) ?? from; // the window's first recorded day
-// Uptime: the share of the last 24 hours (since launch, if that's sooner) that audio arrived, the
-// same day as its history strip, so an old outage stops counting a day later. Up to the newest
-// recording, as the table arrives in 10-minute batches, but no further back than 15 minutes ago,
-// so a recorder that stops shows it.
+// Uptime: share of the last 24 hours (or since launch) with audio, matching its history strip. Ends
+// at the newest recording (tables arrive in batches) but no earlier than 15 minutes ago, so a
+// stopped recorder shows.
 const LAUNCH = Date.parse("2026-10-25T23:11:00Z"); // when the recorder's telemetry began (4:11 PM)
 const dataEnd = d3.max(recs, (d) => +d.time + d.seconds * 1e3) ?? Date.now();
 const upTo = Math.max(dataEnd, Date.now() - 15 * 60e3), upFrom = Math.max(LAUNCH, upTo - 24 * 3600e3);
@@ -102,7 +94,6 @@ const daily = span.filter((d) => byDate.has(d)).map((date) => {
     rssi: d3.median(v, (d) => d.rssi), upload: d3.median(v, (d) => d.upload),
     delay: d3.median(v, (d) => d.delay) / 60, delay95: d3.quantile(v, 0.95, (d) => d.delay) / 60};
 });
-// Minutes of audio received per day and hour.
 const coverage = d3.rollups(recent, (v) => d3.sum(v, (d) => d.seconds) / 60, (d) => d.date, (d) => d.hour)
   .flatMap(([date, hours]) => hours.map(([hour, minutes]) => ({date: new Date(date), day: date, hour, minutes: Math.min(60, minutes)})));
 const wallHours = (iso) => { const [h, m] = new Date(iso).toLocaleTimeString("en-GB", {timeZone: "America/Los_Angeles", hour: "2-digit", minute: "2-digit"}).split(":"); return +h + m / 60; };
@@ -119,11 +110,10 @@ const confRows = d3.range(detections.numRows).filter((i) => detDate.get(i) >= fr
 const confidences = confRows.map((d) => d.confidence);
 const THRESHOLD = 0.6;
 const confMedian = d3.median(confidences);
-// Packet success over many minutes, pooled (all frames sent over all frames recorded), so a short
-// minute counts for its frames, not as much as a full one. From the frame counts when exported,
-// else each minute's share weighted by its seconds (close, as frames recorded follow time on).
-// As a percentage, or NaN. Minutes that start in the recorder's first minute after it boots don't
-// count: it records before its connection is up, so those frames are lost to the boot, not the radio.
+// Packet success pooled over minutes (frames sent / frames recorded), from frame counts when
+// exported, else per-minute shares weighted by seconds. Percent, or NaN. Minutes starting in the
+// first minute after boot are excluded: frames recorded before the connection is up are lost to
+// the boot, not the radio.
 const BOOT_SKIP_S = 60;
 function pooledPacket(rows) {
   rows = rows.filter((d) => d.packet != null && !(d.boardUptime != null && d.boardUptime < BOOT_SKIP_S));
@@ -153,8 +143,7 @@ const slots = d3.range(Math.max(1, Math.ceil((dataEnd - dayStart) / STEP))).map(
 ```js
 // Cards: each reading now (its value, a meter, its status) above its last 24 hours.
 const piFresh = pi && Date.now() - Date.parse(pi.updated) < 5 * 60e3;
-// The recorder's audio reaches this page in batches (the recordings table), so it counts as
-// unreachable only once nothing has come for longer than a batch takes.
+// Recorder audio arrives in batches, so it's unreachable only after longer than a batch takes.
 const RECORDER_STALE = 20 * 60e3;
 const recorderFresh = hasRecs && Date.now() - dataEnd < RECORDER_STALE;
 // A part with no recent data: a full-width card above its readings, which are from then.
@@ -164,9 +153,8 @@ const duration = (s) => { const d = Math.floor(s / 86400), h = Math.floor((s % 8
 // Status: each level has its own shape and word, so it never rests on color alone.
 const STATUS = {good: ["●", "Good"], warning: ["▲", "Okay"], critical: ["■", "Bad"]};
 const statusTag = (level) => html`<span class="status status-${level}"><span class="status-icon" aria-hidden="true">${STATUS[level][0]}</span>${STATUS[level][1]}</span>`;
-// A meter: the scale from its first zone's start to its last zone's end, in status zones
-// ([from, to, level]), with a marker at the value. The zone holding the value is drawn solid,
-// the others faint. Returns the meter and the value's level.
+// A meter over status zones ([from, to, level]) with a marker at the value; the value's zone is
+// solid, others faint. Returns the meter and the value's level.
 const zoneOf = (value, zones) => zones.find((z) => value < z[1]) ?? zones.at(-1);
 const levelOf = (value, zones) => zoneOf(value, zones)[2];
 const meter = (value, zones, format = (v) => v) => {
@@ -179,8 +167,7 @@ const meter = (value, zones, format = (v) => v) => {
     ${spreadTicks(html`<div class="meter-ticks">${zones.slice(1).map((z) => html`<span style="left: ${pct(z[0])}">${format(z[0])}</span>`)}</div>`)}
   </div>`};
 };
-// On a narrow card, neighboring tick labels would overlap: once laid out, and whenever the card
-// resizes, move colliding labels apart and keep them inside the meter.
+// On narrow cards, nudge colliding tick labels apart (inside the meter) on layout and resize.
 const spreadTicks = (ticks) => {
   const place = () => {
     const spans = [...ticks.children];
@@ -188,7 +175,7 @@ const spreadTicks = (ticks) => {
     const span = ticks.clientWidth;
     const labels = spans.map((s) => ({center: s.offsetLeft, width: s.offsetWidth}));
     if (!span) return;
-    // offsetLeft is the mark (the CSS centers the label with a transform, which offsetLeft ignores).
+        // offsetLeft is the mark; the CSS transform that centers the label doesn't affect it.
     spreadLabels(labels, span).forEach((left, i) => { spans[i].style.transform = "none"; spans[i].style.marginLeft = `${left - labels[i].center}px`; });
   };
   const observer = new ResizeObserver(place);
@@ -196,8 +183,7 @@ const spreadTicks = (ticks) => {
   invalidation.then(() => observer.disconnect());
   return ticks;
 };
-// A stat card with a meter: the value, the meter, its status and a note, then its recent history.
-// A card whose status isn't Good gets its top bar in the status color.
+// A stat card: value, meter, status, note, and recent history; non-Good cards get a status-color top bar.
 const alertClass = (level) => (level && level !== "good" ? ` is-alert status-${level}` : "");
 const meterCard = (title, big, m, note, history) => html`<div class="card${alertClass(m.status)}"><h2>${title}</h2><div class="big">${big}</div>${m.node}<div class="sub">${statusTag(m.status)}${note ? html` · ${note}` : ""}</div>${history ?? ""}</div>`;
 
@@ -205,9 +191,8 @@ const TEMP_ZONES = [[20, 70, "good"], [70, 80, "warning"], [80, 90, "critical"]]
 const CPU_ZONES = [[0, 75, "good"], [75, 90, "warning"], [90, 100, "critical"]];
 const MEMORY_ZONES = [[0, 80, "good"], [80, 92, "warning"], [92, 100, "critical"]];
 const STORAGE_ZONES = [[0, 5, "critical"], [5, 15, "warning"], [15, 100, "good"]];
-// Power: Bad while under-voltage or throttling is flagged now or was in the last hour of history,
-// else Good. The since-boot flags don't count, so a fix shows as Good without a reboot; the
-// history strip shows earlier trouble.
+// Power: Bad while under-voltage or throttling is flagged now or in the last hour, else Good.
+// Since-boot flags are ignored so a fix shows without a reboot; the strip shows earlier trouble.
 const piHistory = (pi?.history ?? []).map((h) => ({...h, at: new Date(h.at)}));
 const lastHour = piHistory.filter((h) => +h.at >= Date.now() - 3600e3);
 const powerShown = !pi?.throttled ? null
@@ -220,21 +205,20 @@ const hourTick = (d) => d.toLocaleTimeString("en-US", {timeZone: "America/Los_An
 const UPTIME_ZONES = [[50, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
 const WIFI_ZONES = [[-90, -80, "critical"], [-80, -70, "warning"], [-70, -40, "good"]];
 const DELAY_ZONES = [[0, 3, "good"], [3, 10, "warning"], [10, 15, "critical"]];
-// Packet success: below 98% of frames sent means audible holes.
+// Packet success: below the threshold, holes are audible.
 const PACKET_ZONES = [[90, 98, "critical"], [98, 99.5, "warning"], [99.5, 100, "good"]];
-// Energy from the power bank since local midnight, from the estimated draw (mWh; mAh at its 5 V).
+// Energy since local midnight from the estimated draw (mWh; mAh at 5 V).
 const HOUR_MS = 3600e3;
 const energyToday = () => {
   const noonUTC = Date.parse(new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}) + "T08:00:00Z");
   const from = noonUTC - +new Date(noonUTC).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"}) * HOUR_MS; // Pacific midnight
   return d3.sum(recs.filter((d) => d.power != null && +d.time >= from), (d) => (d.power * d.seconds) / 3600);
 };
-// The ESP32 is rated to 85 °C; its own sensor reads warm, so Okay starts well short of that.
+// The ESP32 is rated to 85 °C, and its own sensor reads warm, so Okay starts well short of that.
 const BOARD_TEMP_ZONES = [[-10, 65, "good"], [65, 80, "warning"], [80, 90, "critical"]];
-// Background level is judged against the recorder's own usual level (its 7-day median), since
-// what's normal depends on the spot: up to 6 dB louder Good, 6–12 Okay (noisy), more Bad (quiet
-// calls masked). Near the mic's own noise floor (about −87 dBFS) is Bad too: a mic that's
-// disconnected or failed reads like that. Plain bars until there's an hour of data to set "usual".
+// Background level is judged against the recorder's 7-day median, since normal depends on the
+// spot: louder means masked calls. Near the mic's noise floor is Bad too (disconnected or failed).
+// Plain bars until an hour of data sets "usual".
 const MIC_FLOOR = -85;
 const dbfs = (v) => `${d3.format(".0f")(v).replace("-", "−")} dBFS`;
 const backgroundCard = () => {
@@ -247,12 +231,9 @@ const backgroundCard = () => {
   return meterCard("Background level", dbfs(now), meter(now, zones, (v) => d3.format(".0f")(v).replace("-", "−")), `median, last hour · usual ${dbfs(usual)}`, statusStrip(slots, "rms", zones, fmt));
 };
 const COVERAGE_ZONES = [[0, 80, "critical"], [80, 95, "warning"], [95, 100, "good"]];
-// Recent history at the foot of a card: the last 24 hours in half-hour bars, each colored and
-// sized by how close its median reading is to trouble (stripSeverity), on a ramp from tall green
-// through shorter amber to short red, blended in OKLab so a reading near a threshold looks near
-// it; a good day is a row of full green bars, and a faint stub where there's no data. Readings
-// in levels rather than amounts (CATEGORICAL) keep one color per status. A reading without
-// status zones (zones null) gets plain bars sized by its value instead. Hover a bar for its value.
+// History: the last 24 hours in half-hour bars, colored and sized by closeness to trouble
+// (stripSeverity) on an OKLab ramp, so a near-threshold reading looks near it. CATEGORICAL
+// readings keep one color per status; readings without zones get plain value-sized bars.
 const HALF_HOUR = 30 * 60e3, BARS = 48;
 const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, minSpan = 6) => {
   const start = Date.now() - BARS * HALF_HOUR;
@@ -260,11 +241,9 @@ const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, 
   const medians = new Map([...byBar].map(([i, v]) => [i, reduce(v, (r) => r[key])]));
   const [lo, hi] = d3.extent(medians.values());
   const size = (m) => (hi > lo ? 20 + (80 * (m - lo)) / (hi - lo) : 60); // % of the strip's height
-  // Over the bars, the half-hour values as a line, so trends show within a status; broken where
-  // there's no data. Its range is the meter's scale, so its height means the same as the meter's
-  // and a small change stays small. Without a meter, it's the values' robust spread (quartiles
-  // ± 1.5 IQR, so a lone spike doesn't flatten the rest; spikes clip at the edge), but never
-  // narrower than minSpan, in the reading's units, so a steady reading stays flat.
+    // A line over the bars shows trends within a status, broken where there's no data. Its range is
+    // the meter's scale, so heights match the meter; without one, quartiles ± 1.5 IQR (spikes clip)
+    // but at least minSpan, so a steady reading stays flat.
   const vals = [...medians.values()].sort(d3.ascending);
   const [q1, q3] = [d3.quantileSorted(vals, 0.25), d3.quantileSorted(vals, 0.75)];
   let [l0, l1] = zones ? [zones[0][0], zones.at(-1)[1]] : [Math.max(lo, q1 - 1.5 * (q3 - q1)), Math.min(hi, q3 + 1.5 * (q3 - q1))];
@@ -283,15 +262,14 @@ const statusStrip = (rows, key, zones, format, reduce = d3.median, line = true, 
   })}</div><div class="strip-axis"><span>24 h ago</span><span>now</span></div></div>`;
 };
 const STATUS_COLOR = {good: "#0ca30c", warning: "#fab219", critical: "#a82a2a"};
-// The strips' ramp: severity 0, 1, and 2 at the status colors and the categorical bars' heights
-// (.strip-bar.status-* in birds.css).
+// Severity 0, 1, 2 map to the status colors and categorical heights (.strip-bar.status-* in birds.css).
 const rampColor = (t) => (t <= 1 ? mixOklab(STATUS_COLOR.good, STATUS_COLOR.warning, t) : mixOklab(STATUS_COLOR.warning, STATUS_COLOR.critical, Math.min(1, t - 1)));
 const rampHeight = d3.scaleLinear([0, 1, 2], [100, 64, 32]);
 const pctOf = (part, whole) => (100 * part) / whole;
 const memPct = pi?.memory_mb && pctOf(pi.memory_mb.used, pi.memory_mb.total);
 const diskPct = pi?.disk_gb && pctOf(pi.disk_gb.free, pi.disk_gb.total);
-// Memory and storage as shares, so they share the meters' zones; power trouble as a level
-// (0 none, 1 throttled, 2 under-voltage), taken at its worst in each half hour.
+// Memory and storage as shares, for the meters' zones; power trouble as a level (0 none,
+// 1 throttled, 2 under-voltage), worst per half hour.
 const POWER_ZONES = [[0, 0.5, "good"], [0.5, 1.5, "warning"], [1.5, 2, "critical"]];
 const CATEGORICAL = new Set([POWER_ZONES]);
 const powerText = ["normal", "throttled", "under-voltage"];
@@ -300,10 +278,9 @@ for (const h of piHistory) {
   if (h.memory_mb_used != null && pi?.memory_mb) h.memory_pct = pctOf(h.memory_mb_used, pi.memory_mb.total);
   if (h.disk_gb_free != null && pi?.disk_gb) h.disk_pct = pctOf(h.disk_gb_free, pi.disk_gb.total);
 }
-// Detection confidence over the last 24 hours: one column per hour, confidence up the side in
-// 0.05 steps, each cell shaded by its share of that hour's detections (so busy and quiet hours
-// read alike); the dashboard's 0.6 threshold dashed. No status: BirdNET's scores run low for
-// faint or distant calls, so there's no healthy level to judge against yet.
+// Confidence over 24 hours: a column per hour, cells shaded by share of that hour's detections
+// (so busy and quiet hours read alike), threshold dashed. No status: BirdNET scores run low for
+// faint calls, so there's no healthy level to judge.
 const CONF_LO = confidences.length ? Math.min(0.5, Math.floor(d3.min(confidences) * 10) / 10) : 0;
 const confidenceDensity = () => {
   const end = Date.now(), start = end - 24 * 3600e3, HOUR = 3600e3, STEP = 0.05;
@@ -330,10 +307,9 @@ const confidenceDensity = () => {
 };
 const noData = (title) => html`<div class="card"><h2>${title}</h2><div class="big">–</div><div class="sub">No data yet</div></div>`;
 const pctFormat = (v) => `${d3.format(".0f")(v)}%`;
-// The Pi's software: the code deployed on it against main, and the operating system's pending
-// updates (status.json's code and updates, absent until the Pi reports them). Code is matched
-// on the fingerprint of the files the Pi runs, not the commit, since the Pi is often deployed from a
-// branch that's later squash-merged.
+// The Pi's software: deployed code vs. main, and pending OS updates (status.json's code and
+// updates). Code matches on the fingerprint of files the Pi runs, not the commit, since the Pi is
+// often deployed from a branch later squash-merged.
 const day = (iso) => new Date(iso).toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric"});
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 const softwareCard = (title, big, level, notes, details) => html`<div class="card${alertClass(level)}"><h2>${title}</h2><div class="big">${big}</div>
@@ -341,7 +317,7 @@ const softwareCard = (title, big, level, notes, details) => html`<div class="car
 const codeCard = (() => {
   const code = pi?.code;
   if (!code || !piCode.commits.length) return noData("Code version");
-  // Deployments before the fingerprint left out unrun files reported all deployed files ("files").
+    // Older deployments reported all deployed files ("files"), before the fingerprint excluded unrun ones.
   const at = piCode.commits.find((c) => c.fingerprint === code.fingerprint || c.files === code.fingerprint);
   // Only commits that changed what the Pi runs count, not tests or laptop-only scripts.
   const changed = piCode.commits.filter((c, i) => c.fingerprint !== piCode.commits[i + 1]?.fingerprint);
@@ -369,7 +345,7 @@ const updatesCard = (() => {
 const closePackages = (e) => document.querySelectorAll(".software-packages[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
 document.addEventListener("click", closePackages);
 invalidation.then(() => document.removeEventListener("click", closePackages));
-// The history bars' values, shown at once on hover (a title attribute waits about a second).
+// History bar values on hover at once (a title attribute waits about a second).
 const stripTip = document.body.appendChild(html`<div class="strip-tip" hidden></div>`);
 const showStripTip = (e) => {
   const bar = e.target.closest?.(".strip-bar[data-tip]");
@@ -533,8 +509,8 @@ ${pi ? piSection : html`<div class="card"><p class="sub">No data yet</p></div>`}
 </div>
 
 ```js
-// The recorder pause (deploy/password-worker.js /api/pause). Paused, Pause is grayed out until
-// another duration is picked, which sets a new end from now; Resume now ends it.
+// The recorder pause (/api/pause in deploy/password-worker.js). While paused, Pause stays grayed
+// until a new duration is picked, which sets a new end from now.
 {
   const form = document.getElementById("pause-form"), status = document.getElementById("pause-status");
   const start = document.getElementById("pause-start"), resume = document.getElementById("pause-resume");

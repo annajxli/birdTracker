@@ -1,33 +1,25 @@
-// Cloudflare Worker: a shared password in front of the dashboard.
+// Cloudflare Worker: the site's sign-in, in front of the dashboard.
 //
-// Runs on the dashboard's subdomain and serves the built site itself, from the
-// Worker's static assets (env.ASSETS; see wrangler.toml), so there is no public
-// origin to go around it. Visitors without a valid session cookie get a small
-// sign-in page styled like the dashboard; the right password sets a cookie good
-// for 30 days. Setup is in docs/deploy.md.
+// Serves the built site from its static assets (env.ASSETS; see wrangler.toml), so there is no
+// public origin to go around it. Visitors without a valid session cookie get a sign-in page; the
+// right password sets the cookie. Setup is in docs/deploy.md.
 //
-// The cookie is "<expiry>.<signature>": an HMAC over the expiry time and a hash
-// of the password, keyed with the SESSION_KEY secret (a long random string), so
-// it stops working when it expires or when either secret changes, and a stolen
-// cookie says nothing about the password. Without SESSION_KEY the password
-// itself is the key, which still expires sessions but lets a stolen cookie be
-// used to guess the password offline, so set SESSION_KEY.
+// The cookie is "<expiry>.<signature>": an HMAC over the expiry and a hash of the password, keyed
+// with the SESSION_KEY secret, so it stops working when it expires or either secret changes, and a
+// stolen cookie reveals nothing about the password. Without SESSION_KEY the password is the key,
+// which lets a stolen cookie be used to guess the password offline, so set SESSION_KEY.
 //
-// Signed-in visitors also get the recorder's media from the R2 bucket bound as
-// MEDIA (pipeline/publish.py uploads it): /api/clips/<key> serves <key> (keys
-// start with clips/), /api/live/<name> serves live/<name>, and /api/data/detections.parquet and
-// /api/data/recordings.parquet serve the latest detections and recorder telemetry, which the
-// pages load when they open.
-//
-// POST /api/reviews takes a signed-in visitor's verdict on detections they listened to:
-// {"verdict": "rejected" | "confirmed" | null (clears), "detections": [{"at": "<UTC time>",
-// "scientific": "<name>"}, ...]}. It's saved to the bucket as reviews/<time>-<id>.json, and the
-// Pi's publish.py applies it to the database on its next pass.
-//
-// /api/pause pauses the recorder for a while. GET returns the pause, {"until": "<UTC time>" | null,
-// "set_at": ...}. POST {"password": ..., "minutes": 30 | 60 | 90 | 120 | 0 (resume now)} also needs
-// the CONTROL_PASSWORD secret, rate-limited like sign-in, and saves control/pause.json, which the
-// Pi's publish.py fetches and receiver.py follows. Pauses always end on their own.
+// Signed-in routes, all backed by the R2 bucket bound as MEDIA (written by pipeline/publish.py):
+//   GET  /api/clips/<key>   serves <key> (keys start with clips/)
+//   GET  /api/live/<name>   serves live/<name>
+//   GET  /api/data/detections.parquet, /api/data/recordings.parquet
+//   POST /api/reviews       {"verdict": "rejected" | "confirmed" | null (clears),
+//                            "detections": [{"at": "<UTC time>", "scientific": "<name>"}, ...]},
+//                           saved as reviews/<time>-<id>.json for publish.py to apply
+//   GET  /api/pause         {"until": "<UTC time>" | null, "set_at": ...}
+//   POST /api/pause         {"password": ..., "minutes": 30 | 60 | 90 | 120 | 0 (resume now)};
+//                           needs CONTROL_PASSWORD, rate-limited like sign-in, saves
+//                           control/pause.json for the Pi. Pauses always end on their own.
 
 const COOKIE = "bt_session";
 const DATA = new Set(["/api/data/detections.parquet", "/api/data/recordings.parquet"]);
@@ -190,8 +182,7 @@ async function media(request, env, path) {
   return new Response(head ? null : object.body, {status, headers});
 }
 
-// Sent with every page: no framing by other sites, no MIME sniffing, no referrer to
-// the places the dashboard links out to (Wikimedia, BirdNET), HTTPS only from now on.
+// Sent with every page: no framing, no MIME sniffing, no referrer, HTTPS only.
 const SECURITY_HEADERS = {
   "Content-Security-Policy": "frame-ancestors 'none'",
   "X-Content-Type-Options": "nosniff",
@@ -284,8 +275,7 @@ async function signInPage(env, url, next, failed, message = "That password didn'
   });
 }
 
-// Cedar & Olive, like the dashboard (colors, font, light/dark). No site name or location until
-// someone signs in; the chart beside the password shows birdsong and weather without dates.
+// Styled like the dashboard. No site name or location before sign-in; the chart shows no dates.
 const SIGN_IN_HTML = `<!doctype html>
 <html lang="en">
 <head>

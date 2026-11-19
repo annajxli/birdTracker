@@ -2,7 +2,7 @@
 
 Uses BirdNET's bundled eBird species codes to look up each species' order and
 family in the public eBird taxonomy, then maps those to a short list of
-categories a backyard listener would recognize.
+categories a casual listener would recognize.
 
 Output: data/species_categories.csv. Re-run when the species list changes.
 
@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "species_categories.csv"
 TAXONOMY = "https://api.ebird.org/v2/ref/taxonomy/ebird?fmt=csv&species={}"
 
-# Display order of categories; charts list groups in this order.
+# Display order of categories in charts.
 CATEGORIES = [
     "Songbirds", "Crows & jays", "Woodpeckers", "Hummingbirds & swifts", "Pigeons & doves",
     "Raptors", "Owls & nightjars", "Waterbirds", "Other",

@@ -1,37 +1,31 @@
 """Watch a folder for new recordings, identify birds with BirdNET, and store the results.
 
-This is the indoor half of the system in docs/architecture.md: the recorder drops
-short audio files (named by their UTC start time, e.g. 20260512T131500Z.flac)
-into the incoming folder, and for each one this:
+The recorder drops short audio files, named by their UTC start time (e.g.
+20260512T131500Z.flac), into the incoming folder (docs/architecture.md). For each
+one this:
 
-  1. runs BirdNET with the station's location and the week of year: by default
-     the model alone on the small TFLite runtime (birdnet_lite.py; what the
-     Raspberry Pi can run), or --engine analyzer for birdnet-analyzer itself
+  1. runs BirdNET with the station's location and week of year: by default on
+     the small TFLite runtime (birdnet_lite.py), or with --engine analyzer
   2. adds the detections to the database (same rows as ingest.py)
   3. cuts a short Opus clip of the most confident detection per species per
      hour, records its path on that detection, and renders the clip's
      spectrogram beside it (same name, .webp; see spectrogram.py)
-  4. renders the whole recording's spectrogram into live/, with 24 kHz MP3
-     copies of its audio (as recorded, and cleaned by denoise.py for the
-     Live page's Bird boost), and lists them, with its detections, in
-     live/live.json (the last day) and live/days/, for the site's near-live
-     view; strips older than --live-hours (a week) are deleted (publish.py
-     uploads them)
+  4. renders the recording's spectrogram into live/ with MP3 copies of its
+     audio (as recorded, and cleaned by denoise.py for Bird boost), lists them
+     with its detections in live/live.json and live/days/ for the near-live
+     view, and deletes strips older than --live-hours
   5. deletes the recording (or, with --keep-days, moves it to processed/ and
      deletes it that many days later)
 
 A recording only counts as finished once its size and modification time have
-held still across two checks at least SETTLE_SECONDS apart. Recorders should
-still write to a temporary name (e.g. "20260512T131500Z.flac.part") and rename
-when done; those names are ignored until then.
+held still across two checks SETTLE_SECONDS apart. Recorders should still write
+to a temporary name (e.g. "20260512T131500Z.flac.part") and rename when done.
 
 When analysis fails, the recording stays in incoming/ and is retried; after
 MAX_ATTEMPTS failures it moves to failed/. Failures that aren't about the file
 (BirdNET missing, the database locked, a full disk) don't count against it:
 the pass stops and --watch backs off until the problem clears. Only one
 analyzer runs per data folder at a time.
-
-The BirdNET model loads once and stays in memory while watching.
 
 Usage:
   python pipeline/analyzer.py --watch            # keep watching data/incoming/
@@ -75,10 +69,8 @@ MAX_ATTEMPTS = 3  # analysis failures before a recording is moved to failed/
 MAX_BACKOFF_SECONDS = 15 * 60
 LOCAL_TZ = ZoneInfo("America/Los_Angeles")  # the station's time zone, for BirdNET's week
 LIVE_AUDIO_RATE = 24000  # keeps the spectrogram's 0-12 kHz
-LIVE_AUDIO_LEVEL = 0.2  # libsndfile's MP3 compression level: ~53 kbit/s, ~390 KB a minute (0.5 left holes
-                        # at 8-11 kHz that warble once playback lifts quiet audio 30 dB). MP3 rather
-                        # than Opus: ~35x faster to encode (a Pi 3B+ took 27 s a minute for Opus), and
-                        # every browser plays it
+LIVE_AUDIO_LEVEL = 0.2  # libsndfile MP3 level, ~53 kbit/s; 0.5 leaves 8-11 kHz holes that warble when
+                        # boosted. MP3, not Opus: faster to encode on a Pi, and every browser plays it
 
 log = logging.getLogger("analyzer")
 
@@ -198,7 +190,7 @@ def process(audio: Path, args, conn) -> int:
         unidentified = read_unidentified(csv_path.with_name(f"{audio.stem}.BirdNET.activity.csv"), start, species)
 
     for r in rows:
-        r["source_file"] = audio.name  # BirdNET reports the full path; keep just the name
+        r["source_file"] = audio.name
 
     # One clip per species per hour, across files: only cut one if it beats the clip already kept.
     clips_dir = args.data / "clips"
@@ -258,10 +250,9 @@ def read_sounds(path: Path, start: datetime) -> list[dict]:
 
 
 def queue_live(audio: Path, rows: list[dict], sounds: list[dict], args, unidentified: list[dict] = ()) -> None:
-    """Hand the near-live view's work (spectrogram, cleaned copy, two MP3s: ~40 s a minute on a
-    Pi 3B+) to a background thread, so BirdNET starts on the next minute meanwhile on the other
-    cores; in turn, a minute took longer than a minute. The thread gets its own hard link to the
-    recording, since run_once deletes the original right after this returns."""
+    """Run the near-live work (spectrogram, cleaned copy, two MP3s) on a background thread, since
+    done in turn a minute of audio takes over a minute on a Pi. The thread gets its own hard link
+    because run_once deletes the original right after this returns."""
     global _live_worker
     pending = args.data / "live-pending"
     pending.mkdir(exist_ok=True)
@@ -337,7 +328,7 @@ def read_unidentified(path: Path, start: datetime, species: dict | None = None) 
 def record_telemetry(audio: Path, start: datetime, args, conn, activity: tuple[int, int] | None = None) -> None:
     """The recording's row in the recordings table (Hardware analytics): its length less any
     filled-in silence, background level, and the receiver's notes in <name>.json, when there
-    (wifi signal, board temperature and uptime, audio frames sent and dropped)."""
+    (Wi-Fi signal, board temperature and uptime, audio frames sent and dropped)."""
     try:
         notes = json.loads(audio.with_suffix(".json").read_text())
     except (FileNotFoundError, ValueError):

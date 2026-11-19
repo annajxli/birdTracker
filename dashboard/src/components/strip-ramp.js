@@ -1,12 +1,9 @@
 const LEVEL = {good: 0, warning: 1, critical: 2};
 
 /**
- * How far a reading has moved toward trouble, from 0 (Good) through 1 (where Okay starts) to 2
- * (where Bad starts), for coloring a history bar on a continuous ramp. Zones are [from, to,
- * level], ascending and contiguous. In a Good zone, the reading starts to warm one neighboring
- * zone's width before that zone begins, or a quarter of the Good zone's width if that's
- * smaller; across an Okay zone, it moves evenly from 1 to 2 toward
- * its Bad side.
+ * How far a reading has moved toward trouble: 0 (Good), 1 (Okay starts), 2 (Bad starts). Zones are
+ * ascending, contiguous [from, to, level]. A Good reading warms over the last min(neighbor's
+ * width, quarter of its zone) before a non-Good neighbor; across Okay it moves evenly to 2.
  */
 export function stripSeverity(value, zones) {
   const lo = zones[0][0], hi = zones.at(-1)[1], v = Math.max(lo, Math.min(hi, value));
@@ -19,8 +16,6 @@ export function stripSeverity(value, zones) {
     if (left?.[2] === "critical") return 1 + (to - v) / (to - from);
     return 1;
   }
-  // Good: warm toward each neighbor that isn't Good, over that neighbor's width or the last
-  // quarter of this zone, whichever is smaller.
   const span = (next) => Math.min(next[1] - next[0], (to - from) / 4);
   const warmth = (next, distance) => (next && next[2] !== "good" ? LEVEL[next[2]] * Math.max(0, 1 - distance / span(next)) : 0);
   return Math.max(warmth(left, v - from), warmth(right, to - v));

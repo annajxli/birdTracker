@@ -1,12 +1,10 @@
 import {fileURLToPath} from "node:url";
 
-// Data loaders (*.py) run with the repo's virtualenv so they can import the pipeline.
-// Windows virtualenvs keep it in Scripts\ rather than bin/.
+// Data loaders (*.py) use the repo's virtualenv (Scripts\ on Windows) so they can import the pipeline.
 const python = fileURLToPath(new URL(process.platform === "win32" ? "../.venv/Scripts/python.exe" : "../.venv/bin/python", import.meta.url));
 
-// Light/dark toggle. Runs in <head> so the saved choice applies before first paint.
-// data-theme = the viewer's explicit choice (absent = follow the OS);
-// data-scheme = what is actually showing, used to label the toggle.
+// Light/dark toggle, in <head> so the saved choice applies before first paint. data-theme: the
+// viewer's explicit choice (absent = follow the OS); data-scheme: what's showing.
 const themeScript = `<script>
 (() => {
   const root = document.documentElement;
@@ -29,12 +27,10 @@ const themeScript = `<script>
 })();
 </script>`;
 
-// The local preview server (`npm run dev`, i.e. `observable preview`) gets dev-only tools;
-// published builds (`observable build`) leave them out.
+// Dev-only tools for `observable preview`; `observable build` leaves them out.
 const dev = process.argv.includes("preview");
 
-// Reuse the last loaded size of variable-height home charts during a refresh.
-// CSS supplies first-visit fallbacks; it releases the space as each cell resolves.
+// Reuse the last loaded size of variable-height home charts during a refresh; CSS covers first visits.
 const layoutScript = `<script>
 (() => {
   const ids = ["home-recent", "home-timeline", "home-ranking", "home-trends", "home-seasons"];
@@ -79,9 +75,8 @@ const layoutScript = `<script>
 })();
 </script>`;
 
-// Phone preview (dev only): shows the current page in an iPhone 16 Pro-sized frame
-// (402 x 874 pt). The page loads in an iframe at that real width, so media queries and
-// chart sizing behave exactly as on a phone. Inside the frame, the phone button is hidden.
+// Phone preview (dev only): the page in an iframe at iPhone 16 Pro width (402 x 874 pt), so media
+// queries and chart sizing behave as on a phone.
 const phoneScript = `<script>
 (() => {
   const PHONE = {name: "iPhone 16 Pro", width: 402, height: 874};
@@ -124,8 +119,7 @@ const fonts = `<link rel="preconnect" href="https://fonts.googleapis.com">
 // Favicon (src/favicon.svg): a perched songbird with song waves, in the dashboard's olive and cream.
 const icon = `<link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
 
-// Reload a page left open past the recorder's midnight, so "today" moves to the new day. A
-// hidden tab waits until it's showing again.
+// Reload a page left open past the recorder's midnight (hidden tabs wait until shown).
 const midnightScript = `<script>
 (() => {
   const day = () => new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
@@ -136,7 +130,7 @@ const midnightScript = `<script>
 })();
 </script>`;
 
-// Page links: one icon button per page in the header; mark the current one.
+// Page links: one icon button per page in the header.
 const menuScript = `<script>
 addEventListener("DOMContentLoaded", () => {
   const here = location.pathname.replace(/\\.html$/, "").replace(/\\/$/, "").split("/").pop() || "index";

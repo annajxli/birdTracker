@@ -2,9 +2,9 @@
 
 Species and seasons come from BirdNET's own location model (data/occurrence.csv,
 built by occurrence.py), so the species mix matches what BirdNET would expect in
-Seattle each week. On top of that we model:
+Seattle each week. On top of that it models:
 
-  - a per-species "backyard abundance" so some birds dominate and others are rare
+  - per-species local abundance, so some birds dominate and others are rare
   - time of day: a dawn chorus for songbirds, daytime calls for crows/jays/raptors,
     night calls for owls, all following real sunrise/sunset times
   - seasonality: songbirds sing much more in spring (breeding season)
@@ -123,7 +123,7 @@ def simulate(occ: pd.DataFrame, days: list[date], station: str, rng: np.random.G
     water = np.array([any(w in c for w in WATER_WORDS) for _, c in names])
     regular = np.array([c in YARD_REGULARS for _, c in names])
 
-    # Fixed per-species traits for this backyard.
+    # Fixed per-species traits for this station.
     abundance = rng.lognormal(0, 0.4, n) * np.where(water, 0.3, 1.0) * np.where(regular, 2.0, 0.8)
     bout_rate = rng.lognormal(math.log(3), 0.6, n)  # singing bouts per day when present
     detectability = rng.uniform(1.2, 3.0, n)  # higher = BirdNET is more confident on this one
