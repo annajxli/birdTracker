@@ -6,11 +6,7 @@ import * as Inputs from "npm:@observablehq/inputs";
 import * as htl from "npm:htl";
 import * as Plot from "npm:@observablehq/plot";
 
-/**
- * A published table (data/<name>.parquet), fetched fresh through the site's Worker so pages stay
- * current without a rebuild. Falls back to the copy built into the site when that is unreachable
- * or empty.
- */
+/** A published table (data/<name>.parquet), fetched fresh through the Worker; falls back to the built copy when unreachable or empty. */
 async function latestTable(name, builtIn, {fallback = true} = {}) {
   try {
     const response = await fetch(`/api/data/${name}.parquet`, {cache: "no-store", signal: AbortSignal.timeout(30_000)});
@@ -48,10 +44,7 @@ export async function loadRecordedUntil() {
   }
 }
 
-/**
- * Per-species confidence thresholds learned from reviews on the Pi (live/thresholds.json; shape in
- * pipeline/thresholds.py), or null if it can't be reached: then every species uses the shared one.
- */
+/** Per-species thresholds (live/thresholds.json; shape in pipeline/thresholds.py), or null if unreachable. */
 export async function loadThresholds({required = false} = {}) {
   try {
     const response = await fetch("/api/live/thresholds.json", {cache: "no-store", signal: AbortSignal.timeout(30_000)});
@@ -72,11 +65,7 @@ export function thresholdText(scientific, fallback, thresholds) {
     : `${Math.round(entry.threshold * 100)}% (learned: ${reviews})`;
 }
 
-/**
- * Detections, oldest first. A listener's verdict is in `review` ("confirmed", "rejected" or null);
- * rejected ones are left out unless includeRejected (the Detections table shows them, to undo),
- * so every chart and count drops them.
- */
+/** Detections, oldest first; `review` is "confirmed", "rejected" or null. Rejected ones are dropped unless includeRejected. */
 export async function loadDetections({includeRejected = false, fallback = true} = {}) {
   const table = await detectionsTable({fallback});
   // Read columns directly: Arrow's row iterator creates a proxy for every detection.
@@ -109,10 +98,7 @@ export async function loadDetections({includeRejected = false, fallback = true} 
 /** A detection's key for reviews: its UTC second ("2026-10-26T14:35:39Z") and scientific name. */
 export const reviewAt = (time) => new Date(time).toISOString().replace(/\.\d{3}Z$/, "Z");
 
-/**
- * Send a verdict ("confirmed", "rejected", or null to clear) on detections, each {at, scientific}.
- * The Pi applies it at its next review check. Resolves to whether the server accepted it.
- */
+/** Send a verdict ("confirmed", "rejected", or null to clear) on [{at, scientific}]; resolves to whether the server accepted it. */
 export async function postReview(verdict, detections) {
   try {
     for (let i = 0; i < detections.length; i += 500) {
@@ -203,8 +189,7 @@ export function rangeInput(value = "30 days") {
   return Inputs.radio(RANGES.keys(), {label: "Show last", value});
 }
 
-// Olive sequential ramps for counts, evenly spaced in OKLab lightness so equal steps in value
-// read as equal steps in color. Zero always recedes toward the card.
+// Olive count ramps, evenly spaced in OKLab lightness; zero recedes toward the card.
 const RAMP_LIGHT = ["#eaf5c8", "#c9d98e", "#aabc5b", "#8d9e36", "#728024", "#586226", "#40452d"];
 const RAMP_DARK = ["#262d05", "#414a02", "#5d6a00", "#7b8b1e", "#9cac54", "#bfcd8e", "#e5ecce"];
 export const MUTED = "#857866"; // 4:1 on both the light and the dark card
@@ -225,11 +210,7 @@ export function nameMargin(width) {
   return width < 480 ? 126 : 170;
 }
 
-/** Species-name axis that truncates long names on narrow charts. */
-/**
- * Plot render transform that draws text between ** in a tip's title in bold.
- * Use as Plot.tip(data, Plot.pointer({title, render: boldMarkup})).
- */
+/** Plot render transform that bolds **text** in a tip's title: Plot.tip(data, Plot.pointer({title, render: boldMarkup})). */
 export function boldMarkup(index, scales, values, dimensions, context, next) {
   const g = next(index, scales, values, dimensions, context);
   for (const line of g.querySelectorAll("tspan")) {
@@ -247,10 +228,7 @@ export function boldMarkup(index, scales, values, dimensions, context, next) {
   return g;
 }
 
-/**
- * Takes a chart's links out of the Tab order, so keyboard users don't tab through every linked
- * heatmap cell. Mouse and touch still follow the links.
- */
+/** Takes a chart's links out of the Tab order so keyboard users don't tab through every cell. */
 export function untabbable(plot) {
   for (const a of plot.querySelectorAll("a")) a.setAttribute("tabindex", "-1");
   return plot;
@@ -261,7 +239,6 @@ const WRAP_CHARS = 18;
 export const nameWraps = (width, name) => width < 480 && name.length > WRAP_CHARS;
 
 export function nameAxis(width, options = {}, ticks) {
-  // Phones wrap long names (at word breaks) onto two lines; wider screens have room for them.
   const axisOptions = width < 480
     ? {tickSize: 0, label: null, lineWidth: 10, lineHeight: 1.05, textOverflow: null, ...options}
     : {tickSize: 0, label: null, textOverflow: "ellipsis", lineWidth: 16, ...options};
@@ -312,15 +289,10 @@ function dayLabel(t) {
   return t.toLocaleDateString("en-US", {timeZone: TZ, month: "short", day: "numeric"});
 }
 
+/** Most recently heard species, newest first, each with up to `times` bouts (detections under `gapMinutes` apart). */
 /**
- * Most recently heard species, newest first. For each, up to `times` recent
- * sightings, counting detections less than `gapMinutes` apart as one bout.
- */
-/**
- * One row per species per clock minute it was heard in: its most confident detection
- * that minute. BirdNET scores every 3-second segment, so a bird calling for 20 minutes
- * leaves hundreds of detections; counting minutes heard instead keeps one persistent
- * caller from outweighing everything else.
+ * One row per species per clock minute heard: that minute's most confident detection. Counting
+ * minutes, not 3-second detections, keeps one persistent caller from outweighing everything.
  */
 export function minutesHeard(rows) {
   const best = new Map();
@@ -428,8 +400,7 @@ const SUN_ICON = "M0-2.6a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2Z";
 const SUN_RAYS = "M0-5.5v1.4M0 4.1v1.4M-5.5 0h1.4M4.1 0h1.4M-3.9-3.9l1 1M2.9 2.9l1 1M-3.9 3.9l1-1M2.9-2.9l1-1";
 const MOON_ICON = "M1.6-4.6A4.8 4.8 0 1 0 4.4 2.4A3.8 3.8 0 0 1 1.6-4.6Z";
 
-/** Light-blue sunrise/sunset bands: each a rect filled with a horizontal gradient whose opacity
- * follows its stops ([time ms, 0..1] pairs). */
+/** Sunrise/sunset bands: rects with a horizontal gradient whose opacity follows [time ms, 0..1] stops. */
 function sunBandMark(bands, top, bottom, color, opacity) {
   return (index, {x, y}) => {
     const g = htl.svg`<g aria-hidden="true" pointer-events="none">`;
@@ -460,7 +431,6 @@ function hatchMark(spans, top, bottom) {
 }
 
 /** Sun and moon labels above the timeline. Sunrise and sunset are each [earliest, latest] over the days shown. */
-// The sunrise or sunset label's text, and the span it takes to the right of its line.
 const sunText = ([t, last]) => (+last - +t >= 6e4 ? `${clockShort(t)}–${clockShort(last)}` : clockShort(t));
 let measureCtx;
 function textWidth(text, size = 10) {
@@ -470,9 +440,8 @@ function textWidth(text, size = 10) {
 }
 const sunSpan = (px, range) => [px + 3, px + 22 + textWidth(sunText(range))];
 
-// Where the label on today's "last updated" line goes: beside the line, left if it fits, else
-// right; or, where the sunrise or sunset label or the chart's edge is in the way, on a line
-// above them (`raised`), on whichever side fits.
+// Placement of the "last updated" label: beside its line (left if it fits), else raised above
+// the sun labels or chart edge on whichever side fits.
 function lastUpdatedPlace(x, t, text, suns, width) {
   const px = x(t), w = textWidth(text);
   const taken = suns.map((r) => sunSpan(x(r[0]), r));
@@ -493,7 +462,6 @@ function sunMarkers(sunrise, sunset, top) {
       const icon = kind === "Sunrise"
         ? htl.svg`<path d=${SUN_ICON}></path><path d=${SUN_RAYS} fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"></path>`
         : htl.svg`<path d=${MOON_ICON}></path>`;
-      // Right of its line, or left of it where the chart's edge would cut the label off.
       const left = sunSpan(px, [t, last])[1] > width - 2;
       g.append(htl.svg`<g transform=${`translate(${left ? px - 10 : px + 10},${y(top) - 6})`} fill-opacity="0.75">
         <title>${range ? `${kind} ${clock(t)} to ${clock(last)}` : `${kind} ${clock(t)}`}</title>
@@ -506,15 +474,13 @@ function sunMarkers(sunrise, sunset, top) {
 }
 
 /**
- * Day and night bar below the x axis, with a tick and icon at each sunrise and sunset.
- * points: [{t, kind: "Sunrise" | "Sunset", at}], where t places the tick and at is the true time.
- * Needs about 28 px of marginBottom. Add sunTip(points) to the same plot for hover text.
+ * Day and night bar below the x axis, with a tick and icon at each [{t, kind, at}] (t places the
+ * tick, at is the true time). Needs about 28 px of marginBottom; pair with sunTip(points).
  */
 export function sunTicks(points) {
   return (index, {x}, values, {marginLeft, width, marginRight, height, marginBottom}) => {
     const axis = height - marginBottom, left = marginLeft, right = width - marginRight;
     const g = htl.svg`<g fill="currentColor" aria-label="sunrise and sunset">`;
-    // Day and night bar: each stretch runs from one tick to the next.
     const sorted = [...points].sort((p, q) => +p.t - +q.t);
     const edges = [left, ...sorted.map((p) => Math.max(left, Math.min(right, x(p.t)))), right];
     edges.slice(1).forEach((x1, i) => {
@@ -547,8 +513,7 @@ export function sunTip(points) {
 
 export const SPANS = new Map([["1 day", 1], ["3 days", 3], ["7 days", 7], ["30 days", 30], ["90 days", 90], ["All time", Infinity]]);
 
-/** First date of a window of `days` ending on `end`; Infinity means from the first date with data. */
-/** First day of a window of `days` ending on `end`, never before the data starts. */
+/** First date of a `days` window ending on `end`, never before firstDate (Infinity: from firstDate). */
 export function windowStart(end, days, firstDate) {
   if (days === Infinity) return firstDate;
   const start = addDays(end, -(days - 1));
@@ -575,27 +540,20 @@ const NAME_LINE = 0.85; // that line's height, in species rows
 const DAYLIGHT_PAD = 30; // minutes shown beyond sunrise or the first detection, and sunset or the last
 const DENSITY_FROM = 2; // spans this long are drawn as density strips, not ticks
 const BIN_MINUTES = 15;
-// Detections of a species less than this far apart are drawn as one bout (a bar from first
-// to last call). A guess from simulated data; see docs/architecture.md, "How the dashboard counts".
+// Detections closer than this are one bout. A guess from simulated data; see docs/architecture.md.
 const BOUT_GAP_MINUTES = 2;
 const SEGMENT_MS = 3000; // BirdNET scores 3-second segments
 const EMPTY_ROWS = 3; // height of today's empty timeline, in species rows
 const NO_AUDIO_MINUTES = 5; // shorter breaks between recordings aren't marked
-// Over several days sunrise and sunset move; once they move this much they're drawn as a band
-// (earliest to latest) instead of a line.
+// Sunrise or sunset moving more than this over the days shown is drawn as a band, not a line.
 const SUN_BAND_MS = 10 * 6e4;
 
 /**
- * Detections by time of day: one row per species, grouped under rough
- * categories (songbirds, woodpeckers, ...) and ordered within each group by
- * when the species usually starts singing.
+ * Detections by time of day: a row per species, grouped by category and ordered by usual first
+ * song. One day: a tick per detection. Several days: density strips of minutes heard per day per
+ * 15-minute slot, leaving out species heard on under 10% of days.
  *
- * For one day, each detection is a tick, like a ticker tape. Over several days,
- * ticks from different days overlaid on one clock don't read as anything, so rows
- * become density strips: minutes heard per day in each 15-minute slot, and species
- * heard on fewer than 10% of days are left out.
- *
- * rows: detections from the days in `dates` (Pacific "YYYY-MM-DD", last = reference day).
+ * rows: detections from `dates` (Pacific "YYYY-MM-DD", last = reference day).
  * spanDays: calendar days in the span (dates holds only days with recordings).
  * sun: per-date {start, end, sunrise, sunset} from sun.json.
  * categories: {order: [category...], species: {commonName: category}}.
@@ -610,7 +568,7 @@ export function dayTimeline(rows, sun, dates, {
   overrides = new Map(), // the viewer's choices: category (or "*" for the whole list) -> collapsed?
   onToggle = () => {} // ([[key, collapsed], ...]) when a category header or the expand button is clicked
 } = {}) {
-  // Days missing from the sun table (e.g. a stale cached sun.json) can't be placed on the clock; skip them.
+    // Days missing from the sun table (such as a stale cached sun.json) are skipped.
   if (dates.some((date) => !sun[date])) {
     const known = new Set((dates = dates.filter((date) => sun[date])));
     rows = rows.filter((d) => known.has(d.date));
@@ -620,8 +578,7 @@ export function dayTimeline(rows, sun, dates, {
   const density = spanDays >= DENSITY_FROM;
   const ref = sun[dates.at(-1)];
   const refStart = new Date(ref.start);
-  // Days are overlaid by wall-clock time. On the two DST days a year the day is 23 or 25 hours
-  // long and the clocks change at 2am, so elapsed time since midnight is off by an hour after that.
+    // Days overlay by elapsed time since midnight, so on DST days times after 2 AM are off an hour.
   const dstShift = (date) => +new Date(sun[date].end) - +new Date(sun[date].start) - 864e5; // 0, +1h or -1h
   const refShift = dstShift(dates.at(-1));
   const offset = (date, t) => { // wall-clock ms since local midnight
@@ -631,15 +588,13 @@ export function dayTimeline(rows, sun, dates, {
   const refAt = (wall) => new Date(+refStart + (refShift && wall >= 2 * 36e5 ? wall + refShift : wall));
   const onRef = (date, t) => refAt(offset(date, t));
 
-  // Earliest and latest sunrise and sunset over the days shown, on the reference day's clock.
   const sunRange = (key) => d3.extent(dates, (date) => +onRef(date, new Date(sun[date][key]))).map((t) => new Date(t));
   const sunriseRange = sunRange("sunrise");
   const sunsetRange = sunRange("sunset");
   // Both become bands once either moves enough, so sunrise and sunset are drawn the same way.
   const banded = [sunriseRange, sunsetRange].some(([a, b]) => +b - +a >= SUN_BAND_MS);
   const isBand = () => banded;
-  // Over many days, each band shades how often sunrise (or sunset) falls at that time: a
-  // histogram of the days' times, lightly smoothed (Gaussian, 8 minutes), as a gradient.
+    // Over many days, each band's gradient is a lightly smoothed histogram of the days' times.
   const sunBands = [];
   for (const [key, range] of [["sunrise", sunriseRange], ["sunset", sunsetRange]]) {
     if (!isBand(range)) continue;
@@ -654,15 +609,14 @@ export function dayTimeline(rows, sun, dates, {
   const dayEnd = new Date(ref.end);
   const earliestSunrise = d3.min(dates, (date) => offset(date, new Date(sun[date].sunrise)));
   const latestSunset = d3.max(dates, (date) => offset(date, new Date(sun[date].sunset)));
-  // "Daylight only": from a little before sunrise, or the first detection if earlier, to a little
-  // after sunset or the last detection; detections more than 90 minutes into the night don't count.
+    // "Daylight only": a little before sunrise (or first detection) to a little after sunset (or
+    // last detection); detections over 90 minutes into the night don't count.
   const [outerFrom, outerTo] = [earliestSunrise - 90 * 6e4, latestSunset + 90 * 6e4];
   const heardAt = [...rows, ...unidentified].map((d) => offset(d.date, d.time)).filter((t) => t >= outerFrom && t <= outerTo);
   const domain = daylightOnly
     ? [refAt(Math.max(outerFrom, Math.min(earliestSunrise, d3.min(heardAt) ?? Infinity) - DAYLIGHT_PAD * 6e4)),
        refAt(Math.min(outerTo, Math.max(latestSunset, d3.max(heardAt) ?? -Infinity) + DAYLIGHT_PAD * 6e4))]
     : [dayStart, dayEnd];
-  // Narrow screens: names go on a line above each row, so the plot takes the full width.
   const compact = width < COMPACT_BELOW;
   const nameWidth = compact ? 4 : nameMargin(width);
 
@@ -674,14 +628,12 @@ export function dayTimeline(rows, sun, dates, {
     shown = shown.filter((d) => daysHeard.get(d.species) >= 0.1 * n);
   }
 
-  // Typical (median) first detection of the day, and how often each species was heard.
   const firstHeard = d3.rollup(shown, (v) => d3.median(d3.rollups(v, (w) => d3.min(w, (d) => +d.clock), (d) => d.date), ([, t]) => t), (d) => d.species);
   const timesHeard = d3.rollup(shown, (v) => v.length, (d) => d.species);
   const byFirst = (a, b) => d3.ascending(firstHeard.get(a), firstHeard.get(b));
   const byCount = (a, b) => d3.descending(timesHeard.get(a), timesHeard.get(b)) || byFirst(a, b);
   const categoryOf = (s) => categories?.species[s] ?? "Other";
-  // Spans longer than a week start collapsed; a day or a week starts expanded. The viewer's own
-  // choices (overrides) win, and are kept as they move between periods.
+    // Spans over a week start collapsed; the viewer's overrides win and persist across periods.
   const auto = spanDays > 7;
   const collapsedOf = (key) => (overrides.has(key) ? overrides.get(key) : auto);
   let order;
@@ -689,8 +641,7 @@ export function dayTimeline(rows, sun, dates, {
   let groups = [];
   let hiddenCount = 0;
   if (sort === "category") {
-    // Grouped under category headers; within a group, by when the species usually starts singing.
-    // A collapsed category is a single row (its header) holding all of its species' detections.
+        // A collapsed category is one row (its header) holding all its species' detections.
     groups = d3.groups([...firstHeard.keys()], categoryOf)
       .sort(([a], [b]) => (categories?.order.indexOf(a) ?? 0) - (categories?.order.indexOf(b) ?? 0));
     order = groups.flatMap(([group, species]) => (collapsedOf(group) ? [HEADER + group] : [HEADER + group, ...species.sort(byFirst)]));
@@ -704,23 +655,20 @@ export function dayTimeline(rows, sun, dates, {
       shown = shown.filter((d) => kept.has(d.species));
     }
   }
-  // Unidentified birdsong: one muted row after everything else, on tick views only (it's large;
-  // the multi-day density view leaves it out). Not a species: no card, no counts, no sorting.
+    // Unidentified birdsong: one muted row last, tick views only. Not a species: no card or counts.
   const unidentifiedShown = density ? [] : unidentified.map((u) => ({...u, clock: onRef(u.date, u.time)}))
     .filter((u) => u.clock >= domain[0] && u.clock <= domain[1]);
   if (unidentifiedShown.length && order.length) order.push(UNIDENTIFIED);
   const headers = order.filter((k) => k.startsWith(HEADER));
   const groupSize = new Map(groups.map(([g, sp]) => [g, sp.length]));
 
-  // Lay rows out by hand (in units of one species row) so headers get room above and below.
-  // label: where the row's name (or header) sits; beside the row, or on narrow screens above it.
+    // Rows laid out by hand (in species-row units) so headers get room above and below.
   const rowsAt = new Map(); // key -> {y1, y2, y, label}
   let pos = 0;
   for (const key of order) {
     const header = key.startsWith(HEADER);
     if ((header || key === UNIDENTIFIED) && pos > 0) pos += GROUP_GAP;
     if (compact) {
-      // An expanded header is just its line, with the hairline under it; other rows hold bars below.
       const open = header && !collapsedOf(key.slice(1));
       const body = open ? 0.3 : 1;
       rowsAt.set(key, {y1: pos + NAME_LINE, y2: pos + NAME_LINE + body, y: pos + NAME_LINE + body / 2, label: pos + NAME_LINE * 0.55});
@@ -731,14 +679,13 @@ export function dayTimeline(rows, sun, dates, {
     rowsAt.set(key, {y1: pos, y2: pos + h, y: pos + h / 2, label: pos + h / 2});
     pos += h;
   }
-  // Today with nothing heard yet: an empty timeline (gaps still hatched) with a note, not a bare message.
+    // Today with nothing heard yet: an empty timeline (gaps still hatched) with a note.
   const emptyToday = !firstHeard.size && n === 1 && dates[0] === localDate(new Date());
   const total = emptyToday ? EMPTY_ROWS : pos;
   const rowOf = (species) => rowsAt.get(rowKeyOf(species));
   const speciesTicks = order.filter((k) => !k.startsWith(HEADER) && k !== UNIDENTIFIED).map((k) => rowsAt.get(k).label);
   const nameAt = new Map(order.map((k) => [rowsAt.get(k).label, k]));
 
-  // "In daylight" only when there were detections outside it.
   if (!firstHeard.size && !emptyToday) return htl.html`<p class="sub">No detections ${daylightOnly && rows.length ? "in daylight " : ""}${n === 1 ? "on this day" : "in these days"}.</p>`;
 
   const fade = n === 1 ? 1 : n <= 3 ? 0.6 : 0.4; // overlapping days stack up
@@ -747,12 +694,10 @@ export function dayTimeline(rows, sun, dates, {
   let dataMarks;
   let color;
   if (density) {
-    // Minutes heard per day in each 15-minute slot of the reference day's clock (a species heard
-    // in a minute counts once, however many 3-second detections it had).
+        // Minutes heard per day in each 15-minute slot on the reference day's clock.
     const bin = d3.timeMinute.every(BIN_MINUTES);
     const bins = d3.flatRollup(shown, (v) => new Set(v.map((d) => `${d.species}|${Math.floor(+d.time / 6e4)}`)).size / n, (d) => rowKeyOf(d.species), (d) => +bin.floor(d.clock))
       .map(([key, t, rate]) => ({key, name: key.startsWith(HEADER) ? key.slice(1) : key, t1: new Date(t), t2: new Date(t + BIN_MINUTES * 6e4), rate}));
-    // The color bar starts where the plot does; on phones it spans it exactly.
     color = sequential(dark, {legend: true, label: "Minutes heard per day", zero: true, marginLeft: nameWidth,
       ...(width < 520 ? {width, marginRight: 30, ticks: 3} : {width: nameWidth + 260, marginRight: 20})});
     dataMarks = [
@@ -765,7 +710,6 @@ export function dayTimeline(rows, sun, dates, {
       }))
     ];
   } else {
-    // Bouts: a species' detections on one day, merged while the gaps stay under BOUT_GAP_MINUTES.
     const bouts = [];
     for (const v of d3.groups(shown, (d) => d.species, (d) => d.date).flatMap(([, byDate]) => byDate.map(([, w]) => w))) {
       v.sort((a, b) => a.clock - b.clock);
@@ -779,7 +723,7 @@ export function dayTimeline(rows, sun, dates, {
         }
       }
     }
-    // Keep single calls visible: at least ~2px wide.
+        // At least ~2 px wide, so single calls stay visible.
     const minMs = ((+domain[1] - +domain[0]) / Math.max(1, width - nameWidth - 16)) * 2;
     for (const b of bouts) b.end = new Date(Math.max(+b.last + SEGMENT_MS, +b.first + minMs));
     const minutesLong = (b) => Math.round((+b.last + SEGMENT_MS - +b.first) / 6e4);
@@ -790,7 +734,6 @@ export function dayTimeline(rows, sun, dates, {
       "Top confidence": (b) => d3.format(".0%")(b.confidence)
     };
     if (n > 1) boutTip.Day = (b) => formatDate(b.date, {weekday: "short", month: "short", day: "numeric"});
-    // Unidentified minutes, merged while they run on, in the muted color.
     const unidBouts = [];
     for (const u of unidentifiedShown.sort((a, b) => a.clock - b.clock)) {
       const last = unidBouts.at(-1);
@@ -821,15 +764,13 @@ export function dayTimeline(rows, sun, dates, {
     : categoryLabel(key.slice(1), collapsedOf(key.slice(1)), groupSize.get(key.slice(1)));
   const headingRows = rowsAt.has(UNIDENTIFIED) ? [...headers, UNIDENTIFIED] : headers;
 
-  // Expanded headers have a horizontal rule; collapsed headers contain bars,
-  // so their annotations and vertical rules start above the whole first row.
+    // Collapsed headers contain bars, so their annotations and rules start above the first row.
   const firstHeader = headers[0];
   const gridTop = !compact && firstHeader && !collapsedOf(firstHeader.slice(1))
     ? rowsAt.get(firstHeader).y
     : 0;
   const gridHours = d3.timeHour.every(hourStep).range(domain[0], new Date(+domain[1] + 1));
-  // Today: a line where the recording so far ends, and the rest of the day faintly shaded, so
-  // time not recorded yet doesn't read as time without birds.
+    // Today: the unrecorded rest of the day is shaded so it doesn't read as time without birds.
   const pacificDate = (t) => t.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
   const recordedAt = recordedUntil && n === 1 && pacificDate(recordedUntil) === dates[0] ? onRef(dates[0], recordedUntil) : null;
   const marginLeft = nameWidth, marginRight = 16;
@@ -837,15 +778,13 @@ export function dayTimeline(rows, sun, dates, {
   const recordedText = recordedShown && `Last updated ${clock(recordedUntil)}`;
   const recordedPlace = recordedShown && lastUpdatedPlace(d3.scaleTime(domain, [marginLeft, width - marginRight]), recordedAt, recordedText,
     [sunriseRange, sunsetRange].filter((r) => !isBand(r)), width);
-  // One day: stretches with no audio are hatched, so they don't read as time without birds.
-  // Only up to the newest recording in `audio`: the table can lag the live feed.
+    // One day: no-audio stretches are hatched, only up to `audio`'s newest (the table can lag).
   const noAudio = [];
   if (audio && n === 1) {
     const known = d3.max(audio, ([, b]) => b) ?? -Infinity;
     const dayFrom = +new Date(sun[dates[0]].start), dayTo = Math.min(+new Date(sun[dates[0]].end), recordedAt ? +recordedUntil : Infinity, known);
     const spans = audio.filter(([a, b]) => b > dayFrom && a < dayTo).sort((p, q) => p[0] - q[0]);
-    // A past day without any rows predates the recordings table: unknown, not missed. Today
-    // without any is missed up to now.
+        // A past day without rows predates the recordings table (unknown, not missed); today is missed up to now.
     const todayNoAudio = !spans.length && dates[0] === localDate(new Date());
     if (spans.length || todayNoAudio) {
       const until = todayNoAudio ? Math.min(+new Date(sun[dates[0]].end), Date.now()) : dayTo;
@@ -878,31 +817,25 @@ export function dayTimeline(rows, sun, dates, {
     y: {domain: [total, 0], axis: null},
     color,
     marks: [
-      // Night, when the full day is shown.
       daylightOnly ? null : Plot.rectX([[dayStart, sunriseRange[0]], [sunsetRange[1], dayEnd]], {x1: "0", x2: "1", fill: "currentColor", fillOpacity: 0.06}),
       Plot.ruleX(gridHours, {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.1}),
-      // For one day (or a short span), sunrise and sunset are dashed lines; longer spans get a band, drawn below.
       Plot.ruleX([sunriseRange, sunsetRange].filter((r) => !isBand(r)).map(([t]) => t), {y1: gridTop, y2: total, stroke: "currentColor", strokeOpacity: 0.35, strokeDasharray: "3,3"}),
       sunMarkers(sunriseRange, sunsetRange, gridTop),
       ...recordedMarks,
       noAudio.length ? hatchMark(noAudio.map(([a, b]) => [new Date(Math.max(a, domain[0])), new Date(Math.min(b, domain[1]))]), gridTop, total) : null,
-      // Category headers: a small-caps label in place of a species name, level with a hairline across the plot.
       Plot.ruleY(headers.filter((h) => !collapsedOf(h.slice(1))), {y: (d) => rowsAt.get(d).y, stroke: "currentColor", strokeOpacity: 0.18}),
       ...(compact ? [] : names),
       ...dataMarks,
       emptyToday ? Plot.text([!audio || audio.some(([a, b]) => b > +new Date(sun[dates[0]].start) && a < +new Date(sun[dates[0]].end)) ? "No detections yet today" : "No data yet today"],
         {x: () => new Date((+domain[0] + +domain[1]) / 2), y: total / 2, text: (d) => d, fontSize: 13, fill: "currentColor", fillOpacity: 0.7, stroke: "var(--theme-background-alt)", strokeWidth: 6, paintOrder: "stroke"}) : null,
-      // Over many days, sunrise and sunset are light-blue bands on top of the data, as opaque as
-      // the share of days it's dark at that time.
+            // Over many days, sun bands sit on top of the data, as opaque as the share of dark days.
       sunBandMark(sunBands, gridTop, total, dark ? "#8cc4f0" : "#4f9ad6", dark ? 0.38 : 0.5),
-      // Above the rows on narrow screens, names go over the sunrise and sunset bands, with a halo.
       ...(compact ? names : [])
     ]
   });
 
   wireCategoryToggles(plot, groups, collapsedOf, groupSize, onToggle);
 
-  // One button for everything: expand/collapse all categories, or show the whole list.
   let button = null;
   if (sort === "category" && groups.length) {
     button = categoryToggleAll(groups, collapsedOf, onToggle);
@@ -921,15 +854,11 @@ export function categoryLabel(group, collapsed, size) {
   return collapsed ? `▸ ${group.toUpperCase()} · ${size}` : `▾ ${group.toUpperCase()}`;
 }
 
-/**
- * Makes a chart's category header labels (text made by categoryLabel) toggle their category,
- * by mouse or keyboard (Tab to one, then Enter or Space). Shared by the daily timeline and the
- * year-round presence chart.
- */
+/** Makes category header labels (from categoryLabel) toggle their category by mouse or keyboard. */
 export function wireCategoryToggles(plot, groups, collapsedOf, groupSize, onToggle) {
   for (const text of plot.querySelectorAll("text")) {
     if (text.closest("[aria-label='tip']")) continue;
-    // Long labels wrap onto two lines (tspans), so compare without spaces.
+        // Wrapped labels split into tspans, so compare without spaces.
     const match = /^[▸▾](.+?)(?:·\d+)?$/.exec(text.textContent.replace(/\s/g, ""));
     const group = match && groups.find(([g]) => g.toUpperCase().replace(/\s/g, "") === match[1])?.[0];
     if (!group) continue;
@@ -959,8 +888,7 @@ export function categoryToggleAll(groups, collapsedOf, onToggle) {
 }
 
 /** Label for a dayTicks tick: "Oct 23", "Nov 1"; adds the year to the first tick and Jan 1 when the range spans years. */
-// short: name the month only on the first day and the 1st ("Oct 24", "25", ...), for daily
-// ticks too close together for full dates.
+// short: month only on the first day and the 1st ("Oct 24", "25"), for crowded daily ticks.
 export function dayTickFormat(dates, {short = false} = {}) {
   const multiYear = dates[0].slice(0, 4) !== dates.at(-1).slice(0, 4);
   return (t) => {
@@ -972,10 +900,8 @@ export function dayTickFormat(dates, {short = false} = {}) {
 }
 
 /**
- * Date ticks for a per-day chart: every day for short ranges; otherwise the
- * first day, the 1st of each month, and the last day. Month-start ticks whose
- * labels would collide with a neighbor are dropped (the ends always stay).
- * dates: consecutive "YYYY-MM-DD" strings; plotWidth: px available for the bars.
+ * Date ticks for a per-day chart: every day for short ranges, else the ends and each month's 1st,
+ * dropping month starts that would collide (never the ends). plotWidth: px for the bars.
  */
 export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
   const toDate = (d) => new Date(d);
@@ -993,15 +919,11 @@ export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
   return picked.map((i) => toDate(dates[i]));
 }
 
-/**
- * Weather: the built copy (pipeline/weather.py), with the last month refreshed from Open-Meteo
- * through yesterday. Today comes from the National Weather Service (nws.js), falling back to
- * Open-Meteo.
- */
+/** Weather: the built copy (pipeline/weather.py), last month refreshed from Open-Meteo; today from NWS (nws.js), else Open-Meteo. */
 let recentWeather = null;
 async function nwsToday(today) {
   const get = (url) => fetchJSON(url, {headers: {Accept: "application/geo+json"}});
-  // Observations since midnight Pacific (8 AM UTC covers both PST and PDT; nwsDay drops the rest).
+    // 8 AM UTC is midnight Pacific or earlier in both PST and PDT; nwsDay drops the extra.
   const since = `observations?start=${today}T07:00:00Z`;
   const [hourly, grid, observed, observedTemp] = await Promise.all([get(`${NWS_GRID}/forecast/hourly`), get(NWS_GRID),
     get(`${NWS_STATION}/${since}`).catch(() => ({features: []})), get(`${NWS_TEMP_STATION}/${since}`).catch(() => ({features: []}))]);
@@ -1016,12 +938,11 @@ function fetchRecentWeather() {
       temperature_unit: "fahrenheit", precipitation_unit: "inch"
     });
     const today = new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
-    // Both services at once, each with fetchJSON's time limit, so a stalled one can't hold up the page.
     const nwsPending = nwsToday(today).catch((error) => { console.warn("NWS forecast unavailable; using Open-Meteo's.", error); return null; });
     const body = await fetchJSON(`https://api.open-meteo.com/v1/forecast?${params}`);
     const hourNow = +new Date().toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
-    // Past days in full; today, the forecast for the day and the hourly temperature so far, with
-    // the rest of today's hours kept apart as a forecast (from the current hour on, so it joins up).
+        // Today: the day's forecast, observed hourly temperatures, and the remaining hours as a
+        // forecast from the current hour on, so the lines join.
     const daily = {}, hourly = {}, forecastHourly = {};
     body.daily.time.forEach((d, i) => {
       const v = {high: body.daily.temperature_2m_max[i], low: body.daily.temperature_2m_min[i],
@@ -1071,7 +992,6 @@ export async function loadWeather() {
   return {...built, ...recent.daily};
 }
 
-// More activity uses warm rust; less activity uses cool teal.
 export function increaseColor(dark) {
   return dark ? "#c0582a" : "#6a2300";
 }
@@ -1146,8 +1066,7 @@ function htlSvg(strings, ...values) {
   return () => htl.svg(strings, ...values);
 }
 
-// Fixed temperature colors (°F), cold blue -> mild yellow -> hot red, like a weather app.
-// Fixed to real temperatures so a given color always means the same thing.
+// Temperature colors pinned to °F so a color always means the same temperature.
 const TEMP_STOPS = [
   [20, "#3f7fd9"],
   [40, "#5fa8d8"],
@@ -1158,11 +1077,7 @@ const TEMP_STOPS = [
 ];
 let gradientId = 0;
 
-/**
- * Daily low-to-high temperature as a smooth ribbon, colored along a fixed
- * cold-to-hot scale (the gradient is laid over the whole y axis, so the ribbon
- * shows each day's slice of it).
- */
+/** Daily low-to-high temperature ribbon; the color gradient spans the whole y axis, so each day shows its slice. */
 export function temperatureStrip(dates, weather, {width, ...margins}) {
   const {days, edges} = dailyTemperatureSeries(dates, weather);
   const frame = dayFrame(dates, width, margins);
@@ -1192,11 +1107,7 @@ export function temperatureStrip(dates, weather, {width, ...margins}) {
   });
 }
 
-/**
- * Splits a temperature line ([{t, temp, when}], sorted by t) at time t, for hourlyTemperatureStrip:
- * [up to t, from t on], joined by a point interpolated at t (labelled when(t)); the second part is
- * marked forecast.
- */
+/** Splits a sorted [{t, temp, when}] line at t into [before, forecast after], joined by a point interpolated at t. */
 export function splitAt(line, t, when) {
   const i = d3.bisector((d) => +d.t).left(line, +t);
   const ahead = (d) => ({...d, forecast: true});
@@ -1208,10 +1119,8 @@ export function splitAt(line, t, when) {
 }
 
 /**
- * Hourly temperature as a line, colored by temperature like the high-low ribbon. For the day
- * and week views. points: [{t: Date, temp, when}]; domain: the chart above's x domain, so the
- * line sits under the bars it belongs to; forecast: points for the rest of today, dashed, starting
- * where points end.
+ * Hourly temperature line colored like the ribbon. domain: the x domain of the chart above;
+ * forecast: the rest of today, dashed, starting where points end.
  */
 export function hourlyTemperatureStrip(points, {width, domain, inset = 0, forecast = [], ...margins}) {
   const id = `temp-gradient-${++gradientId}`;
@@ -1232,7 +1141,6 @@ export function hourlyTemperatureStrip(points, {width, domain, inset = 0, foreca
     marks: [
       gradient,
       Plot.line(points, {x: "t", y: "temp", stroke: `url(#${id})`, strokeWidth: 2.5, curve: "monotone-x"}),
-      // The rest of today, forecast: the same colours, dashed.
       Plot.line(forecast, {x: "t", y: "temp", stroke: `url(#${id})`, strokeWidth: 2.5, strokeDasharray: "7,8", curve: "monotone-x"}),
       Plot.tip([...points, ...forecast.slice(1)], Plot.pointerX({
         x: "t", y: "temp",
@@ -1244,10 +1152,8 @@ export function hourlyTemperatureStrip(points, {width, domain, inset = 0, foreca
 }
 
 /**
- * Sky and rain in one row. With room, a flat weather icon per day: wet days are
- * drawn in the rain color, stronger and with more drops the more it rained.
- * Without room (long ranges, phones), a thin strip of tiles: blank when dry,
- * rain-colored when wet, shaded by how much fell.
+ * Sky and rain row: a weather icon per day when there's room (wetter is stronger, more drops),
+ * else a strip of tiles shaded by rainfall.
  */
 export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
   const days = dates.filter((d) => weather[d]).map((date) => {
@@ -1285,7 +1191,6 @@ export function conditionsStrip(dates, weather, {width, dark, ...margins}) {
     for (const d of days) {
       const [kind] = d.kind;
       const wetKind = ["drizzle", "rain", "snow", "storm"].includes(kind);
-      // Wet weather codes always get at least one drop; dry-coded days with real rain show as rain.
       const shown = d.level && !wetKind ? "rain" : kind;
       const level = Math.max(1, d.level);
       const icon = WEATHER_ICON[shown];
@@ -1319,27 +1224,23 @@ function barSpan(date) {
 }
 
 /**
- * Before -> after ("dumbbell") chart of each species' average minutes heard per day in two
- * periods: hollow dot before, triangle after pointing the way it moved, rust for more and teal
- * for less. changes: [{species, before, now}].
+ * Before/after dumbbell of each species' average minutes per day: hollow dot before, triangle
+ * after, rust for more, teal for less. changes: [{species, before, now}]. With `daily`, one
+ * day against the previous (untested), cut off at `asOf`; else averages with adjusted p-values.
  */
-// `daily`: one day's minutes against the day before's, untested, and `asOf` the time a day still
-// being recorded runs until; otherwise per-day averages with their adjusted p-values.
 export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annotatePeriods = false, xLabel = "Average minutes heard per day", daily = false, asOf = null}) {
   const up = increaseColor(dark);
   const down = declineColor(dark);
   const colorOf = (d) => (d.now >= d.before ? up : down);
   const max = d3.max(changes, (d) => Math.max(d.before, d.now)) ?? 1;
   const ring = "var(--theme-background-alt)";
-  // Whole minutes; averages rounded, keeping a decimal under 1 so 0.3 doesn't read as 0.
+    // Averages keep a decimal under 1 so 0.3 doesn't read as 0.
   const round = (v) => (v > 0 && v < 1 ? d3.format(".1f")(v) : d3.format(",.0f")(v));
   const num = (v) => `${round(v)} ${daily ? "min" : "min/day"}`;
-  // A day cut off at `asOf`: the day before "before" that time, the day itself "as of" it.
   const tipValue = (v, side) => (daily ? `${round(v)} min${asOf ? ` ${side === "now" ? "as of" : "before"} ${asOf}` : ""}` : `${round(v)} min per day`);
   const ups = changes.filter((d) => d.now >= d.before);
   const downs = changes.filter((d) => d.now < d.before);
-  // Narrow screens put each name on a line above its row (dy: down by `low`, names up by `high`),
-  // so the plot gets the full width.
+    // Narrow screens put names above rows (dy: rows down by `low`, names up by `high`).
   const compact = width < COMPACT_BELOW;
   const [low, high] = compact ? [7, -9] : [0, 0];
   const label = (data, x, side, text, strong) => Plot.text(data, {
@@ -1347,8 +1248,7 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
     fill: "currentColor", fillOpacity: strong ? 1 : 0.65, fontWeight: strong ? 600 : 400, fontSize: 10.5
   });
 
-  // Mini titles above each block ("HEARD MORE", "HEARD LESS") in place of a color legend: a
-  // header row, labelled in the name column, with a rule in that block's color.
+    // "HEARD MORE"/"HEARD LESS" header rows, ruled in their color, replace a legend.
   const blocks = [[ups, "more", "Heard more", up], [downs, "less", "Heard less", down]].filter(([rows]) => rows.length);
   const headerKey = (key) => `${HEADER}${key}`;
   const domain = blocks.flatMap(([rows, key]) => [headerKey(key), ...rows.map((d) => d.species)]);
@@ -1359,7 +1259,6 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
     marginLeft: compact ? 4 : nameMargin(width),
     marginRight: 48,
     marginTop: 8,
-    // Room either side of the dots for their values; ticks only from zero up.
     x: {domain: [-max * (width < 520 ? 0.26 : 0.12), max * (width < 520 ? 1.3 : 1.16)], ticks: d3.ticks(0, max * 1.1, width < 520 ? 4 : 8), label: xLabel, labelAnchor: "center", labelArrow: "none", grid: true},
     y: {domain, label: null},
     marks: [
@@ -1370,7 +1269,6 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
       Plot.link(changes, {x1: "before", x2: "now", y1: "species", y2: "species", dy: low, stroke: colorOf, strokeWidth: 2}),
       Plot.dot(changes, {x: "before", y: "species", dy: low, r: 4.5, fill: ring, stroke: "currentColor", strokeOpacity: 0.65, strokeWidth: 1.5}),
       Plot.dot(changes, {x: "now", y: "species", dy: low, symbol: "triangle", r: 5.5, rotate: (d) => (d.now >= d.before ? 90 : -90), fill: colorOf, stroke: ring, strokeWidth: 1}),
-      // Values on the outside of each pair: earlier value muted, current value bold.
       label(ups, "before", "left", (d) => num(d.before), false),
       label(ups, "now", "right", (d) => num(d.now), true),
       label(downs, "now", "left", (d) => num(d.now), true),
@@ -1412,12 +1310,10 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
 }
 
 /**
- * Mini species cards: clicking (or, with a mouse, hovering) a species name or species link opens a
- * small card instead of following the link. Chart marks keep their own tooltips.
- * info(species) returns {photo, scientific, category, rows: [[label, value]]}, or null for
- * non-species labels. Elements matching `hover` (name in data-species) open the card on hover
- * only and keep their own clicks. With `newTab`, "More details" opens in a new tab.
- * Returns a function that removes the listeners.
+ * Mini species cards: clicking (or hovering, with a mouse) a species name or link opens a card
+ * instead of following it. info(species) returns {photo, scientific, category, rows} or null for
+ * non-species labels. `hover` elements open on hover only and keep their clicks. `newTab` opens
+ * "More details" in a new tab. Returns a cleanup function.
  */
 export function speciesCards(info, {hover = null, newTab = false} = {}) {
   const LABELS = 'g[aria-label="y-axis tick label"] text';
@@ -1428,8 +1324,7 @@ export function speciesCards(info, {hover = null, newTab = false} = {}) {
   let showTimer = null;
   let hideTimer = null;
 
-  // Plot keeps a truncated name's full text in a <title>, which would also pop the browser's
-  // own tooltip; move it to a data attribute the first time the pointer comes near.
+    // Move a truncated name's <title> to a data attribute, so the browser's tooltip doesn't also pop.
   const nameOf = (el) => {
     if (hover && el.matches(hover)) return el.dataset.species;
     if (el.matches(LINKS)) return new URL(el.getAttribute("href"), location.href).searchParams.get("name");
@@ -1462,13 +1357,12 @@ export function speciesCards(info, {hover = null, newTab = false} = {}) {
       ${data.actions ?? ""}
       <a class="species-pop-more" href=${speciesHref(species)}>More details →</a>
     </div>`;
-    // Live keeps playing in its own tab while the species page opens beside it.
     if (newTab) Object.assign(card.querySelector(".species-pop-more"), {target: "_blank", rel: "noopener"});
     card.addEventListener("pointerenter", () => clearTimeout(hideTimer));
     card.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") hideTimer = setTimeout(hide, 200); });
     document.body.append(card);
-    // Right of the name if there's room, else left of it, else below it; always inside the window.
-    // Live labels are zero-width buttons whose text is shifted inside the view, so measure the text.
+        // Right of the name, else left, else below, inside the window. Live labels are zero-width
+        // buttons with shifted text, so measure the text.
     const r = (el.querySelector(".live-name-text") ?? el).getBoundingClientRect();
     const w = card.offsetWidth, h = card.offsetHeight;
     let left = r.right + 10, top = r.top - 12;
@@ -1482,8 +1376,7 @@ export function speciesCards(info, {hover = null, newTab = false} = {}) {
 
   const over = (e) => {
     const el = e.target.closest?.(TARGETS);
-    // Chart marks keep their tooltips; the card's own "More details" link is a species link too,
-    // but hovering it must not reopen the card (it would be re-anchored to a detached link).
+        // Skip chart marks, and the card's own link (reopening would anchor to a detached element).
     if (!el || e.pointerType !== "mouse" || el.closest("svg a") || card?.contains(el)) return;
     nameOf(el);
     clearTimeout(hideTimer);
@@ -1524,10 +1417,7 @@ export function speciesCards(info, {hover = null, newTab = false} = {}) {
   };
 }
 
-/**
- * The info function speciesCards needs, from the page's data. confident: detections at or above
- * its threshold (learned from `thresholds`, else minConf); extraRows(species): rows to show first (e.g. minutes heard in the selected period).
- */
+/** speciesCards' info function. confident: detections at or above threshold; extraRows(species): rows shown first. */
 export function speciesInfoFrom({all, confident, photos, categories, thresholds = null, minConf = 0.6, extraRows = () => []}) {
   const scientificOf = new Map(d3.rollups(all, (v) => v[0].scientific, (d) => d.species));
   const lastHeardAt = d3.rollup(confident, (v) => d3.max(v, (d) => d.time), (d) => d.species);

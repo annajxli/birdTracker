@@ -5,10 +5,8 @@ toc: false
 
 <link rel="stylesheet" href="./components/birds.css">
 
-<!-- Polls live.json (served by the site's Worker under /api/live/), lays out each minute's
-     spectrogram strip by start time, and names the birds above them. The playhead runs far
-     enough behind the recording that the next minute arrives first. Time always runs; the
-     sound only mutes and unmutes. -->
+<!-- Polls live.json, places each minute's spectrogram strip by start time, and names the birds
+     above it. The playhead lags the recording so the next minute arrives before it's needed. -->
 
 ```js
 import {detectionStarts, speciesActivity, detectingAt} from "./components/live-activity.js";
@@ -20,7 +18,6 @@ import {speciesHref, speciesCards, loadPhotos, loadCategories, postReview, thres
 
 ```js
 const POLL_SECONDS = 30, MIN_CONF = 0.6, HOUR = 3600e3;
-// How much fits across the screen; the viewer's choice is remembered.
 const SPANS = [[60, "1 min"], [300, "5 min"], [900, "15 min"], [3600, "1 hour"]];
 const SPAN_KEY = "birdtracker-live-span";
 const LIVE = "/api/live/";
@@ -85,18 +82,15 @@ const fullButton = document.getElementById("live-full");
 let strips = []; // from live.json (the last 24 h) plus any older days loaded, oldest first
 let older = []; // strips from earlier days' files (live/days/), kept across polls
 let stripObserver = null;
-// Opened from a detection elsewhere (live?t=2026-10-26T14:35:39Z): go there once the audio list
-// is in, loading that day's strips if it's older than the last 24 hours.
+// Deep link (live?t=ISO time): seek there once the audio list loads, loading older days if needed.
 let pendingJump = Date.parse(new URLSearchParams(location.search).get("t") ?? "") || null;
-// Listeners' verdicts on detections: the Pi's (live/reviews.json, refreshed with each poll) and
-// this page's own, shown at once while the Pi catches up. A rejected detection counts nowhere.
+// Verdicts: the Pi's (live/reviews.json) overlaid with this page's own until the Pi catches up.
 let serverReviews = {};
 const localReviews = new Map();
 const reviewKey = (d) => `${d.at}|${d.scientific_name}`;
 const reviewOf = (d) => (localReviews.has(reviewKey(d)) ? localReviews.get(reviewKey(d)) : serverReviews[reviewKey(d)] ?? null);
 const counts = (d) => reviewOf(d) !== "rejected";
-// Per-species thresholds learned from those verdicts (live/thresholds.json, refreshed with each
-// poll): a species without one uses the file's default, or MIN_CONF without the file.
+// Per-species thresholds (live/thresholds.json); fallback is the file's default, then MIN_CONF.
 let thresholdsFile = null;
 const minConf = () => thresholdsFile?.default ?? MIN_CONF;
 const accepted = (d) => includedDetection({confidence: d.confidence, review: reviewOf(d), scientific_name: d.scientific_name}, minConf(), thresholdsFile?.species);
@@ -107,30 +101,25 @@ let drawnWindow = null; // the overview window [w0, w1] the track was last drawn
 const x = (t) => ((t - geo.t0) / 1e3) * geo.pps;
 const tAt = (px) => geo.t0 + (px / geo.pps) * 1e3;
 const endOf = (s) => Date.parse(s.start) + s.seconds * 1e3;
-// A time, with its date when that isn't today (Pacific).
 const dayTime = (d) => (d.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"}) === new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"})
   ? time(d) : `${d.toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", month: "short", day: "numeric"})}, ${time(d)}`);
 // Where the recorder's audio stopped, when nothing has come for STALE_MINUTES; else null.
 const offlineSince = () => (strips.length && Date.now() - endOf(strips.at(-1)) > STALE_MINUTES * 6e4 ? endOf(strips.at(-1)) : null);
 
-// The playhead: the moment shown or heard, marked by a line. Time always runs: with the sound on
-// it's the sound's own position, otherwise the wall clock minus `lag` (held at the newest audio
-// if the next strip is late). Live means it's just behind the newest audio.
+// The playhead: with sound on, the audio's position; otherwise wall clock minus `lag`, held at
+// the newest audio if the next strip is late. Live means just behind the newest audio.
 let live = true, lag = null, playhead = null;
 let paused = false; // time stops: the playhead holds still (and the sound, if on, pauses)
-// Tracking: the view scrolls to keep the playhead `anchor` of the way across it (where it was
-// clicked, or PLAYHEAD_AT); scrolling by hand stops that until the next seek, step or Live.
-// Offline, the view ends at now (LIVE_INSET px in), with the stretch without audio in it.
+// Tracking keeps the playhead `anchor` of the way across the view; scrolling by hand stops it
+// until the next seek, step, or Live. Offline, the view ends LIVE_INSET px before now.
 const PLAYHEAD_AT = 2 / 3, LIVE_INSET = 8, STEP = 10e3;
 const liveAnchor = () => 1 - LIVE_INSET / scroller.clientWidth;
-// Live, the playhead holds near the right edge and the audio scrolls under it, with only
-// LIVE_AHEAD of the stretch it hasn't reached shown, dimmed. That's well inside FOLLOW_MARGIN,
-// so the view stays filled while the next strip is on its way.
+// Live, the playhead holds near the right edge, showing LIVE_AHEAD (dimmed) of unreached audio.
+// LIVE_AHEAD is well inside FOLLOW_MARGIN, so the view stays filled while the next strip loads.
 const LIVE_AHEAD = 15e3;
 const liveAt = () => 1 - Math.min(0.3, LIVE_AHEAD / (span * 1e3));
 let tracking = true, anchor = PLAYHEAD_AT;
-// Sound (muted to start): one audio element for the whole session, so browsers that only allow
-// sound after a tap (Safari) keep allowing it from one minute to the next.
+// One audio element for the session, so Safari's tap-to-allow-sound carries across minutes.
 let soundOn = false, player = null, current = null, waitingFor = null;
 let loads = 0, positioned = false; // the sound has loaded and been moved to its starting point
 let activityLabels = [], activityRows = [], activityIndex = new Map();
@@ -139,12 +128,12 @@ const playheadLine = Object.assign(document.createElement("div"), {className: "l
 const aheadShade = Object.assign(document.createElement("div"), {className: "live-ahead"}); // live: newer audio than the playhead
 
 const LANE = 22, LANES = 4, SPEC_TOP = LANE * LANES + 6, AXIS_H = 22;
-// The spectrogram's height: 160 px, or in fullscreen about half the screen.
+// Spectrogram height; about half the screen in fullscreen.
 let SPEC_H = 160;
 const specHeight = () => (document.fullscreenElement ? Math.max(160, Math.round(window.innerHeight * 0.5)) : 160);
 const MAX_KHZ = 12; // the strips' top row (spectrogram.py's MAX_HZ)
 
-// Frequency labels, in their own column left of the strips (which scroll past them).
+// Frequency labels: a fixed column left of the scrolling strips.
 const drawFreqLabels = () => document.getElementById("live-freq").replaceChildren(
   ...[12, 8, 4, 0].map((khz) => {
     const label = document.createElement("span");
@@ -156,8 +145,7 @@ const drawFreqLabels = () => document.getElementById("live-freq").replaceChildre
 );
 drawFreqLabels();
 
-// Phones leave out the 1 hour span (too narrow to read); a saved 1 hour shows as 15 min there,
-// and is kept for wider screens.
+// Phones drop the 1 hour span; a saved 1 hour shows as 15 min there but stays saved.
 const PHONE = matchMedia("(max-width: 640px)");
 const PHONE_MAX_SPAN = 900;
 const fitSpan = (seconds) => (PHONE.matches ? Math.min(seconds, PHONE_MAX_SPAN) : seconds);
@@ -199,12 +187,9 @@ PHONE.addEventListener("change", () => {
   summarize();
 });
 
-// Detections at least `minConf` sure, joined into runs: one per species per stretch of song.
-// Each run keeps its detections (`dets`, for reviewing it) and its verdict: "rejected" when all
-// of them are, "confirmed" when any is.
-// One species' runs close enough that their names would collide become one label: the group's
-// best score, its first start and last end, and the runs themselves (runs). Measured with the
-// labels' font, so "close enough" is the name's own width.
+// Runs: detections at or above `minConf`, one per species per stretch of song. A run's verdict
+// is "rejected" when all its `dets` are, "confirmed" when any is. Runs of one species whose names
+// would collide (measured in the label font) share one label with the group's best score.
 const measure = document.createElement("canvas").getContext("2d");
 let groupLabels = []; // {text, runs, best, label}: grouped names, whose score follows the playhead
 function groupRuns(list, sure) {
@@ -265,9 +250,8 @@ function soundRuns(list) {
   return out;
 }
 
-// Strips are masks (loudness in the alpha channel; spectrogram.py); each is painted through
-// colorcet's CET-L5 colormap (near black for silence, through green to yellow-green for loud;
-// sampled at 16 stops), with a square root so faint sound shows. Images are loaded once and kept.
+// Strips are alpha masks (spectrogram.py) painted through colorcet CET-L5 (16 stops), with a
+// square root so faint sound shows. Images are loaded once and kept.
 const CET_L5 = d3.piecewise(d3.interpolateRgb, "001505 092205 083104 0b4004 104f05 145f06 187008 1c810a 21920c 25a40e 2ab610 2ec812 33db14 4bed15 92f915 d8ff14".split(" ").map((h) => "#" + h));
 const lut = d3.range(256).map((i) => d3.rgb(CET_L5(Math.sqrt(i / 255))));
 const images = new Map();
@@ -293,8 +277,7 @@ async function paintStrip(canvas, url, strip) {
     px[i] = c.r; px[i + 1] = c.g; px[i + 2] = c.b; px[i + 3] = 255;
   }
   ctx.putImageData(data, 0, 0);
-  // Dropouts the receiver filled with silence: hatched, so they don't pass for quiet audio. The
-  // hatching is anchored to the track, so it runs on unbroken from one strip into the next.
+    // Receiver-filled dropouts are hatched (track-anchored) so they don't pass for quiet audio.
   const left = parseFloat(canvas.style.left) || 0;
   for (const [a, b] of strip.gaps ?? []) {
     const x0 = Math.floor(a / strip.seconds * canvas.width), x1 = Math.ceil(b / strip.seconds * canvas.width);
@@ -304,8 +287,7 @@ async function paintStrip(canvas, url, strip) {
     ctx.fillRect(x0, 0, x1 - x0, canvas.height);
   }
 }
-// One hatching tile for the dropouts inside strips and the gaps between them, so they look
-// the same in every browser (a CSS gradient's thin lines rasterize differently from canvas).
+// A canvas tile, since CSS gradient hatching rasterizes differently across browsers.
 const HATCH = 7; // px between the hatching's lines
 const hatchTile = (() => {
   const c = Object.assign(document.createElement("canvas"), {width: HATCH, height: HATCH});
@@ -321,8 +303,7 @@ const hatchTile = (() => {
 })();
 const hatchImage = `url(${hatchTile.toDataURL()})`;
 
-// Redraws the track; the moment at the right edge of the view stays put (while tracking, the
-// next frame puts the playhead there anyway).
+// Keeps the time at the view's right edge fixed across redraws.
 function draw() {
   const rightEdge = geo ? tAt(scroller.scrollLeft + scroller.clientWidth) : null;
   // The strips in the overview's window, so the scroll range is always what the overview shows.
@@ -336,8 +317,7 @@ function draw() {
   activityTick = null;
   if (!strips.length) { track.style.width = "100%"; geo = null; return; }
   const pps = pxPerSecond();
-  // The whole window scrolls, loaded or not: older days load as the view nears them (loadNearView).
-  // Offline, it runs on to now, so the stretch without audio shows.
+    // The whole window scrolls, loaded or not (older days load on approach); offline, up to now.
   const offline = offlineSince();
   const t1 = Math.min(w.w1, offline ? Date.now() : endOf(strips.at(-1)));
   // At least one full span before the newest audio, so the view can always be filled.
@@ -368,9 +348,8 @@ function draw() {
     track.append(el);
     stripObserver.observe(el);
   }
-  // No audio at all between strips (the recorder was offline, or reconnecting for over 10 s):
-  // hatched like the dropouts inside them.
-  // A gap reaching into a day not loaded yet isn't known to be silent, so it stays blank.
+    // Gaps between strips (recorder offline or reconnecting) are hatched like dropouts, except a
+    // gap into an unloaded day, which isn't known to be silent.
   for (let i = 1; i < shown.length; i++) {
     if (!loadedBetween(endOf(shown[i - 1]), Date.parse(shown[i].start))) continue;
     const a = Math.round(x(endOf(shown[i - 1]))), b = Math.round(x(Date.parse(shown[i].start)));
@@ -389,7 +368,6 @@ function draw() {
     gap.append(Object.assign(document.createElement("span"), {className: "live-offline-label", textContent: `No audio since ${dayTime(new Date(offline))}`}));
     track.append(gap);
   }
-  // Time ticks under the strips, far enough apart that their labels don't touch.
   const label = span < 300 ? 100 : 80; // labels with seconds are wider
   const step = [10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find((sec) => sec * pps >= label) * 1e3;
   for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
@@ -400,9 +378,8 @@ function draw() {
     tick.textContent = time(new Date(t), step < 60e3);
     track.append(tick);
   }
-  // Names above the strips, in non-overlapping lanes; a run with no free lane is left out.
-  // Confident runs are placed first, then non-bird sounds, then the rest by score, so a crowded
-  // stretch keeps its surest names. Unidentified runs have no `dets`, so are never sure.
+    // Names go in non-overlapping lanes, surest first (confident runs, non-bird sounds, then by
+    // score); a run with no free lane is left out. Unidentified runs have no `dets`.
   const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets?.[0]?.scientific_name}, minConf(), thresholdsFile?.species);
   const birdRuns = groupRuns(runs(shown, 0), sure).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
@@ -446,9 +423,7 @@ function draw() {
     track.append(a);
   };
   birdRuns.filter(sure).forEach(placeBird);
-  // Non-bird sounds BirdNET heard (dog, voices, engines...), placed after the confident birds
-  // and before the unsure ones: muted, with a sound icon, so they never read as birds. A click
-  // jumps there too.
+    // Non-bird sounds are muted with a sound icon so they never read as birds.
   for (const r of soundRuns(shown).sort((a, b) => b.best - a.best)) {
     const label = `${r.name} (${Math.round(r.best * 100)}%)`;
     const left = x(r.start);
@@ -481,9 +456,8 @@ function draw() {
   drawOverview();
 }
 
-// Overview bars above the spectrogram, with a range that follows the span. The window follows
-// the playhead until ‹ › move it (back through KEEP_DAYS); going live follows again. Three-day
-// views fill hours not loaded from live/days.json's hourly counts.
+// Overview bars: the window follows the playhead until ‹ › move it (back through KEEP_DAYS).
+// Three-day views fill unloaded hours from live/days.json's hourly counts.
 const overview = document.getElementById("live-overview");
 const overviewRow = document.getElementById("live-overview-row");
 const KEEP_DAYS = 7;
@@ -494,8 +468,7 @@ const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "Amer
 const midnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - pacificHour(t) * HOUR; };
 const dayShift = (date, n) => new Date(Date.parse(date + "T12:00:00Z") + n * 864e5).toISOString().slice(0, 10);
 const loadedDays = new Set(); // UTC dates of live/days/ files fetched
-// Whether every day file between a and b has been fetched (live.json holds the last 24 hours, so
-// only the part before that needs one).
+// Whether every day file in [a, b] is fetched (live.json covers the last 24 hours).
 const loadedBetween = (a, b) => {
   const stop = Math.min(b, Date.now() - 23 * HOUR);
   return a >= stop || d3.utcDay.range(d3.utcDay.floor(new Date(a)), new Date(stop)).every((d) => loadedDays.has(d.toISOString().slice(0, 10)));
@@ -515,8 +488,7 @@ async function loadDay(date) { // the UTC-dated files covering a Pacific day
 const loadIndex = () => fetch(LIVE + "days.json", {cache: "no-store"}).then((r) => (r.ok ? r.json() : null)).then((j) => { daysIndex = j; drawOverview(); }).catch(() => {});
 loadIndex();
 setInterval(loadIndex, 10 * 60e3);
-// The window for the span: following the playhead (a quarter of the window ahead of it, up to
-// now), or where ‹ › put it.
+// The window: a quarter of it ahead of the playhead (capped at now), or where ‹ › put it.
 function ovWindow() {
   // Phones show half the window, in the same bars.
   const [full, bin] = OV_FOR[span] ?? OV_FOR[3600], len = PHONE.matches ? full / 2 : full, days = len >= 72 * HOUR;
@@ -562,8 +534,7 @@ function drawOverview() {
     const el = document.createElement("span");
     if (t > now || t >= pending) { el.className = "is-future"; return el; }
     const [a, b] = audio.has(t) ? [audio.get(t), birdSeconds(t)] : indexed.get(t) ?? [0, 0];
-    // "No audio" against the part of the bar that has happened, so the newest bar isn't hatched
-    // just for being young.
+        // Hatch only the elapsed part, so the newest bar isn't hatched for being young.
     const elapsed = Math.min(t + bin, pending, now) - t;
     el.className = a < (elapsed / 1e3) * 0.05 ? "is-empty" : b ? "has-birds" : "is-quiet";
     if (b) el.style.height = 30 + 70 * Math.min(1, (2 * b * 1e3) / bin) + "%";
@@ -572,13 +543,11 @@ function drawOverview() {
     el.title = `${new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", weekday: "short", hour: "numeric", minute: "2-digit"})}–${time(new Date(t + bin))}: ${what}`;
     return el;
   }));
-  // Labels: the days for three-day views, else times every 15 min, 1 hour or 3 hours.
   const pos = (t) => (100 * (t - w0)) / (w1 - w0), today = pacificDate(now);
   const dayDate = (t) => new Date(t).toLocaleDateString("en-US", {timeZone: "America/Los_Angeles", weekday: "short", month: "short", day: "numeric"});
   let labels;
   if (days) {
-    // Each day's label is centred on its part of the window; a day with too little of it shown
-    // for its label to fit goes without.
+        // Centred on each day's part of the window; dropped when too narrow to fit.
     labels = d3.range(4).map((i) => dayShift(pacificDate(w0), i)).filter((date) => midnight(date) < w1).flatMap((date) => {
       const a = Math.max(w0, midnight(date)), b = Math.min(w1, midnight(dayShift(date, 1)));
       if (pos(b) - pos(a) < 15) return [];
@@ -637,8 +606,7 @@ document.getElementById("live-overview-bars").onclick = async (e) => {
   const r = e.currentTarget.getBoundingClientRect(), {w0, w1, bin: OV_BIN} = ov;
   const t = Math.min(Date.now(), w0 + ((e.clientX - r.left) / r.width) * (w1 - w0));
   if (!strips.length || t < Date.parse(strips[0].start)) await loadDay(pacificDate(t));
-  // In a half hour with birds, land on its busiest minute (the start of its first detection
-  // there), which is what a short span can show; elsewhere, where clicked.
+    // In a half hour with birds, land on its busiest minute, which a short span can show.
   const bin = Math.floor(t / OV_BIN) * OV_BIN;
   const inBin = strips.flatMap((s) => s.detections).filter((d) => accepted(d) && Date.parse(d.at) >= bin && Date.parse(d.at) < bin + OV_BIN);
   if (inBin.length) {
@@ -680,8 +648,7 @@ function positionNames() {
   }
 }
 
-// Older days' strips load as the view (give or take a span) reaches them; live.json holds the
-// last 24 hours. loadDay skips days already loaded, so asking every frame is cheap.
+// Older days load as the view nears them; loadDay skips loaded days, so calling each frame is cheap.
 function loadNearView() {
   if (!geo) return;
   const pad = span * 1e3, a = tAt(scroller.scrollLeft) - pad, b = tAt(scroller.scrollLeft + scroller.clientWidth) + pad;
@@ -723,8 +690,7 @@ function sizeTrack() {
 function frame() {
   if (geo && strips.length) {
     const newest = endOf(strips.at(-1)), offline = offlineSince();
-    // Offline, the playhead starts at the newest audio, so nothing replays; when audio comes back,
-    // live jumps to it.
+        // Offline, the playhead starts at the newest audio; when audio returns, live jumps to it.
     if (playhead === null || (wasOffline && !offline && live && tracking && !soundOn)) { playhead = offline ? newest : newest - FOLLOW_MARGIN; lag = Date.now() - playhead; }
     wasOffline = !!offline;
     // The sound's position, once it has loaded and found its place (until then, where it was sent).
@@ -776,11 +742,9 @@ function markLive() {
   summarize(); // its hour ends at the playhead only while live
 }
 
-// Species cards on the names above the spectrogram, on hover: photo, names, category, and the
-// species' minutes heard in the audio loaded (no card until the photos and categories arrive).
+// Species cards on hover over names (after photos and categories load); they also review the run.
 let cardMeta = null;
 Promise.all([loadPhotos(), loadCategories()]).then(([photos, categories]) => { cardMeta = {photos, categories}; }).catch(() => {});
-// The card also reviews the hovered run: Confirm or Reject all its detections (or Undo).
 function reviewRun(run, verdict) {
   for (const d of run.dets) localReviews.set(reviewKey(d), verdict);
   postReview(verdict, run.dets.map((d) => ({at: d.at, scientific: d.scientific_name})));
@@ -808,14 +772,11 @@ invalidation.then(stopCards);
 const freeView = () => { tracking = false; };
 for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListener(type, freeView, {passive: true});
 
-// Bird boost (remembered per viewer):
-// - Plays each minute's denoised copy (strip.clean; pipeline/denoise.py).
-// - High-pass at 1 kHz and a 6 dB lift around 4 kHz. Low-voiced birds go thin, hence a switch.
-// - Between detections the sound dips DUCK_DB (never silent, so missed calls still come
-//   through), opening DUCK_LEAD ms before and DUCK_TAIL ms after each 3 s window; halfway for
-//   a "?" detection. The page runs a minute behind, so detections are known in advance.
-// Always: the recorder's gain is fixed, so audio is quiet (background about -60 dBFS). MAKEUP_DB
-// raises it, a compressor tames close voices, a -3 dBFS limiter and soft clipper catch peaks.
+// Bird boost (per viewer): plays the denoised copy (strip.clean; pipeline/denoise.py) through a
+// high-pass and presence lift (thins low-voiced birds, hence a switch), and dips DUCK_DB between
+// detections, opening DUCK_LEAD ms before and DUCK_TAIL ms after each 3 s window (halfway for
+// "?"). Never silent, so missed calls still come through.
+// Always: MAKEUP_DB offsets the recorder's fixed low gain, then compressor, limiter, soft clip.
 // Built on first play, since browsers only allow sound after a tap.
 const MAKEUP_DB = 30, DUCK_DB = 12, DUCK_LEAD = 500, DUCK_TAIL = 500;
 const BOOST_KEY = "birdtracker-live-boost";
@@ -836,8 +797,7 @@ function setBoost(on) {
 }
 boostButton.setAttribute("aria-pressed", String(boost));
 boostButton.onclick = () => setBoost(!boost);
-// How open the calls-up-front dip is at time t (ms): 1 inside a detection's window (with its
-// lead and tail ramps), 0.5 for a "?" one, 0 between them.
+// Duck gain at t (ms): 1 inside a detection's window and ramps, 0.5 for "?", 0 between.
 function duckOpen(t) {
   const i = strips.indexOf(current);
   let open = 0;
@@ -899,8 +859,7 @@ const newPlayer = () => {
   return el;
 };
 
-// Play the minute under `t`, then each next one; if the next hasn't arrived yet, wait for it
-// (poll() picks the sound up again).
+// Play the minute under `t`, then each next one, waiting for late strips (poll() resumes).
 function playFrom(t) {
   audio?.context.resume(); // a context made before the tap starts suspended
   const strip = strips.find((s) => s.audio && endOf(s) > t + 250);
@@ -951,7 +910,6 @@ function step(ms) {
   seek(t, live ? liveAnchor() : anchor);
 }
 
-// Mute and unmute; either way the playhead runs on.
 function toggleSound() {
   if (!strips.some((s) => s.audio)) return;
   player ??= newPlayer();
@@ -967,8 +925,7 @@ function toggleSound() {
   showStatus();
 }
 
-// Going to `t` from within two view widths of it (a seek, or back to live), the view and the
-// line glide there over GLIDE_MS instead of jumping; from farther, or with reduced motion, they jump.
+// Within two view widths, glide over GLIDE_MS; farther away or with reduced motion, jump.
 const GLIDE_MS = 450;
 let glide = null; // {start, scroll, line}: where the glide began, in px
 function startGlide(t) {
@@ -1018,11 +975,10 @@ track.addEventListener("click", (event) => {
   seek(tAt(scroller.scrollLeft + event.clientX - box.left), at);
 });
 
-// The last hour as a chart: a row per species, first heard first, with a cell per minute heard.
-// It shades and follows the spectrogram's view; clicking it seeks there.
+// Hour chart: a row per species, a cell per minute heard; shades and follows the spectrogram's
+// view, and seeks on click.
 let hourView = null; // {w0, w1}: the chart's time range
-// Row order: first heard (the default; new birds join at the bottom), total minutes or last heard,
-// either way round. Clicking a column's header sorts by it, again reverses it; First heard resets.
+// Sort: clicking a header sorts by it, again reverses; First heard (the default) resets.
 const SORT_KEY = "birdtracker-live-sort";
 const SORTS = {first: (r) => r.first, minutes: (r) => r.minutes, last: (r) => r.last};
 const FIRST_DIR = {first: 1, minutes: -1, last: -1}; // a column's first click: most minutes, latest first
@@ -1035,7 +991,6 @@ function sortBy(by) {
 }
 const ganttTip = Object.assign(document.createElement("div"), {className: "live-gantt-tip", hidden: true});
 
-// A sortable column's header: a button showing the order while it's the one in use.
 function header(by, label, className = "") {
   const active = sort.by === by;
   const arrow = html`<span class="live-gantt-arrow" aria-hidden="true">${active ? (sort.dir > 0 ? "↑" : "↓") : "↕"}</span>`;
@@ -1102,9 +1057,8 @@ function summarize() {
     grid.onclick = (event) => {
       const lane = event.target.closest(".live-gantt-lane");
       if (!lane) return;
-      // Anywhere over a bar's stretch of the row (not just its thin height, with a few px
-      // of slack for one-minute bars) goes to the start of that run; elsewhere, to the time
-      // under the cursor.
+            // The whole row height over a bar (with slack for one-minute bars) seeks to the run's
+            // start; elsewhere, to the time under the cursor.
       const bar = event.target.closest(".live-gantt-bar") ?? [...lane.querySelectorAll(".live-gantt-bar")].find((b) => {
         const r = b.getBoundingClientRect();
         return event.clientX >= r.left - 3 && event.clientX <= r.right + 3;
@@ -1128,12 +1082,12 @@ function summarize() {
 }
 
 const viewMiddle = () => (geo ? tAt(scroller.scrollLeft + scroller.clientWidth / 2) : null);
-// The hour chart's length: two hours for the 1 hour span, so the spectrogram's hour is outlined
-// within it as the shorter spans' views are; else an hour; on phones, 30 minutes.
+// Two hours for the 1 hour span (so its hour is outlined like shorter spans'), else an hour;
+// 30 minutes on phones.
 const chartLength = () => (PHONE.matches ? HOUR / 2 : span >= HOUR / 1e3 ? 2 * HOUR : HOUR);
 const hourEndAround = (t, newest) => Math.min(t + chartLength() / 2, newest);
-// Unless live and following, the hour chart follows the spectrogram's view: once the view's middle
-// is more than a fifth of the chart's length from the chart's, the chart re-centres on it (called every frame).
+// Unless live and following, re-centre on the view once their middles differ by a fifth of the
+// chart's length. Called every frame.
 let wasLastHour = true;
 function followView() {
   const lastHour = live && tracking;
@@ -1147,8 +1101,7 @@ function showView() {
   const view = document.getElementById("live-gantt-view");
   if (!view || !geo || !hourView) return;
   const {w0, w1} = hourView;
-  // The playhead, dashed as over the spectrogram; while live and following, the chart ends there,
-  // so it's left out.
+    // The playhead, dashed; omitted while live and following, since the chart ends there.
   const head = document.getElementById("live-gantt-playhead");
   head.hidden = (live && tracking) || playhead === null || playhead < w0 || playhead > w1;
   if (!head.hidden) head.style.left = ((playhead - w0) / (w1 - w0)) * 100 + "%";
@@ -1159,15 +1112,13 @@ function showView() {
   view.style.width = `max(2px, ${((b - a) / (w1 - w0)) * 100}%)`;
 }
 
-// Where the stretch of song holding the detection at `t` begins: weaker detections of the same
-// species just before it count too, as they do for the names over the spectrogram.
+// Start of the stretch of song holding the detection at `t`, counting weaker ones just before.
 function runStart(name, t) {
   const times = strips.flatMap((s) => s.detections).filter((d) => d.common_name === name).map((d) => Date.parse(d.at)).sort((a, b) => b - a);
   for (const at of times) if (at < t && t - at <= RUN_GAP + 3e3) t = at;
   return t;
 }
 
-// From the hour chart: the playhead to `t`, at its usual place in the view.
 function jumpTo(t) {
   seek(detectionPlaybackStart(t), PLAYHEAD_AT);
   document.querySelector(".live-head").scrollIntoView({block: "nearest", behavior: "smooth"});

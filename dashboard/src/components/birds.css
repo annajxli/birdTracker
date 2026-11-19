@@ -21,8 +21,7 @@
   box-shadow: 0 4px 12px #0002;
 }
 
-/* Masks content scrolling past above the sticky ribbon. It sits just outside the ribbon's
-   border box: at bottom: 100% it covered the 1px top border. */
+/* Masks content scrolling above the sticky ribbon; sits outside its border box to keep the top border. */
 .overview-navigation::before {
   content: "";
   position: absolute;
@@ -120,8 +119,7 @@
   text-align: center;
   font-family: var(--display);
   font-size: 0.92rem;
-  /* Sized per scale by its longest label (period-input.js sets the text's min-width), so the
-     arrows hold still while the date changes; the icon and date stay centered between them. */
+    /* period-input.js sets the min-width per scale, so the arrows hold still as the date changes. */
   justify-content: center;
   font-variant-numeric: tabular-nums;
   min-height: 28px;
@@ -259,8 +257,7 @@
 
 #home-activity .chart-slot:not(:has(observablehq-loading)) { min-height: 0; }
 
-/* Activity over time: the three numbers as a light strip above the chart (no boxes), so the
-   chart gets the full width. */
+/* Activity over time: the three numbers as a light strip above the full-width chart. */
 .activity-layout {
   display: flex;
   flex-direction: column;
@@ -544,7 +541,6 @@ a.bird-name[href]:hover {
   display: block;
 }
 
-/* Species page header with photo */
 .species-head {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(200px, 360px);
@@ -597,8 +593,7 @@ a.bird-name[href]:hover {
   min-height: var(--chart-height, 220px);
 }
 
-/* Saved dimensions are applied in <head>, before the first paint on refresh.
-   Fallbacks cover the first visit; only pending cells reserve this space. */
+/* Saved dimensions apply in <head> before first paint; fallbacks cover the first visit. */
 .layout-reserve:has(observablehq-loading) {
   min-height: var(--layout-saved-height, var(--layout-height));
   box-sizing: border-box;
@@ -973,8 +968,7 @@ a.stat-link[href]:hover {
   text-overflow: ellipsis;
 }
 
-/* Phones: compact controls. Each control is one line (name, then its options as
-   pills that scroll sideways if needed); the date picker and toggles share a line. */
+/* Phones: each control on one line, options as sideways-scrolling pills. */
 @media (max-width: 640px) {
   .filters {
     gap: 8px 14px;
@@ -1083,8 +1077,7 @@ a.stat-link[href]:hover {
   }
 }
 
-/* Overview: "Show last" and weather controls in a column to the left of what they
-   change (stats and the per-day chart). Phones keep them on top, as pills. */
+/* Overview: controls in a column left of what they change; on top, as pills, on phones. */
 .zoom-main {
   display: flex;
   flex-direction: column;
@@ -1142,8 +1135,7 @@ a.stat-link[href]:hover {
     margin: 0;
   }
 
-  /* A lone checkbox (e.g. "Daylight only"): box first, then its label, lined up
-     like the radio options above it. */
+    /* A lone checkbox ("Daylight only"), lined up like the radio options above it. */
   .zoom-controls .filters form.inputs-3a86ea-toggle {
     display: flex;
     align-items: center;
@@ -1229,8 +1221,7 @@ a.stat-link[href]:hover {
   font-style: italic;
 }
 
-/* A section label sits close to the card it names, the same 8px everywhere
-   (the column's 1rem gap is for spacing between cards). */
+/* A section label sits 8px from its card; the column's 1rem gap spaces cards. */
 .section-top:has(.section-sub) {
   margin-bottom: 0.5rem;
 }
@@ -1244,7 +1235,6 @@ a.stat-link[href]:hover {
   margin-top: 0;
 }
 
-/* Expand / collapse button above the timeline. */
 .timeline-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -1325,11 +1315,9 @@ a.stat-link[href]:hover {
   }
 }
 
-/* Sort sits in the timeline card's top-right corner, outside the redrawn chart, so it keeps
-   keyboard focus when it changes the chart. */
+/* Sort sits outside the redrawn chart so it keeps keyboard focus. */
 .timeline-card { position: relative; }
-/* z-index 2: above the chart's resize wrapper (position: relative, later in the page, so it
-   otherwise covers the pills and swallows clicks), below the sticky ribbon (5). */
+/* z-index 2: above the chart's later resize wrapper (which would swallow clicks), below the ribbon (5). */
 .timeline-card > .timeline-sort { position: absolute; top: 14px; right: 20px; margin: 0; z-index: 2; }
 .timeline-card .timeline-toolbar { min-height: 1.75rem; margin-bottom: 0; }
 
@@ -1374,14 +1362,11 @@ g[aria-label="y-axis tick label"] text { cursor: pointer; }
 .species-pop-rows > div > span:last-child { text-align: right; }
 .species-pop-more { font-weight: 600; }
 
-/* Framework's spinning loading glyph: never shown. The skeletons below mark loading instead
-   (they key off the element being there, not visible). */
+/* Framework's loading glyph is hidden; skeletons key off its presence instead. */
 observablehq-loading { visibility: hidden; }
 
-/* Loading skeletons. While a slot's cell is still loading (it holds an <observablehq-loading>),
-   faint shapes in the slot hint at what's coming: rows for timelines, bars for rankings, cards
-   for photo strips, a cell grid for heatmaps, lines for tables, an axis and band for other
-   charts. A slow shimmer runs over them unless the viewer prefers reduced motion. */
+/* Loading skeletons: faint shapes hinting at each pending slot's content, shimmering unless the
+   viewer prefers reduced motion. */
 :root {
   --skel: color-mix(in srgb, currentColor 8%, transparent);
   --skel-strong: color-mix(in srgb, currentColor 13%, transparent);
@@ -1436,8 +1421,7 @@ observablehq-loading { visibility: hidden; }
     linear-gradient(var(--skel-strong), var(--skel-strong)) left top / 100% 14px no-repeat,
     repeating-linear-gradient(to bottom, transparent 0 22px, var(--skel) 22px 34px) left top / 100% 100% no-repeat;
 }
-/* Values inside text (stat numbers, dates, captions): a short pill in place of Framework's
-   loading glyph. */
+/* Values inside text: a short pill in place of Framework's loading glyph. */
 observablehq-loading { font-size: 0; }
 observablehq-loading::before, observablehq-loading::after, observablehq-loading > * { display: none !important; }
 :is(p, .big, .sub, h1, h2, span, div:not(.layout-reserve, .chart-slot, .table-slot, .skeleton)) > observablehq-loading {
@@ -1582,7 +1566,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   z-index: 1;
 }
 .live-strip, .live-gap { cursor: pointer; }
-.live-scroller:focus:not(:focus-visible) { outline: none; } /* a ring for keyboard focus, not clicks */ /* click to play from there */
+.live-scroller:focus:not(:focus-visible) { outline: none; } /* a ring for keyboard focus, not clicks */
 .live-button:hover { color: var(--theme-foreground-focus); }
 .live-span button { white-space: nowrap; }
 .live-status.is-quiet { color: var(--theme-foreground); }
@@ -1754,8 +1738,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   .live-gantt-axis .is-minor { display: none; }
 }
 
-/* Hardware analytics: status tags and meters. Status colors are fixed across themes, and
-   every level also has its own shape and word (● good, ▲ warning, ■ critical). */
+/* Hardware status: fixed colors across themes, each level also with a shape and word. */
 .status-good { --status: #0ca30c; }
 .status-warning { --status: #fab219; }
 .status-critical { --status: #a82a2a; }
@@ -1819,8 +1802,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
   white-space: nowrap;
 }
 
-/* Recent history at the foot of a stat card: half-hour bars, tall when good, shorter when okay,
-   short when bad (so the status reads by height too, not only color); a stub where no data. */
+/* Card history bars: height also encodes status (not only color); a stub where no data. */
 .status-strip {
   display: flex;
   align-items: flex-end;
@@ -1850,8 +1832,7 @@ observablehq-loading::before, observablehq-loading::after, observablehq-loading 
 
 .strip-bar.is-plain { background: var(--theme-foreground-muted); }
 
-/* History strips sit on the card's bottom edge, so they line up across a row whether or not the
-   card has a meter above. */
+/* Strips sit on the card's bottom edge so they align across a row, meter or not. */
 .grid.stats .card:has(.card-history) {
   display: flex;
   flex-direction: column;
@@ -2216,9 +2197,8 @@ tr:has(.review-cell.is-rejected) td:not(:last-child) { text-decoration: line-thr
 /* Phones leave out the Live page's 1 hour span (see PHONE_MAX_SPAN in live.md). */
 @media (max-width: 640px) { .live-span .live-span-wide { display: none; } }
 
-/* Phones: the Live controls in two rows: playback and sound, then the span. Icon buttons lose
-   their outlines and keep a highlight when on; the sound button becomes its speaker (its label
-   stays for screen readers), and Bird boost keeps a small label. */
+/* Phones: Live controls in two rows (playback and sound, then span). The sound button shows
+   only its speaker, its label kept for screen readers. */
 @media (max-width: 640px) {
   .live-controls { gap: 0.4rem 0.25rem; }
   .live-transport { gap: 0; }

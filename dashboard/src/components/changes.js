@@ -1,8 +1,6 @@
-// Changes in how much each species is heard, between two sets of recorded days. A change only
-// counts if it is unlikely under chance: minutes come in bouts, so day-to-day counts swing a
-// lot, and the day (not the minute) is the independent unit. Each species gets a permutation
-// test on its per-day minutes (shuffle which window each recorded day belongs to), and the
-// p-values are adjusted for testing every species at once (Benjamini-Hochberg).
+// Changes in minutes heard per species between two sets of recorded days. Minutes come in bouts,
+// so the day is the independent unit: each species gets a permutation test on per-day minutes,
+// with Benjamini-Hochberg adjustment across species.
 
 const DAY_MS = 86400000;
 const FLOOR = 0.25; // minutes per day added to both sides of a ratio, so 0 -> 0.3 isn't infinite
@@ -20,8 +18,7 @@ function random(seed) {
   };
 }
 
-// For n days of which the first k are "now": `permutations` random choices of k days to call
-// "now", shared by every species tested on the same days.
+// For n days, the first k "now": `permutations` random k-day choices, shared across species.
 function shuffles(n, k, permutations, seed) {
   const rand = random(seed);
   const picks = new Uint16Array(permutations * k);
@@ -36,8 +33,7 @@ function shuffles(n, k, permutations, seed) {
   return picks;
 }
 
-// Two-sided p-value for the difference in mean per-day minutes: counts[0..k) are "now",
-// counts[k..n) "before".
+// Two-sided p-value for the difference in mean per-day minutes; counts[0..k) are "now".
 function pValue(counts, k, picks, permutations) {
   const n = counts.length;
   let total = 0;
@@ -92,9 +88,8 @@ function testWindows(counts, k, n, {permutations, seed}) {
   });
 }
 
-// Species whose minutes heard per day changed between two windows of recorded days, beyond what
-// chance would give. Returns increases (largest first) then decreases (largest last), up to
-// `limit` of each, ranked by the size of the change relative to how common the species is.
+// Species whose per-day minutes changed beyond chance: increases (largest first) then decreases
+// (largest last), up to `limit` each, ranked by change relative to how common the species is.
 export function windowChanges(minutes, nowDays, beforeDays, {limit = 8, alpha = 0.05, permutations = 2000, seed = 1} = {}) {
   const days = [...nowDays, ...beforeDays];
   if (!nowDays.length || !beforeDays.length) return [];
@@ -105,10 +100,8 @@ export function windowChanges(minutes, nowDays, beforeDays, {limit = 8, alpha = 
   return [...up, ...down];
 }
 
-// Minutes heard on one day against the day before, with no test: a day is one sample, so this
-// only describes what changed ("more House Finch than yesterday"). Species whose minutes moved by
-// at least `minDelta` are kept, increases (largest first) then decreases (largest last), up to
-// `limit` of each.
+// One day vs. the day before, untested (one sample only describes). Keeps moves of at least
+// `minDelta`, ordered and limited as in windowChanges.
 export function dayChanges(minutes, day, previous, {limit = 8, minDelta = 3} = {}) {
   const counts = dailyCounts(minutes, [day, previous]);
   const rows = [...counts].map(([species, c]) => ({species, before: c[1], now: c[0], delta: c[0] - c[1]}))

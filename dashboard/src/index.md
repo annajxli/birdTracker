@@ -60,8 +60,7 @@ const overviewData = Generators.observe((notify) => {
 const {all, recordings, thresholdsFile, recordedUntil} = overviewData;
 // Learned per-species thresholds (scientific name -> entry); the confidence control covers the rest.
 const thresholds = thresholdsFile?.species ?? null;
-// Minutes with birdsong BirdNET couldn't name (the recorder's unidentified_windows, when it has
-// them), for the day timeline's muted last row.
+// Minutes of unnamed birdsong (unidentified_windows, when present), for the timeline's last row.
 const unidentifiedMinutes = (() => {
   const col = (k) => (recordings?.schema.fields.some((f) => f.name === k) ? recordings.getChild(k) : null);
   const uw = col("unidentified_windows"), time = col("time"), date = col("date");
@@ -69,7 +68,7 @@ const unidentifiedMinutes = (() => {
   return d3.range(recordings.numRows).filter((i) => uw.get(i) > 0).map((i) => ({time: new Date(Number(time.get(i))), date: date.get(i)}));
 })();
 if (!all.length) {
-  // Nothing recorded yet: say so, and leave the rest of the page waiting instead of erroring.
+    // Nothing recorded yet: leave the rest of the page waiting instead of erroring.
   display(html`<p class="sub">No recordings yet. Detections show up here once the recorder has sent some audio.</p>`);
   await new Promise(() => {});
 }
@@ -79,13 +78,12 @@ const audioSpans = (() => {
   const time = recordings.getChild("time"), seconds = recordings.getChild("seconds"), simulated = recordings.getChild("simulated");
   return d3.range(recordings.numRows).filter((i) => !simulated?.get(i)).map((i) => [Number(time.get(i)), Number(time.get(i)) + seconds.get(i) * 1e3]);
 })();
-// Days with audio from the recorder (not simulated), or with a detection.
 const recordedDates = new Set(all.map((d) => d.date));
 if (recordings) {
   const date = recordings.getChild("date"), simulated = recordings.getChild("simulated");
   for (let i = 0; i < recordings.numRows; ++i) if (!simulated?.get(i)) recordedDates.add(date.get(i));
 }
-// The newest of them, so a new day starts at midnight while the recorder runs.
+// The newest, so a new day starts at midnight while the recorder runs.
 const latest = d3.max(recordedDates);
 const dataStart = d3.min(all, (d) => d.date);
 const yearAgo = d3.utcDay.offset(d3.utcYear.offset(new Date(latest), -1), 1).toISOString().slice(0, 10);
@@ -104,7 +102,7 @@ const daylightOnly = Generators.input(daylightIn);
 ```
 
 ```js
-// Depends only on the threshold, so moving between periods doesn't recompute the year-round charts.
+// Depends only on the threshold, so changing period doesn't recompute the year-round charts.
 const confident = all.filter((d) => includedDetection(d, minConf, thresholds));
 // Unidentified only where no bird was named at this confidence that minute.
 const namedMinutes = new Set(confident.map((d) => Math.floor(+d.time / 6e4)));
@@ -127,9 +125,8 @@ const activityScale = Generators.input(activitySpanIn);
 const listSpanIn = spanInput("species", "W");
 const listScale = Generators.input(listSpanIn);
 
-// Changing the period changes how tall the charts are. Keep whichever chart fills most of the
-// screen where it is: note its position when the period changes, and hold it there while the
-// charts redraw (for ~2.5 s, or until the viewer scrolls).
+// Changing the period changes chart heights: hold the chart filling most of the screen in place
+// while charts redraw (about 2.5 s, or until the viewer scrolls).
 {
   let release = null;
   const holdAnchor = () => {
@@ -168,8 +165,8 @@ const sortBy = Generators.input(sortIn);
 ```js
 periodIn.setBounds({first: d3.min(recordedDates), last: latest});
 const date = selection.date;
-// A section's dates: its span, ending on the chosen date. Statistics use real rows, while
-// calendar axes retain unrecorded/future dates.
+// A section's dates: its span ending on the chosen date. Stats use real rows; calendar axes keep
+// unrecorded and future dates.
 const spanView = (scale) => {
   const {start, end} = overviewBounds(scale, date, dataStart, latest);
   const period = dateSpan(start, end);
@@ -202,9 +199,8 @@ const recent = recentSpecies(confident, {limit: 12});
 
 
 ```js
-// The viewer's expand/collapse choices for the timeline (category or "*" -> collapsed?).
+// Timeline expand/collapse choices (category or "*" -> collapsed?), kept across periods.
 const timelineOverrides = Mutable(new Map());
-// Kept while the viewer moves between periods, so a category they opened stays open.
 const setTimelineCollapsed = (pairs) => { timelineOverrides.value = new Map([...timelineOverrides.value, ...pairs]); };
 ```
 
@@ -212,7 +208,7 @@ const setTimelineCollapsed = (pairs) => { timelineOverrides.value = new Map([...
 const spanDates = rhythm.period.filter((d) => recordedDates.has(d));
 const spanDateSet = new Set(spanDates);
 const calendarSpanDays = rhythm.calendarDays;
-// How many species rows fit on one screen: a collapsed list (sorted other than by category) shows this many.
+// Species rows that fit on one screen: the length of a collapsed non-category list.
 const timelineMaxRows = Math.max(10, Math.floor((window.innerHeight - 220) / 17));
 const timelineDates = rhythm.scale === "D" ? formatDate(date) : dateRange(rhythm.start, rhythm.end);
 ```
@@ -234,8 +230,8 @@ const timelineDates = rhythm.scale === "D" ? formatDate(date) : dateRange(rhythm
 </section>
 
 ```js
-// Counts below are minutes, not raw 3-second detections: "minutes heard" per species,
-// and "minutes of birdsong" (clock minutes with any bird) for all species.
+// Counts are minutes, not 3-second detections: "minutes heard" per species, "minutes of
+// birdsong" (clock minutes with any bird) overall.
 const minutes = minutesHeard(rows);
 const songMinutes = birdsongMinutes(rows);
 
@@ -245,7 +241,7 @@ const speciesCount = new Set(rows.map((d) => d.species)).size;
 
 ```js
 const perDay = d3.rollup(minutes, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => d.date);
-// Each bar spans noon-to-noon around its date, so it's centered on that date's axis tick.
+// Bars span noon to noon, centering each on its date's tick.
 const halfDay = 12 * 36e5;
 const daily = period.map((date) => {
   const day = new Date(date);
@@ -253,8 +249,7 @@ const daily = period.map((date) => {
 });
 const gap = period.length <= 90 ? 1 : 0;
 const daySun = sun[date];
-// The day view's hours: 90 minutes either side of daylight with "Daylight only", else the whole
-// Pacific day (midnight to midnight).
+// Day view hours: 90 minutes beyond daylight with "Daylight only", else the whole Pacific day.
 const pacificMidnight = (date) => { const t = Date.parse(date + "T08:00:00Z"); return t - (+new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"})) * 36e5; };
 const daylightWindow = !daylightOnly
   ? [new Date(pacificMidnight(date)), new Date(pacificMidnight(new Date(Date.parse(date + "T12:00:00Z") + 864e5).toISOString().slice(0, 10)))]
@@ -264,8 +259,7 @@ const clockMinutes = d3.rollup(activityScale === "D" && daylightWindow ? rows.fi
   (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size,
   (d) => Math.floor(+d.time / songBinMs));
 const songBins = [...clockMinutes].map(([bin, count]) => ({x1: new Date(bin * songBinMs), x2: new Date((bin + 1) * songBinMs), count}));
-// Week view: minutes of birdsong per local hour, placed inside each day's slot of the chart
-// (a day's slot runs from 12 hours before to 12 hours after its date's tick).
+// Week view: minutes of birdsong per local hour, inside each day's noon-to-noon slot.
 const weekHours = activityScale === "W"
   ? d3.rollups(rows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => d.date, (d) => d.hour)
       .flatMap(([date, byHour]) => byHour.map(([hour, count]) => ({date, hour, count})))
@@ -280,11 +274,10 @@ const top = d3.rollups(listMinutes, (v) => v.length, (d) => d.species)
   .map(([species, count]) => ({species, count}));
 ```
 ```js
-// Trends follow the period's scale. A day is set against the day before, as plain counts (one
-// day is one sample, so there's nothing to test). A week is set against the 7 days before it.
-// Longer periods compare the 30 days ending with the period against the 30 days before, so a
-// few days of a new month never face a whole month. Weeks and months keep only changes
-// unlikely to be chance (see changes.js), ranked by relative size.
+// Trends follow the period: a day vs. the day before (plain counts, one sample, nothing to test);
+// a week vs. the 7 days before; longer periods compare 30 days vs. the 30 before, so a partial
+// month never faces a whole one. Weeks and months keep only changes unlikely to be chance
+// (changes.js), ranked by relative size.
 const TREND_DAYS = 30, MIN_RECORDED_DAYS = 7, MIN_WEEK_DAYS = 4;
 const recordedIn = (from, to) => dateSpan(from, to).filter((d) => recordedDates.has(d)).length;
 const trendScale = listScale === "D" ? "D" : listScale === "W" ? "W" : "30";
@@ -299,17 +292,16 @@ cmp.prevLabel = dateRange(cmp.prevFrom, cmp.prevTo);
 const minDays = trendScale === "D" ? 1 : trendScale === "W" ? MIN_WEEK_DAYS : MIN_RECORDED_DAYS;
 const comparable = cmp.prevFrom >= dataStart
   && recordedIn(cmp.nowFrom, cmp.nowTo) >= minDays && recordedIn(cmp.prevFrom, cmp.prevTo) >= minDays;
-// A day still being recorded faces the day before only up to the same time of day (Pacific).
-// Its end is the last audio, or the last detection where there's no recordings table.
+// A day still being recorded faces the day before only up to the same time (Pacific): its last
+// audio, or last detection without a recordings table.
 const coveredUntil = audioSpans?.length ? d3.max(audioSpans, ([, b]) => b) : d3.max(all, (d) => +d.time);
 const dayCutoff = trendScale === "D" && cmp.nowTo === latest ? coveredUntil - pacificMidnight(cmp.nowTo) : Infinity;
-// "Sep 1 – 30 vs. Oct 1 – 22": the exact dates, beside the section label, and for a day still
-// being recorded, the time its data runs until: "Oct 27 vs. Oct 28 (data until 11:02 AM)".
+// "Sep 1 – 30 vs. Oct 1 – 22", plus "(data until 11:02 AM)" for a day still being recorded.
 const untilTime = new Date(coveredUntil).toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"});
 const compareDates = !comparable ? "" : `${cmp.prevLabel} vs. ${cmp.nowLabel}${Number.isFinite(dayCutoff) ? ` (data until ${untilTime})` : ""}`;
 const trendMinutes = minutesHeard(confident.filter((d) => d.date >= cmp.prevFrom && d.date <= cmp.nowTo
   && +d.time - pacificMidnight(d.date) < dayCutoff));
-// Today with nothing heard yet: no trends, rather than a few minutes of one day against another.
+  // Today with nothing heard yet: no trends.
 const nothingYetToday = trendScale === "D" && cmp.nowTo === new Date().toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"})
   && !confident.some((d) => d.date === cmp.nowTo);
 const changes = !comparable ? []
@@ -356,13 +348,10 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             // The bin still being recorded pulses (see .bar-in-progress in birds.css).
             marks: [false, true].map((open) => Plot.rectY(songBins.filter((d) => (d.x1 <= Date.now() && Date.now() < d.x2) === open), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: 1, insetRight: 1, clip: true, className: open ? "bar-in-progress" : undefined, channels: {Time: (d) => [d.x1, d.x2].map((t) => t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})).join("–")}, tip: {format: {x1: false, x2: false, Time: true, y: true}}})).concat(Plot.ruleY([0], {strokeOpacity: 0.3}))
           })}${(() => {
-            // Hourly temperature for the day, on the same clock as the bars above.
-            // The line runs exactly from the chart's left edge to its right edge (values there are
-            // interpolated between hours), 8 px in from the axis like the bars.
+                        // Hourly temperature, on the bars' clock, edge to edge (interpolated at the ends).
             const temps = weatherHourly[date] ?? [];
             const midnight = +new Date(daySun.start);
             const observed = temps.map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)})).filter((d) => d.temp != null);
-            // Today, the forecast continues it.
             const forecast = (forecastHourly[date] ?? []).map((temp, hour) => ({t: new Date(midnight + hour * 36e5), temp, when: formatHour(hour)}))
               .filter((d) => d.temp != null && (!observed.length || d.t > observed.at(-1).t));
             const hourly = [...observed, ...forecast];
@@ -374,7 +363,7 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             };
             const end = hourly.length ? new Date(Math.min(+daylightWindow[1], +hourly.at(-1).t)) : null;
             const line = end > daylightWindow[0] ? [at(daylightWindow[0]), ...hourly.filter((d) => d.t > daylightWindow[0] && d.t < end), at(end)] : [];
-            // Solid up to now, then dashed: the forecast. A past day is all solid.
+                        // Solid up to now, then dashed forecast.
             const [points, ahead] = forecast.length ? splitAt(line, new Date(), (t) => at(t).when) : [line, []];
             return line.length ? hourlyTemperatureStrip(points, {width, domain: daylightWindow, inset: 8, forecast: ahead, ...margins}) : "";
           })()}<div class="period-weather">${w ? `${w.forecast ? "Forecast: " : ""}${weatherKind(w.code)[1]} · ${Math.round(w.low)}–${Math.round(w.high)}°F · ${d3.format(".2f")(w.precip)}" rain` : "Weather unavailable"}</div>${w?.forecast && weatherNow ? html`<div class="period-weather">Now: ${weatherNow.text}${weatherNow.tempF == null ? "" : ` · ${Math.round(weatherNow.tempF)}°F`} (${(weatherNow.tempF == null ? weatherNow.time : weatherNow.tempTime).toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"})})</div>` : ""}</div>`;
@@ -383,13 +372,11 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
         const tickFormat = dayTickFormat(period, {short: period.length <= 14 && (width - margins.marginLeft - margins.marginRight) / period.length < 45});
         const frame = dayFrame(period, width, margins);
         const inset = dayInset(period, width, gap, margins);
-        // Strips under the detections, top to bottom.
         const availableDates = period.filter((date) => date >= dataStart && date <= latest);
         const periodWeather = Object.fromEntries(availableDates.filter((date) => weather[date] && !weather[date].forecast).map((date) => [date, weather[date]]));
-        // Today's icon is its forecast: the day is already under way.
+                // Today's icon is its forecast, since the day is under way.
         const conditions = Object.fromEntries(availableDates.filter((date) => weather[date]).map((date) => [date, weather[date]]));
-        // Week: each hour's temperature at the middle of its slot, observed and then (today) the
-        // forecast, solid up to now and dashed after.
+                // Week: hourly temperature at each slot's middle, dashed after now.
         const weekHourly = (byDate) => availableDates.flatMap((date) => (byDate[date] ?? []).map((temp, hour) => ({
           t: new Date(+new Date(date) - 12 * 36e5 + (hour + 0.5) * 36e5), temp,
           when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(hour)}`
@@ -413,15 +400,13 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
             return {date, bin, count, x1: new Date(dayStart + bin * hoursPerBin * 36e5), x2: new Date(dayStart + (bin + 1) * hoursPerBin * 36e5),
               when: `${formatDate(date, {weekday: "short", month: "short", day: "numeric"})}, ${formatHour(bin * hoursPerBin)}–${formatHour((bin + 1) * hoursPerBin % 24)}`};
           })) : [];
-        // Each day's sunrise and sunset, on the same local clock as the hourly bars.
         const suns = !hoursPerBin ? [] : availableDates.filter((date) => sun[date]).flatMap((date) => ["sunrise", "sunset"].map((key) => ({
           t: new Date(+new Date(date) - 12 * 36e5 + wallHours(sun[date][key]) * 36e5), kind: key === "sunrise" ? "Sunrise" : "Sunset", at: new Date(sun[date][key])
         })));
         const yLabel = hoursPerBin ? `Minutes of birdsong per ${hoursPerBin === 1 ? "hour" : "3 hours"}` : "Minutes of birdsong per day";
-        // The week view leaves room under the axis for the sunrise and sunset ticks.
         const plotHeight = (strips.length ? 200 : 230) + (hoursPerBin ? 28 : 0), marginTop = 10, marginBottom = (strips.length ? 6 : 30) + (hoursPerBin ? 28 : 0);
-        // The ticks' icons sit 20 px under the axis (sunTicks), in the y scale's units, so the tip
-        // aims there and a short bar's own tip wins over a nearby tick's.
+                // Sun tick icons sit 20 px under the axis (sunTicks), so the tip aims there and a short
+                // bar's own tip wins over a nearby tick's.
         const iconY = hoursPerBin ? (-20 * 60 * hoursPerBin) / (plotHeight - marginTop - marginBottom) : 0;
         const detections = Plot.plot({
           ...frame,
@@ -435,9 +420,8 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
           marks: [
             hoursPerBin
               ? (() => {
-                  // The bin still being recorded pulses (see .bar-in-progress in birds.css). One tip for
-                  // the bars and the sunrise and sunset ticks: a tip on each mark would give each its
-                  // own pointer, so two could show. It aims at each bar's middle and at each tick's icon.
+                                    // In-progress bin pulses (.bar-in-progress). One shared tip for bars and sun ticks,
+                                    // since a tip per mark could show two at once.
                   const now = new Date(), today = now.toLocaleDateString("en-CA", {timeZone: "America/Los_Angeles"});
                   const bin = Math.floor(+now.toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"}) / hoursPerBin);
                   return [
@@ -449,7 +433,6 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
                   ];
                 })()
               : Plot.rectY(daily.filter((d) => !d.offline), {x1: "x1", x2: "x2", y: "count", fill: seriesColor(dark), insetLeft: inset, insetRight: inset, ry2: gap ? 2 : 0, channels: {Day: (d) => formatDate(d.date)}, tip: {format: {Day: true, x1: false, x2: false, y: ","}}}),
-            // Midnight lines between days in the hourly view.
             hoursPerBin ? Plot.ruleX(period.slice(1), {x: (d) => new Date(+new Date(d) - 12 * 36e5), strokeOpacity: 0.15}) : null,
             hoursPerBin ? sunTicks(suns) : null,
             Plot.ruleY([0], {strokeOpacity: 0.3})
@@ -471,10 +454,9 @@ const historicalChanges = comparable || trendScale !== "30" ? [] : biggestMonthl
       </div>
       <div id="home-ranking" class="layout-reserve">
         ${resize((width) => {
-          // Beside the trends chart, fill the same height (its rows + legend); stacked on narrow
-          // screens, use a natural height.
+                    // Beside the trends chart, match its height; stacked on narrow screens, natural height.
           const besideTrends = comparable && changes.length && window.innerWidth > 960;
-          // Narrow screens put each name on a line above its bar, so the bars get the full width.
+                    // Narrow screens put names above their bars.
           const compact = width < 520;
           const height = besideTrends ? Math.max(top.length * 20 + 30, changes.length * 26 + 26 * (changes.some((d) => d.now >= d.before) + changes.some((d) => d.now < d.before)) + 45) : top.length * (compact ? 34 : 24) + 30;
           const band = (height - 30) / Math.max(1, top.length);
@@ -532,14 +514,13 @@ const recordedDays = d3.rollup(new Set(all.filter((d) => d.date >= presenceStart
 const weeks = d3.utcWeek.range(week(presenceStart), d3.utcDay.offset(new Date(presenceEnd), 1));
 const recordedWeeks = recordedDays.size;
 
-// For each species and week: share of recorded days it was heard.
 const speciesWeekDays = d3.rollup(presenceRows, (v) => new Set(v.map((d) => d.date)).size, (d) => d.species, (d) => +week(d.date));
 const presence = [];
 for (const [species, byWeek] of speciesWeekDays) {
   for (const [t, days] of byWeek) presence.push({species, week: new Date(t), days, of: recordedDays.get(t), share: days / recordedDays.get(t)});
 }
 
-// Top 40 species by days heard; residents (heard most weeks) first, then visitors by when they peak.
+// Top 40 species by days heard: residents (heard most weeks) first, then visitors by peak.
 const stats = d3.rollups(presence, (v) => ({
   days: d3.sum(v, (d) => d.days),
   weeks: v.length,
@@ -553,7 +534,7 @@ const order = [
 ].map(([s]) => s);
 const shownSet = new Set(order);
 
-// The same shares by month, for narrow screens where 52 week columns would be ~2px each.
+// By month for narrow screens, where 52 week columns would be ~2 px each.
 const month = (date) => d3.utcMonth.floor(new Date(date));
 const recordedMonthDays = d3.rollup(new Set(all.filter((d) => d.date >= presenceStart && d.date <= presenceEnd).map((d) => d.date)), (v) => v.length, (date) => +month(date));
 const months = d3.utcMonth.range(month(presenceStart), d3.utcDay.offset(new Date(presenceEnd), 1));
@@ -562,8 +543,7 @@ for (const [species, byMonth] of d3.rollup(presenceRows.filter((d) => shownSet.h
   for (const [t, days] of byMonth) monthPresence.push({species, week: new Date(t), days, of: recordedMonthDays.get(t), share: days / recordedMonthDays.get(t)});
 }
 
-// Grouped by category like the daily timeline. A collapsed category is one row: the share of
-// recorded days on which any of its shown species was heard.
+// A collapsed category row is the share of recorded days with any of its shown species.
 const presenceCategoryOf = (s) => categories?.species[s] ?? "Other";
 const presenceGroups = d3.groups(order, presenceCategoryOf)
   .sort(([a], [b]) => (categories?.order.indexOf(a) ?? 0) - (categories?.order.indexOf(b) ?? 0));
@@ -576,7 +556,7 @@ const categoryMonth = categoryShares(month, recordedMonthDays);
 ```
 
 ```js
-// Mini species cards wherever a species name appears: hover on desktop, tap on phones.
+// Mini species cards: hover on desktop, tap on phones.
 const periodMinutes = d3.rollup(listMinutes, (v) => v.length, (d) => d.species);
 const stopSpeciesCards = speciesCards(speciesInfoFrom({all, confident, photos, categories, thresholds, minConf,
   extraRows: (species) => [[listScale === "A" ? "All time" : "This period", `${d3.format(",")(periodMinutes.get(species) ?? 0)} minutes heard`]]}));
@@ -584,7 +564,7 @@ invalidation.then(stopSpeciesCards);
 ```
 
 ```js
-// The viewer's expand/collapse choices for the presence chart (category -> collapsed?).
+// Presence chart expand/collapse choices (category -> collapsed?).
 const presenceOverrides = Mutable(new Map());
 const setPresenceCollapsed = (pairs) => { presenceOverrides.value = new Map([...presenceOverrides.value, ...pairs]); };
 ```
@@ -594,8 +574,8 @@ const speciesPerWeek = d3.rollup(presenceRows, (v) => new Set(v.map((d) => d.spe
 // Unrecorded weeks are left out (a gap), not drawn as zero species.
 const richness = weeks.map((w) => ({week: w, species: recordedDays.has(+w) ? speciesPerWeek.get(+w) ?? 0 : NaN}));
 
-// Birdsong across the year: minutes of birdsong per recorded day, by week and
-// Pacific hour of day, with each week's sunrise and sunset (mid-week) as wall-clock hours.
+// Birdsong across the year: minutes per recorded day by week and Pacific hour, with each week's
+// mid-week sunrise and sunset.
 const songByWeekHour = d3.rollup(presenceRows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => +week(d.date), (d) => d.hour);
 const songGrid = weeks.flatMap((w, row) => !recordedDays.has(+w) ? [] : d3.range(24).map((hour) => {
   const minutes = songByWeekHour.get(+w)?.get(hour) ?? 0;
@@ -620,7 +600,6 @@ const weekSun = weeks.map((w, row) => {
     ${resize((width) => {
       const byMonth = width < 520;
       const fmt = (d, opts) => d.toLocaleDateString("en-US", {timeZone: "UTC", ...opts});
-      // Tips read as sentences: "Week of **Nov 30**", "**43%** of days heard", ...
       const period = (d) => (byMonth ? `**${fmt(d, {month: "long", year: "numeric"})}**` : `Week of **${fmt(d, {month: "short", day: "numeric"})}**`);
       const heard = (d) => `**${d3.format(".0%")(d.share)}** of days heard\n${d.days} of ${d.of} recorded days heard`;
       // Starts collapsed when every species wouldn't fit on one screen, as the timeline does.
@@ -631,7 +610,7 @@ const weekSun = weeks.map((w, row) => {
       const speciesCells = (byMonth ? monthPresence : presence.filter((d) => shownSet.has(d.species))).filter((d) => !collapsedOf(presenceCategoryOf(d.species)));
       const groupCells = (byMonth ? categoryMonth : categoryWeek).filter((d) => collapsedOf(d.category));
       const cellInset = byMonth ? 1 : 0.5;
-      // Narrow screens put each name on a line above its cells, so the cells get the full width.
+            // Narrow screens put names above their cells.
       const compact = width < 520;
       const rowPx = compact ? 32 : 18, nameLeft = compact ? 4 : nameMargin(width);
       const above = compact ? {textAnchor: "start", dx: 0, dy: -rowPx / 2 + 7} : {};
@@ -645,7 +624,6 @@ const weekSun = weeks.map((w, row) => {
         ? {type: "band", domain: months, tickFormat: (d) => (d.getUTCMonth() % 3 === 0 ? fmt(d, {month: "short"}) : ""), tickSize: 0, label: null, round: false}
         : {type: "band", domain: weeks, tickFormat: (d) => (d.getUTCDate() <= 7 ? fmt(d, {month: "short"}) : ""), tickSize: 0, label: null, round: false},
       y: {domain: rowsOrder, label: null},
-      // The color bar starts where the heatmap's cells do; on phones it spans them exactly.
       color: sequential(dark, {legend: true, label: "% of days heard", domain: [0, 1], tickFormat: ".0%",
         marginLeft: nameLeft + cellInset, ...(width < 520 ? {width, marginRight: 12 + cellInset, ticks: 3} : {width: nameLeft + 260, marginRight: 20})}),
       marks: [
@@ -678,7 +656,7 @@ const weekSun = weeks.map((w, row) => {
         marks: [
           Plot.areaY(richness, {x: "week", y: "species", fill: seriesColor(dark), fillOpacity: 0.1, curve: "monotone-x"}),
           Plot.lineY(richness, {x: "week", y: "species", stroke: seriesColor(dark), strokeWidth: 2, curve: "monotone-x"}),
-          // Dots too, so a week standing alone (no recorded neighbour to join) still shows.
+                    // Dots too, so an isolated week still shows.
           Plot.dot(richness, {x: "week", y: "species", fill: seriesColor(dark), r: 2.5}),
           Plot.ruleY([0], {strokeOpacity: 0.3}),
           Plot.tip(richness, Plot.pointerX({x: "week", y: "species", format: {x: (d) => `Week of ${d.toLocaleDateString("en-US", {timeZone: "UTC", month: "short", day: "numeric"})}`}}))
@@ -690,7 +668,7 @@ const weekSun = weeks.map((w, row) => {
       <div class="chart-slot">
       ${resize((width) => {
         const hourLabel = (h) => ["12a", "6a", "12p", "6p", "12a"][h / 6];
-        // A month label on the first week of every other month (rows are ~3px; monthly labels collide).
+                // Every other month's first week: monthly labels collide at ~3 px rows.
         const monthRows = weeks.map((w, row) => ({w, row})).filter(({w}, i) => i > 0 && w.getUTCMonth() !== weeks[i - 1].getUTCMonth());
         const labelRows = monthRows.filter((_, i) => i % 2 === 0);
         const fmtWeek = (w) => w.toLocaleDateString("en-US", {timeZone: "UTC", month: "short", day: "numeric"});

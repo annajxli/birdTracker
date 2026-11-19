@@ -1,16 +1,13 @@
 /**
- * Left edges for a row of labels, each centered on its mark where there's room. Labels that
- * would overlap move apart as a group, as little as they can, and every label stays inside
- * [0, span]. Labels are {center, width}, in order of center; returns their left edges in
- * the same order.
+ * Left edges for labels {center, width} (ordered by center): centered where there's room,
+ * overlapping ones moved apart as a group as little as possible, all inside [0, span].
  */
 export function spreadLabels(labels, span, gap = 4) {
   const clusters = [];
   for (const [i, {center, width}] of labels.entries()) {
     let c = {first: i, size: width, sum: center - width / 2, count: 1};
     c.left = clampLeft(c, span);
-    // Merge with the cluster before while they'd touch; the merged group sits where its
-    // labels' wanted left edges average out.
+        // Merge with the previous cluster while they'd touch; the group centers on its wanted edges' mean.
     while (clusters.length && clusters.at(-1).left + clusters.at(-1).size + gap > c.left) {
       const p = clusters.pop();
       const offset = p.size + gap;

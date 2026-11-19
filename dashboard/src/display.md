@@ -7,9 +7,8 @@ footer: false
 
 <link rel="stylesheet" href="./components/birds.css">
 
-<!-- A slideshow of the overview's charts for a screen on the wall: full width, one at a time,
-     advancing every SLIDE_SECONDS. Arrow keys or a tap step through; F or the button goes
-     fullscreen. Reloads every RELOAD_MINUTES to pick up new detections. -->
+<!-- A slideshow of the overview's charts for a wall screen, advancing every SLIDE_SECONDS (arrow
+     keys or a tap step; F toggles fullscreen). Reloads every RELOAD_MINUTES. -->
 
 <div class="display-skeleton" aria-hidden="true"><div class="skeleton" data-skeleton="cards" style="height: 70vh"><observablehq-loading></observablehq-loading></div></div>
 
@@ -31,11 +30,10 @@ setTimeout(() => location.reload(), RELOAD_MINUTES * 60e3);
 ```
 
 ```js
-// The window's height, live: entering fullscreen or resizing re-fits the slides in place
-// (reloading here would drop out of fullscreen).
+// The window's height, live: fullscreen or resize re-fits in place (a reload would exit fullscreen).
 const screenSize = Generators.observe((notify) => {
-  // Window resize events alone can fire before fullscreen has settled, so also watch the
-  // page's own box and the fullscreen change, and report the size once it stops changing.
+    // Resize events can fire before fullscreen settles, so also watch the page's box and
+    // fullscreenchange, and report once the size is stable.
   let last = "", frame;
   const update = () => {
     clearTimeout(frame);
@@ -50,8 +48,7 @@ const screenSize = Generators.observe((notify) => {
   observer.observe(document.documentElement);
   addEventListener("resize", update);
   document.addEventListener("fullscreenchange", update);
-  // Some changes (a viewport resize without a resize event) report no event at all; a cheap
-  // check twice a second catches them.
+    // Some viewport changes fire no event; poll twice a second.
   const poll = setInterval(update, 500);
   return () => { observer.disconnect(); clearInterval(poll); removeEventListener("resize", update); document.removeEventListener("fullscreenchange", update); };
 });
@@ -79,8 +76,7 @@ const wallHours = (iso) => { const [h, m] = new Date(iso).toLocaleTimeString("en
 const weekSun = weeks.map((w, row) => { const mid = sun[new Date(w + 3 * 864e5).toISOString().slice(0, 10)]; return mid && {row, sunrise: wallHours(mid.sunrise), sunset: wallHours(mid.sunset)}; }).filter(Boolean);
 const grid = weeks.flatMap((w, row) => d3.range(24).map((hour) => ({row, hour, perDay: (byWeekHour.get(w)?.get(hour) ?? 0) / weekDays.get(w)})));
 
-// A daily-rhythm timeline that fills the screen: open as many categories as fit (smallest first,
-// so the most categories show their species), then stretch the rows to use the height.
+// Daily-rhythm timeline: open as many categories as fit (smallest first), then stretch rows to fill.
 const timeline = (dates, spanDays) => {
   const rows = inSpan(dates);
   const sizes = d3.rollups(rows, (v) => new Set(v.map((d) => d.species)).size, (d) => categories.species[d.species] ?? "Other");
@@ -94,15 +90,11 @@ const timeline = (dates, spanDays) => {
 
 // Recently heard: photo cards (fixed 4:3 crop) with a few numbers and this week's minutes per day.
 const clock = (t) => t.toLocaleTimeString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", minute: "2-digit"});
-// Recently heard is laid out by CSS, not measured: a 5 × 2 grid that fills the screen below
-// the title (one row on very short screens), each card a column of photo, text and a
-// histogram that split the card's height about 60/40. So entering fullscreen or resizing
-// re-fits it instantly, with no JavaScript involved.
+// Laid out by CSS (a 5 × 2 grid, one row on very short screens), so resizing re-fits instantly.
 const MAX_CARDS = 10;
 const shown = recentSpecies(confident, {limit: MAX_CARDS});
 const dayLetter = (d) => new Date(d).toLocaleDateString("en-US", {timeZone: "UTC", weekday: "narrow"});
-// Minutes heard per day this week. Every card shares one scale (the busiest bird-day on screen);
-// the first card in each row shows it: a 0 tick and the top value.
+// Every card shares one scale (the busiest bird-day on screen); each row's first card labels it.
 const dailyMax = d3.max(shown, ({species}) => d3.max(week, (d) => perDay.get(species)?.get(d) ?? 0)) || 1;
 const spark = (species) => html`<div class="display-hist">
   <div class="display-hist-axis"><span>${d3.format(",.0f")(dailyMax)} min</span><span></span></div>

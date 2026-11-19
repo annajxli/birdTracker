@@ -1,15 +1,13 @@
-// Today's forecast from the National Weather Service (api.weather.gov), whose Seattle forecasters
-// adjust the models by hand, so it doesn't show model artifacts such as snow at 44 °F. The grid
-// cell is fixed: /points/47.68,-122.26 gives SEW 128,71.
+// Today's forecast from the National Weather Service (api.weather.gov), hand-adjusted by Seattle
+// forecasters so it avoids model artifacts. Grid cell fixed: /points/47.68,-122.26 gives SEW 128,71.
 export const NWS_GRID = "https://api.weather.gov/gridpoints/SEW/128,71";
 // Weather conditions ("Light Rain", "Cloudy") come from the nearest airport station.
 export const NWS_STATION = "https://api.weather.gov/stations/KBFI";
-// The current temperature comes from the nearest station with hourly temperatures. It reports no
-// conditions and sometimes skips an hour, so the airport's temperature stands in when it's stale.
+// Current temperature: the nearest hourly station, which reports no conditions and skips hours,
+// so the airport's temperature stands in when it's stale.
 export const NWS_TEMP_STATION = "https://api.weather.gov/stations/SEAW1";
 export const TEMP_MAX_AGE_MS = 2 * 36e5;
-// How long a weather request may take before the page falls back to the weather built into the
-// site. Without a limit, a stalled request leaves every chart that waits on the weather blank.
+// Request time limit before falling back to built-in weather, so a stall can't blank the charts.
 export const WEATHER_TIMEOUT_MS = 8000;
 
 /** JSON from url, rejecting on an HTTP error or after timeoutMs. */
@@ -17,9 +15,8 @@ export function fetchJSON(url, {headers, timeoutMs = WEATHER_TIMEOUT_MS, fetcher
   return fetcher(url, {headers, signal: AbortSignal.timeout(timeoutMs)}).then((r) => (r.ok ? r.json() : Promise.reject(r.status)));
 }
 
-// NWS short forecasts ("Light Rain Likely", "Partly Sunny") as the WMO weather codes the
-// dashboard's icons use. "Slight Chance" and "Chance" of precipitation count as cloudy: the
-// forecasters expect it less likely than not.
+// NWS short forecasts as the dashboard's WMO codes. "Slight Chance" and "Chance" count as cloudy
+// (less likely than not).
 export function nwsCode(text) {
   const t = text.toLowerCase();
   const likely = !/chance/.test(t) || /likely/.test(t);
@@ -40,10 +37,9 @@ const pacificDate = (t) => new Date(t).toLocaleDateString("en-CA", {timeZone: "A
 const pacificHour = (t) => +new Date(t).toLocaleString("en-US", {timeZone: "America/Los_Angeles", hour: "numeric", hourCycle: "h23"});
 
 /**
- * A Pacific day from NWS's hourly forecast, gridpoint data, and station observations: hourly
- * temperatures (°F, from the current hour on), the day's worst weather code, whether observed so
- * far or still forecast, and its precipitation (inches, the day's share of each forecast period).
- * Null when the forecast doesn't cover the day.
+ * A Pacific day from NWS forecast, gridpoint, and observation data: hourly °F from the current
+ * hour, the worst weather code, whether observed or forecast, and precipitation (inches, the
+ * day's share of each period). Null when the forecast doesn't cover the day.
  */
 export function nwsDay(day, hourlyPeriods, quantitativePrecipitation, observations = []) {
   const hourly = Array(24).fill(null);
@@ -73,9 +69,9 @@ export function nwsDay(day, hourlyPeriods, quantitativePrecipitation, observatio
 const celsiusToF = (c) => (c == null ? null : c * 9 / 5 + 32);
 
 /**
- * The airport station's newest observation with a description: {text, time, tempF, tempTime,
- * nearTemp}. The temperature is the newest of tempObservations if it's under TEMP_MAX_AGE_MS old
- * at `now` (nearTemp true), else the airport's. Null if no observation has a description.
+ * The airport's newest described observation: {text, time, tempF, tempTime, nearTemp}. The
+ * temperature comes from tempObservations when under TEMP_MAX_AGE_MS old (nearTemp), else the
+ * airport. Null if no observation has a description.
  */
 export function nwsNow(observations, tempObservations = [], now = Date.now()) {
   const newest = (list, keep) => [...list].map((f) => f.properties).filter(keep)
