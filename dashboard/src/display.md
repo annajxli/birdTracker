@@ -68,7 +68,7 @@ const weekMinutes = d3.rollups(weekRows, (v) => v.length, (d) => d.species)
   .sort((a, b) => b[1] - a[1]).slice(0, Math.max(5, Math.floor((H - 80) / 34))).map(([species, count]) => ({species, count}));
 const perDay = d3.rollup(weekRows, (v) => v.length, (d) => d.species, (d) => d.date);
 
-// When the yard is loud across the year (as on the overview): minutes of birdsong per day by week and hour.
+// Birdsong across the year (as on the overview): minutes of birdsong per day by week and hour.
 const yearRows = inSpan(yearDates);
 const weekOf = (date) => +d3.utcWeek.floor(new Date(date));
 const weekDays = d3.rollup(yearDates, (v) => v.length, weekOf);

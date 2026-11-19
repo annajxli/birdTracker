@@ -235,7 +235,7 @@ const timelineDates = rhythm.scale === "D" ? formatDate(date) : dateRange(rhythm
 
 ```js
 // Counts below are minutes, not raw 3-second detections: "minutes heard" per species,
-// and "minutes of birdsong" (clock minutes with any bird) for the whole yard.
+// and "minutes of birdsong" (clock minutes with any bird) for all species.
 const minutes = minutesHeard(rows);
 const songMinutes = birdsongMinutes(rows);
 
@@ -594,7 +594,7 @@ const speciesPerWeek = d3.rollup(presenceRows, (v) => new Set(v.map((d) => d.spe
 // Unrecorded weeks are left out (a gap), not drawn as zero species.
 const richness = weeks.map((w) => ({week: w, species: recordedDays.has(+w) ? speciesPerWeek.get(+w) ?? 0 : NaN}));
 
-// When the yard is loud across the year: minutes of birdsong per recorded day, by week and
+// Birdsong across the year: minutes of birdsong per recorded day, by week and
 // Pacific hour of day, with each week's sunrise and sunset (mid-week) as wall-clock hours.
 const songByWeekHour = d3.rollup(presenceRows, (v) => new Set(v.map((d) => Math.floor(+d.time / 6e4))).size, (d) => +week(d.date), (d) => d.hour);
 const songGrid = weeks.flatMap((w, row) => !recordedDays.has(+w) ? [] : d3.range(24).map((hour) => {

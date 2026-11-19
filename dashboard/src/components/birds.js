@@ -7,10 +7,9 @@ import * as htl from "npm:htl";
 import * as Plot from "npm:@observablehq/plot";
 
 /**
- * A table the recorder publishes (data/<name>.parquet). Fetched fresh from its bucket each time a
- * page opens (pipeline/publish.py uploads it every few minutes; the password Worker serves it), so
- * the pages stay current without a rebuild. Falls back to the copy built into the site when that
- * isn't reachable or is still empty (the local preview, or before the recorder has published).
+ * A published table (data/<name>.parquet), fetched fresh through the site's Worker so pages stay
+ * current without a rebuild. Falls back to the copy built into the site when that is unreachable
+ * or empty.
  */
 async function latestTable(name, builtIn, {fallback = true} = {}) {
   try {
@@ -111,9 +110,8 @@ export async function loadDetections({includeRejected = false, fallback = true} 
 export const reviewAt = (time) => new Date(time).toISOString().replace(/\.\d{3}Z$/, "Z");
 
 /**
- * Send a listener's verdict on detections ("confirmed", "rejected", or null to clear it), each
- * {at, scientific}. The Pi applies it at its next review check; the reviewing page shows it at once. Resolves to
- * whether the server took it.
+ * Send a verdict ("confirmed", "rejected", or null to clear) on detections, each {at, scientific}.
+ * The Pi applies it at its next review check. Resolves to whether the server accepted it.
  */
 export async function postReview(verdict, detections) {
   try {
@@ -205,10 +203,8 @@ export function rangeInput(value = "30 days") {
   return Inputs.radio(RANGES.keys(), {label: "Show last", value});
 }
 
-// Olive sequential ramps for counts ("Cedar & Olive"). Built in OKLCH with evenly
-// spaced lightness (OKLab L steps of ~0.095 light / ~0.108 dark), so equal steps in
-// value read as equal steps in color. Light runs pale -> dark; dark runs dark -> pale,
-// so zero always recedes toward the card.
+// Olive sequential ramps for counts, evenly spaced in OKLab lightness so equal steps in value
+// read as equal steps in color. Zero always recedes toward the card.
 const RAMP_LIGHT = ["#eaf5c8", "#c9d98e", "#aabc5b", "#8d9e36", "#728024", "#586226", "#40452d"];
 const RAMP_DARK = ["#262d05", "#414a02", "#5d6a00", "#7b8b1e", "#9cac54", "#bfcd8e", "#e5ecce"];
 export const MUTED = "#857866"; // 4:1 on both the light and the dark card
@@ -231,9 +227,8 @@ export function nameMargin(width) {
 
 /** Species-name axis that truncates long names on narrow charts. */
 /**
- * Plot render transform for tips written as sentences ("**43%** of days heard"): text between
- * ** in a tip's title is drawn bold. Plot itself only bolds channel names, which reads as a
- * form ("week Week of Nov 30"). Use as Plot.tip(data, Plot.pointer({title, render: boldMarkup})).
+ * Plot render transform that draws text between ** in a tip's title in bold.
+ * Use as Plot.tip(data, Plot.pointer({title, render: boldMarkup})).
  */
 export function boldMarkup(index, scales, values, dimensions, context, next) {
   const g = next(index, scales, values, dimensions, context);
@@ -253,9 +248,8 @@ export function boldMarkup(index, scales, values, dimensions, context, next) {
 }
 
 /**
- * Takes a chart's links out of the Tab order. Plot wraps every linked mark in its own <a>, so
- * a heatmap would otherwise make keyboard users tab through hundreds of cells. Mouse and touch
- * still follow the links.
+ * Takes a chart's links out of the Tab order, so keyboard users don't tab through every linked
+ * heatmap cell. Mouse and touch still follow the links.
  */
 export function untabbable(plot) {
   for (const a of plot.querySelectorAll("a")) a.setAttribute("tabindex", "-1");
@@ -465,11 +459,7 @@ function hatchMark(spans, top, bottom) {
   };
 }
 
-/**
- * Sun and moon labels sit just above the timeline's top horizontal rule. Each of sunrise and
- * sunset is [earliest, latest] over the days shown (the same time twice for one day); a range
- * is labelled "6:58a–7:40a".
- */
+/** Sun and moon labels above the timeline. Sunrise and sunset are each [earliest, latest] over the days shown. */
 // The sunrise or sunset label's text, and the span it takes to the right of its line.
 const sunText = ([t, last]) => (+last - +t >= 6e4 ? `${clockShort(t)}–${clockShort(last)}` : clockShort(t));
 let measureCtx;
@@ -516,8 +506,7 @@ function sunMarkers(sunrise, sunset, top) {
 }
 
 /**
- * Sunrise and sunset ticks below the x axis: a bar under the axis, pale yellow by day and dark blue
- * by night, crossed by a tick at each sunrise and sunset with the timeline's sun or moon icon below.
+ * Day and night bar below the x axis, with a tick and icon at each sunrise and sunset.
  * points: [{t, kind: "Sunrise" | "Sunset", at}], where t places the tick and at is the true time.
  * Needs about 28 px of marginBottom. Add sunTip(points) to the same plot for hover text.
  */
@@ -587,7 +576,7 @@ const DAYLIGHT_PAD = 30; // minutes shown beyond sunrise or the first detection,
 const DENSITY_FROM = 2; // spans this long are drawn as density strips, not ticks
 const BIN_MINUTES = 15;
 // Detections of a species less than this far apart are drawn as one bout (a bar from first
-// to last call). A guess from simulated data; see README "Tuning with real data".
+// to last call). A guess from simulated data; see docs/architecture.md, "How the dashboard counts".
 const BOUT_GAP_MINUTES = 2;
 const SEGMENT_MS = 3000; // BirdNET scores 3-second segments
 const EMPTY_ROWS = 3; // height of today's empty timeline, in species rows
@@ -848,10 +837,8 @@ export function dayTimeline(rows, sun, dates, {
   const recordedText = recordedShown && `Last updated ${clock(recordedUntil)}`;
   const recordedPlace = recordedShown && lastUpdatedPlace(d3.scaleTime(domain, [marginLeft, width - marginRight]), recordedAt, recordedText,
     [sunriseRange, sunsetRange].filter((r) => !isBand(r)), width);
-  // One day: stretches with no audio (up to where the recording so far ends) are hatched, so a
-  // missed stretch doesn't read as time without birds, nor as time not recorded yet. Only up to
-  // the newest recording in `audio`, too: the table can lag the live feed (it's uploaded every few
-  // minutes, or is the site's built copy when the fresh one can't load), and after it is unknown.
+  // One day: stretches with no audio are hatched, so they don't read as time without birds.
+  // Only up to the newest recording in `audio`: the table can lag the live feed.
   const noAudio = [];
   if (audio && n === 1) {
     const known = d3.max(audio, ([, b]) => b) ?? -Infinity;
@@ -1007,11 +994,9 @@ export function dayTicks(dates, plotWidth, {charPx = 5.8, pad = 10} = {}) {
 }
 
 /**
- * Weather: the copy built into the site (pipeline/weather.py, from Open-Meteo), with the last
- * month fetched fresh from Open-Meteo's forecast API when a page opens, so recent days don't
- * wait for a rebuild. Like the build, it stops at yesterday: today's numbers are still mostly
- * forecast. Today's weather, precipitation, and rest-of-day temperatures come from the National
- * Weather Service instead (nws.js), falling back to Open-Meteo's when NWS is unavailable.
+ * Weather: the built copy (pipeline/weather.py), with the last month refreshed from Open-Meteo
+ * through yesterday. Today comes from the National Weather Service (nws.js), falling back to
+ * Open-Meteo.
  */
 let recentWeather = null;
 async function nwsToday(today) {
@@ -1335,12 +1320,8 @@ function barSpan(date) {
 
 /**
  * Before -> after ("dumbbell") chart of each species' average minutes heard per day in two
- * periods: a hollow dot for the earlier period, a triangle at the later one pointing the way
- * the count moved, a line between them (rust = heard more, teal = heard less), and both values
- * written beside their dots, on the outside of each pair. A legend above ties each dot style to its period ("September", "October so far", or
- * dates), so the time spans read from the marks.
- *
- * changes: [{species, before, now}], average minutes heard per day.
+ * periods: hollow dot before, triangle after pointing the way it moved, rust for more and teal
+ * for less. changes: [{species, before, now}].
  */
 // `daily`: one day's minutes against the day before's, untested, and `asOf` the time a day still
 // being recorded runs until; otherwise per-day averages with their adjusted p-values.
@@ -1431,15 +1412,12 @@ export function changeChart(changes, {width, dark, beforeLabel, nowLabel, annota
 }
 
 /**
- * Mini species cards. Clicking or tapping a species name anywhere on the page (a chart's name
- * axis, or a link to a species page: Recently heard, the Most heard stat, table rows) opens a
- * small card in place of following the link: photo, names, category, a few numbers, and a
- * "More details" link to the species page. With a mouse, hovering a name opens it too. Chart
- * marks (bars, cells) are data and keep their own tooltips. info(species) returns {photo, scientific, category, rows: [[label, value]]},
- * or null for labels that aren't species (category headers, block titles). Returns a function
- * that removes the listeners. Elements matching `hover` (with the name in data-species) open the
- * card on hover only; their clicks stay the page's own (the Live labels jump to their run).
- * With `newTab`, "More details" opens in a new tab, so the page behind it keeps running.
+ * Mini species cards: clicking (or, with a mouse, hovering) a species name or species link opens a
+ * small card instead of following the link. Chart marks keep their own tooltips.
+ * info(species) returns {photo, scientific, category, rows: [[label, value]]}, or null for
+ * non-species labels. Elements matching `hover` (name in data-species) open the card on hover
+ * only and keep their own clicks. With `newTab`, "More details" opens in a new tab.
+ * Returns a function that removes the listeners.
  */
 export function speciesCards(info, {hover = null, newTab = false} = {}) {
   const LABELS = 'g[aria-label="y-axis tick label"] text';

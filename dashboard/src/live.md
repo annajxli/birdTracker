@@ -5,16 +5,10 @@ toc: false
 
 <link rel="stylesheet" href="./components/birds.css">
 
-<!-- The recorder, a minute or two behind: the analyzer draws a spectrogram strip of each minute
-     of audio, saves its sound as MP3 and lists that minute's detections in live.json;
-     pipeline/publish.py uploads them to R2 and the password Worker serves them under /api/live/.
-     This page polls live.json, lays the strips out by their start time and names the birds above
-     them. A playhead (the line) marks the moment being shown or heard. Live, it runs far enough
-     behind the recording that the next minute has arrived before it gets there; clicking the
-     spectrogram moves the playhead there, and the transport buttons (or space, arrow keys, L)
-     unmute, step 10 s and return to live. Time always runs: the sound only mutes and unmutes
-     (muted to start). The view keeps the playhead in place; scrolling by hand frees the view
-     without stopping it. -->
+<!-- Polls live.json (served by the site's Worker under /api/live/), lays out each minute's
+     spectrogram strip by start time, and names the birds above them. The playhead runs far
+     enough behind the recording that the next minute arrives first. Time always runs; the
+     sound only mutes and unmutes. -->
 
 ```js
 import {detectionStarts, speciesActivity, detectingAt} from "./components/live-activity.js";
@@ -406,13 +400,9 @@ function draw() {
     tick.textContent = time(new Date(t), step < 60e3);
     track.append(tick);
   }
-  // Names above the strips, in lanes so they don't overlap; a run that finds no free lane is
-  // left out. Every BirdNET detection is shown with its score as a percentage: ones at the
-  // dashboard's threshold in bold, weaker ones faint with a question mark, so where BirdNET is torn between
-  // species, the candidates show side by side. Confident runs are placed first, then non-bird
-  // sounds, then the rest by score, so a crowded stretch keeps its surest names.
-  // Text lanes are assigned using visible, edge-clamped positions below.
-  // Unidentified runs have no detections (`dets`), so no species threshold: never sure.
+  // Names above the strips, in non-overlapping lanes; a run with no free lane is left out.
+  // Confident runs are placed first, then non-bird sounds, then the rest by score, so a crowded
+  // stretch keeps its surest names. Unidentified runs have no `dets`, so are never sure.
   const sure = (r) => includedDetection({confidence: r.best, review: r.review, scientific_name: r.dets?.[0]?.scientific_name}, minConf(), thresholdsFile?.species);
   const birdRuns = groupRuns(runs(shown, 0), sure).sort((a, b) => b.best - a.best);
   const placeBird = (r) => {
@@ -491,14 +481,9 @@ function draw() {
   drawOverview();
 }
 
-// An overview above the spectrogram whose range follows the span: 1 min shows an hour in minute
-// bars, 5 min six hours in 5-minute bars, 15 min a day in 15-minute bars, 1 hour three days
-// in half hours. Bars are taller the more of their time had a bird at the
-// dashboard's threshold, short for audio with none, a stub where there's no audio. The window
-// follows the playhead until ‹ › (or shift ← →) move it, a window (or, for three days, a day) at
-// a time, back through the KEEP_DAYS kept; going live lets it follow again. Times in the strips
-// loaded come from them; three-day views fill older hours from live/days.json's hourly counts.
-// The spectrogram's view is outlined and the playhead marked; click to jump there.
+// Overview bars above the spectrogram, with a range that follows the span. The window follows
+// the playhead until ‹ › move it (back through KEEP_DAYS); going live follows again. Three-day
+// views fill hours not loaded from live/days.json's hourly counts.
 const overview = document.getElementById("live-overview");
 const overviewRow = document.getElementById("live-overview-row");
 const KEEP_DAYS = 7;
@@ -823,23 +808,15 @@ invalidation.then(stopCards);
 const freeView = () => { tracking = false; };
 for (const type of ["wheel", "touchstart", "mousedown"]) scroller.addEventListener(type, freeView, {passive: true});
 
-// Bird boost: one switch for everything that brings the birds forward, remembered per viewer.
-// - It plays each minute's cleaned copy (strip.clean: the Pi has already turned the steady
-//   background down, per frequency, before encoding; pipeline/denoise.py).
-// - Two filters: a high-pass at 1 kHz takes away the low rumble (wind, traffic, the house,
-//   voices) that covers most songbirds, and a broad lift of 6 dB around 4 kHz brings out where
-//   they sing. Low-voiced birds (doves, owls, crows) go thin with it, which is why it's a switch.
-// - Calls up front: between BirdNET's detections the sound dips DUCK_DB (never silent, so the
-//   backyard and the calls it missed still come through); it rises to full DUCK_LEAD ms before a
-//   detection's 3 s window and falls DUCK_TAIL ms after it. A "?" detection (below its threshold)
-//   opens it halfway. The page is a minute behind, so every detection is known before it plays.
-// After it, always, leveling: the recorder keeps its gain fixed so stored audio keeps true
-// loudness, which leaves it quiet (background about -60 dBFS, bird calls peaking around -42).
-// MAKEUP_DB brings that up to an ordinary volume; a compressor above the background then holds
-// loud sounds back (a voice near the mic ends up only a few dB above a bird call, not 20), so
-// quiet birds come up without close voices blasting; a limiter at -3 dBFS catches the rest
-// (a door, the board being handled), and a soft clipper rounds off the few clicks too sharp for
-// it. Set up on the first play (browsers only allow sound after a tap), on the one audio element.
+// Bird boost (remembered per viewer):
+// - Plays each minute's denoised copy (strip.clean; pipeline/denoise.py).
+// - High-pass at 1 kHz and a 6 dB lift around 4 kHz. Low-voiced birds go thin, hence a switch.
+// - Between detections the sound dips DUCK_DB (never silent, so missed calls still come
+//   through), opening DUCK_LEAD ms before and DUCK_TAIL ms after each 3 s window; halfway for
+//   a "?" detection. The page runs a minute behind, so detections are known in advance.
+// Always: the recorder's gain is fixed, so audio is quiet (background about -60 dBFS). MAKEUP_DB
+// raises it, a compressor tames close voices, a -3 dBFS limiter and soft clipper catch peaks.
+// Built on first play, since browsers only allow sound after a tap.
 const MAKEUP_DB = 30, DUCK_DB = 12, DUCK_LEAD = 500, DUCK_TAIL = 500;
 const BOOST_KEY = "birdtracker-live-boost";
 let boost = false, audio = null; // audio: {context, source, chain, out, duck}
@@ -1041,12 +1018,8 @@ track.addEventListener("click", (event) => {
   seek(tAt(scroller.scrollLeft + event.clientX - box.left), at);
 });
 
-// The last hour as a chart: a row per species, in the order they were first heard (so a new bird
-// is added at the bottom), with a cell for each clock minute it was heard in (the site's
-// "minutes heard"); neighbouring minutes join into one bar, the latest drawn darker. On the
-// right: the minutes in total and when it was last heard. The stretch the spectrogram shows is
-// shaded, and scrolling the spectrogram moves the chart's hour with it; clicking the chart takes
-// the spectrogram (and the sound, if on) to that moment.
+// The last hour as a chart: a row per species, first heard first, with a cell per minute heard.
+// It shades and follows the spectrogram's view; clicking it seeks there.
 let hourView = null; // {w0, w1}: the chart's time range
 // Row order: first heard (the default; new birds join at the bottom), total minutes or last heard,
 // either way round. Clicking a column's header sorts by it, again reverses it; First heard resets.

@@ -5,11 +5,8 @@ toc: false
 
 <link rel="stylesheet" href="./components/birds.css">
 
-<!-- How well the recorder is doing its job: whether audio arrived (coverage), what it sounded
-     like (background level), how it got here (wifi), and how fast it became detections
-     (pipeline delay). One row per uploaded recording, from the recordings table. Above them, the
-     indoor computer's health, from the status.json pipeline/publish.py writes there each minute
-     (re-read while the page is open, so it's current without a rebuild). -->
+<!-- Recorder health from the recordings table (one row per upload), and the indoor computer's
+     health from status.json (re-read while the page is open). -->
 
 ```js
 import {spreadLabels} from "./components/meter-ticks.js";
