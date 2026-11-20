@@ -1,8 +1,19 @@
 # Bird Tracker
 
-Bird Tracker identifies birds by sound. An outdoor recorder streams audio to
-an indoor computer, [BirdNET](https://github.com/birdnet-team/BirdNET-Analyzer)
-identifies the birds, and a dashboard shows what was heard and when.
+Bird Tracker identifies birds by their songs and calls, and shows what it heard
+on a web dashboard. An outdoor recorder, a DFRobot FireBeetle 2 ESP32-E with an
+INMP441 I²S microphone, streams audio over Wi-Fi to a Raspberry Pi 3B+ indoors.
+The Pi identifies birds with
+[BirdNET](https://github.com/birdnet-team/BirdNET-Analyzer) and publishes the
+results to a dashboard.
+
+![Daily minutes of birdsong over a month, with weather and temperature](docs/images/activity.png)
+
+![Detections by species across one day, between sunrise and sunset](docs/images/raster.png)
+
+![The Live page: a scrolling spectrogram with identified birds](docs/images/live.png)
+
+![Recorder and Raspberry Pi health on the Hardware analytics page](docs/images/hardware.png)
 
 ## Quickstart
 
