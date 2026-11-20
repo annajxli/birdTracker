@@ -1,7 +1,7 @@
 # Bird Tracker
 
-Bird Tracker identifies birds by their songs and calls, and shows what it heard
-on a web dashboard. An outdoor recorder, a DFRobot FireBeetle 2 ESP32-E with an
+Bird Tracker identifies birds by their songs and calls and visualizes detection
+data. An outdoor recorder, a DFRobot FireBeetle 2 ESP32-E with an
 INMP441 I²S microphone, streams audio over Wi-Fi to a Raspberry Pi 3B+ indoors.
 The Pi identifies birds with
 [BirdNET](https://github.com/birdnet-team/BirdNET-Analyzer) and publishes the
