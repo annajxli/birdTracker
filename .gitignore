@@ -15,7 +15,7 @@ data/clips/
 data/live/
 data/*.sqlite
 data/.analyzer.lock
-deploy/.wrangler/
+.wrangler/
 
 # Firmware wifi credentials and tokens; publish.py's R2 keys
 publish.env
